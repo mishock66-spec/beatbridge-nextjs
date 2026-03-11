@@ -77,9 +77,12 @@ export default function ConnectionCard({
   // Use customTemplate if set, otherwise fall back to the original from props
   const activeTemplate = customTemplate ?? record.template;
 
+  // Matches [LINK], [YOUR LINK], [YOUR LISTENING LINK] — covers all Airtable placeholder variants
+  const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
+
   const resolvedTemplate =
     listeningLink && activeTemplate
-      ? activeTemplate.replace(/\[YOUR LINK\]/gi, listeningLink)
+      ? activeTemplate.replace(LINK_PLACEHOLDER_RE, listeningLink)
       : activeTemplate;
 
   function handleCopyDM() {
@@ -127,8 +130,8 @@ export default function ConnectionCard({
           `<mark style="background-color:rgba(251,191,36,0.15);color:rgb(252,211,77);border-radius:3px;padding:0 3px;font-weight:600;">${listeningLink}</mark>`
         )
       : resolvedTemplate.replace(
-          /\[YOUR LINK\]/gi,
-          '<mark style="background-color:rgba(251,191,36,0.3);color:rgb(252,211,77);border-radius:3px;padding:0 3px;font-weight:600;">[YOUR LINK]</mark>'
+          LINK_PLACEHOLDER_RE,
+          (match) => `<mark style="background-color:rgba(251,191,36,0.3);color:rgb(252,211,77);border-radius:3px;padding:0 3px;font-weight:600;">${match}</mark>`
         )
     : "";
 
