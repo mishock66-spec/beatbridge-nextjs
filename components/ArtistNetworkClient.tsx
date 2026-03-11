@@ -18,9 +18,9 @@ const FILTER_TYPES = [
 
 function Skeleton() {
   return (
-    <div className="bg-[#1a1a1a] border border-white/5 rounded-2xl p-5 animate-pulse">
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 animate-pulse">
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-14 h-14 rounded-full bg-white/5" />
+        <div className="w-16 h-16 rounded-xl bg-white/5" />
         <div className="flex-1">
           <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
           <div className="h-3 bg-white/5 rounded w-1/2 mb-2" />
@@ -80,24 +80,24 @@ export default function ArtistNetworkClient({
           value={listeningLink}
           onChange={(e) => setListeningLink(e.target.value)}
           placeholder="Paste your SoundCloud, YouTube or BeatStars link..."
-          className="w-full bg-[#1a1a1a] border border-white/10 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-400/50 focus:bg-[#1f1f1f] transition-colors"
+          className="w-full bg-[#111111] border border-[#1f1f1f] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:bg-[#161616] transition-colors"
         />
         {listeningLink && (
-          <p className="text-xs text-amber-400/70 mt-1.5">
+          <p className="text-xs text-orange-400/70 mt-1.5">
             ✓ [YOUR LINK] replaced in all DM templates
           </p>
         )}
       </div>
 
       {/* Filters + Search */}
-      <div className="sticky top-16 z-40 bg-[#0f0f0f]/95 backdrop-blur-sm py-4 mb-8 border-b border-white/5">
+      <div className="sticky top-16 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm py-4 mb-8 border-b border-[#1f1f1f]">
         <div className="flex flex-col gap-4">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, handle, or keyword..."
-            className="w-full sm:max-w-sm bg-[#1a1a1a] border border-white/10 rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-amber-400/50"
+            className="w-full sm:max-w-sm bg-[#111111] border border-[#1f1f1f] rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
           />
           <div className="flex gap-2 flex-wrap">
             {FILTER_TYPES.map((type) => {
@@ -109,15 +109,15 @@ export default function ArtistNetworkClient({
                   onClick={() => setActiveFilter(type)}
                   className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 ${
                     activeFilter === type
-                      ? "bg-amber-400 text-black border-amber-400"
-                      : "border-white/10 text-gray-400 hover:border-amber-400/40 hover:text-amber-400"
+                      ? "bg-orange-500 text-white border-orange-500"
+                      : "border-[#1f1f1f] text-gray-400 hover:border-orange-500/40 hover:text-orange-400"
                   }`}
                 >
                   {type}
                   {count > 0 && (
                     <span
                       className={`ml-1.5 text-xs ${
-                        activeFilter === type ? "text-black/60" : "text-gray-600"
+                        activeFilter === type ? "text-white/60" : "text-gray-600"
                       }`}
                     >
                       {count}
