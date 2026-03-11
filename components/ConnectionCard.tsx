@@ -67,13 +67,20 @@ export default function ConnectionCard({
   listeningLink: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const [sentDM, setSentDM] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [customTemplate, setCustomTemplate] = useState<string | null>(null);
+  const [draftTemplate, setDraftTemplate] = useState("");
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;
 
+  // Use customTemplate if set, otherwise fall back to the original from props
+  const activeTemplate = customTemplate ?? record.template;
+
   const resolvedTemplate =
-    listeningLink && record.template
-      ? record.template.replace(/\[YOUR LINK\]/gi, listeningLink)
-      : record.template;
+    listeningLink && activeTemplate
+      ? activeTemplate.replace(/\[YOUR LINK\]/gi, listeningLink)
+      : activeTemplate;
 
   function handleCopyDM() {
     if (!resolvedTemplate) return;
@@ -81,6 +88,31 @@ export default function ConnectionCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
+  }
+
+  function handleSendDM() {
+    if (!resolvedTemplate || !record.profileUrl) return;
+    navigator.clipboard.writeText(resolvedTemplate).then(() => {
+      setSentDM(true);
+      window.open(record.profileUrl, "_blank", "noopener,noreferrer");
+      setTimeout(() => setSentDM(false), 4000);
+    });
+  }
+
+  function handleEditClick() {
+    setDraftTemplate(activeTemplate);
+    setIsEditing(true);
+  }
+
+  function handleSave() {
+    setCustomTemplate(draftTemplate);
+    setIsEditing(false);
+  }
+
+  function handleReset() {
+    setCustomTemplate(null);
+    setDraftTemplate("");
+    setIsEditing(false);
   }
 
   const highlightedTemplate = resolvedTemplate
@@ -125,42 +157,102 @@ export default function ConnectionCard({
 
       {/* Description */}
       {record.description && (
-        <p className="text-gray-400 text-sm leading-relaxed line-clamp-3">
+        <p className="text-gray-400 text-sm leading-relaxed">
           {record.description}
         </p>
       )}
 
-      {/* DM Template Preview */}
+      {/* DM Template */}
       {record.template && (
         <div className="bg-[#0f0f0f] rounded-xl p-3 border border-white/5">
-          <p className="text-xs text-gray-500 mb-1.5 font-medium uppercase tracking-wider">
-            DM Template
-          </p>
-          <p
-            className="text-gray-300 text-xs leading-relaxed line-clamp-3"
-            dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
-          />
+          {/* Label row */}
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+              DM Template
+              {customTemplate !== null && (
+                <span className="ml-2 text-amber-400/60 normal-case tracking-normal font-normal">
+                  (edited)
+                </span>
+              )}
+            </p>
+            {!isEditing && (
+              <button
+                onClick={handleEditClick}
+                className="text-xs text-gray-500 hover:text-amber-400 transition-colors px-1.5 py-0.5 rounded hover:bg-amber-400/10"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {/* Edit mode */}
+          {isEditing ? (
+            <div className="flex flex-col gap-2">
+              <textarea
+                value={draftTemplate}
+                onChange={(e) => setDraftTemplate(e.target.value)}
+                rows={6}
+                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-gray-300 text-xs leading-relaxed focus:outline-none focus:border-amber-400/50 resize-y"
+              />
+              <div className="flex gap-2">
+                <button
+                  onClick={handleSave}
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleReset}
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/10 text-gray-400 hover:border-white/30 hover:text-white transition-colors"
+                >
+                  Reset to default
+                </button>
+              </div>
+            </div>
+          ) : (
+            <p
+              className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
+            />
+          )}
         </div>
       )}
 
       {/* Actions */}
-      <div className="flex gap-2 mt-auto pt-1">
-        <button
-          onClick={handleCopyDM}
-          disabled={!record.template}
-          className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-amber-400 text-black hover:bg-amber-300 active:scale-95"
-        >
-          {copied ? "✓ Copied!" : "Copy DM"}
-        </button>
-        {record.profileUrl && (
-          <a
-            href={record.profileUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-white/10 text-gray-300 hover:border-amber-400/50 hover:text-amber-400 transition-all duration-150 active:scale-95 text-center"
+      <div className="flex flex-col gap-2 mt-auto pt-1">
+        <div className="flex gap-2">
+          <button
+            onClick={handleCopyDM}
+            disabled={!record.template}
+            className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-amber-400 text-black hover:bg-amber-300 active:scale-95"
           >
-            Open Instagram
-          </a>
+            {copied ? "✓ Copied!" : "Copy DM"}
+          </button>
+          {record.profileUrl && record.template && (
+            <button
+              onClick={handleSendDM}
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-amber-400/40 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/70 transition-all duration-150 active:scale-95"
+            >
+              {sentDM ? "✓ Sent!" : "Send DM →"}
+            </button>
+          )}
+          {record.profileUrl && !record.template && (
+            <a
+              href={record.profileUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-white/10 text-gray-300 hover:border-amber-400/50 hover:text-amber-400 transition-all duration-150 active:scale-95 text-center"
+            >
+              Open Instagram
+            </a>
+          )}
+        </div>
+
+        {/* Send DM tooltip */}
+        {sentDM && (
+          <p className="text-xs text-amber-400/80 text-center">
+            DM copied — paste it in Instagram (Ctrl+V)
+          </p>
         )}
       </div>
     </div>
