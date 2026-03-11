@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 
+export const revalidate = 3600;
+
 const ARTIST_META: Record<
   string,
   { name: string; subtitle: string; igHandle: string | null; photo?: string; bio: string }
@@ -10,7 +12,7 @@ const ARTIST_META: Record<
     name: "Curren$y",
     subtitle: "Jet Life Recordings · New Orleans, LA",
     igHandle: null,
-    photo: "https://d2xsxph8kpxj0f.cloudfront.net/310419663031713010/QwcoaPZqf6DtLHpYEiZeQF/bb-currensy-TzRH94XbXeuEbmXUREHpHv.webp",
+    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
     bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
   },
 };
@@ -73,6 +75,9 @@ export default async function ArtistNetwork({
                 src={meta.photo}
                 alt={meta.name}
                 className="w-full h-full object-cover"
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore — fetchpriority is a valid HTML attribute
+                fetchpriority="high"
               />
             ) : meta.igHandle ? (
               // eslint-disable-next-line @next/next/no-img-element

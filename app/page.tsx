@@ -29,7 +29,7 @@ const PREVIEW_ARTISTS = [
     slug: "currensy",
     free: true,
     connections: 29,
-    igHandle: "currencyspitta",
+    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
   },
   {
     name: "Wiz Khalifa",
@@ -37,7 +37,7 @@ const PREVIEW_ARTISTS = [
     slug: null,
     free: false,
     connections: 40,
-    igHandle: null,
+    photo: null,
   },
   {
     name: "Freddie Gibbs",
@@ -45,7 +45,7 @@ const PREVIEW_ARTISTS = [
     slug: null,
     free: false,
     connections: 35,
-    igHandle: null,
+    photo: null,
   },
 ];
 
@@ -54,15 +54,15 @@ export default function Home() {
     <div className="min-h-screen">
       {/* Hero */}
       <section className="relative pt-24 pb-32 px-4 overflow-hidden">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(245,158,11,0.1),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_50%_at_50%_-20%,rgba(249,115,22,0.1),transparent)]" />
         <div className="max-w-4xl mx-auto text-center relative">
-          <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 rounded-full px-4 py-1.5 text-amber-400 text-xs font-semibold mb-8 tracking-wide uppercase">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 text-orange-500 text-xs font-semibold mb-8 tracking-wide uppercase">
             Hip-Hop Networking Tool
           </div>
           <h1 className="text-5xl sm:text-6xl md:text-7xl font-black leading-tight tracking-tight mb-6">
             Stop cold-DMing.
             <br />
-            <span className="text-amber-400">Start networking.</span>
+            <span className="text-orange-500">Start networking.</span>
           </h1>
           <p className="text-gray-400 text-lg sm:text-xl max-w-2xl mx-auto leading-relaxed mb-10">
             BeatBridge maps the Instagram connections of established hip-hop
@@ -72,13 +72,13 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/artists"
-              className="bg-amber-400 text-black font-bold px-8 py-4 rounded-full hover:bg-amber-300 transition-colors text-base"
+              className="bg-orange-500 text-white font-bold px-8 py-4 rounded-full hover:bg-orange-400 transition-colors text-base"
             >
               Explore Networks →
             </Link>
             <a
               href="#waitlist"
-              className="border border-white/10 text-white font-semibold px-8 py-4 rounded-full hover:border-amber-400/40 hover:text-amber-400 transition-colors text-base"
+              className="border border-white/10 text-white font-semibold px-8 py-4 rounded-full hover:border-orange-500/40 hover:text-orange-500 transition-colors text-base"
             >
               Get Early Access
             </a>
@@ -100,7 +100,7 @@ export default function Home() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {STEPS.map((step) => (
               <div key={step.number} className="relative">
-                <div className="text-6xl font-black text-amber-400/10 mb-4 leading-none">
+                <div className="text-6xl font-black text-orange-500/10 mb-4 leading-none">
                   {step.number}
                 </div>
                 <h3 className="text-xl font-bold mb-3">{step.title}</h3>
@@ -127,7 +127,7 @@ export default function Home() {
             </div>
             <Link
               href="/artists"
-              className="text-amber-400 text-sm font-semibold hover:text-amber-300 transition-colors hidden sm:block"
+              className="text-orange-500 text-sm font-semibold hover:text-orange-400 transition-colors hidden sm:block"
             >
               View all →
             </Link>
@@ -137,24 +137,25 @@ export default function Home() {
             {PREVIEW_ARTISTS.map((artist) => (
               <div
                 key={artist.name}
-                className={`bg-[#1a1a1a] border rounded-2xl p-6 relative overflow-hidden transition-all duration-200 ${
+                className={`bg-[#111111] border rounded-2xl p-6 relative overflow-hidden transition-all duration-200 ${
                   artist.free
-                    ? "border-amber-400/30 hover:border-amber-400/60 cursor-pointer"
-                    : "border-white/5 opacity-60"
+                    ? "border-orange-500/30 hover:border-orange-500/60 cursor-pointer"
+                    : "border-[#1f1f1f] opacity-60"
                 }`}
               >
                 {!artist.free && (
-                  <div className="absolute top-4 right-4 bg-amber-400/20 text-amber-400 text-xs font-bold px-2 py-0.5 rounded-full border border-amber-400/30">
+                  <div className="absolute top-4 right-4 bg-orange-500/20 text-orange-400 text-xs font-bold px-2 py-0.5 rounded-full border border-orange-500/30">
                     PRO
                   </div>
                 )}
-                <div className="w-16 h-16 rounded-full bg-[#2a2a2a] mb-4 overflow-hidden">
-                  {artist.igHandle ? (
+                <div className="w-16 h-16 rounded-xl bg-[#1a1a1a] mb-4 overflow-hidden">
+                  {artist.photo ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={`https://unavatar.io/instagram/${artist.igHandle}`}
+                      src={artist.photo}
                       alt={artist.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xl font-black text-gray-600">
@@ -164,13 +165,13 @@ export default function Home() {
                 </div>
                 <h3 className="font-bold text-lg">{artist.name}</h3>
                 <p className="text-gray-500 text-sm mb-3">{artist.subtitle}</p>
-                <p className="text-amber-400 text-xs font-semibold">
+                <p className="text-orange-500 text-xs font-semibold">
                   {artist.connections} connections mapped
                 </p>
                 {artist.free && artist.slug && (
                   <Link
                     href={`/artist/${artist.slug}`}
-                    className="mt-4 block text-center text-sm font-bold bg-amber-400 text-black px-4 py-2 rounded-full hover:bg-amber-300 transition-colors"
+                    className="mt-4 block text-center text-sm font-bold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
                   >
                     Explore Network
                   </Link>
@@ -182,7 +183,7 @@ export default function Home() {
           <div className="text-center mt-8">
             <Link
               href="/artists"
-              className="text-amber-400 text-sm font-semibold hover:text-amber-300 sm:hidden"
+              className="text-orange-500 text-sm font-semibold hover:text-orange-400 sm:hidden"
             >
               View all artists →
             </Link>
@@ -195,7 +196,7 @@ export default function Home() {
         <div className="max-w-xl mx-auto text-center">
           <div className="text-5xl mb-6">🎤</div>
           <h2 className="text-3xl sm:text-4xl font-black mb-4">
-            More artists. <span className="text-amber-400">Coming soon.</span>
+            More artists. <span className="text-orange-500">Coming soon.</span>
           </h2>
           <p className="text-gray-400 mb-10 leading-relaxed">
             We&apos;re mapping more networks every week. Get on the waitlist and
@@ -208,7 +209,7 @@ export default function Home() {
       {/* Footer */}
       <footer className="border-t border-white/5 py-10 px-4 text-center text-gray-600 text-sm">
         <p className="font-bold text-white mb-1">
-          Beat<span className="text-amber-400">Bridge</span>
+          Beat<span className="text-orange-500">Bridge</span>
         </p>
         <p>© 2025 BeatBridge. Built for the independent grind.</p>
       </footer>
