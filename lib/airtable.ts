@@ -7,6 +7,7 @@ export type AirtableRecord = {
   profileType: string;
   template: string;
   description: string;
+  instagramDmId: string;
 };
 
 function mapRecord(record: {
@@ -23,6 +24,7 @@ function mapRecord(record: {
     profileType: (f["Type de profil"] as string) || "Other",
     template: (f["template"] as string) || "",
     description: (f["Analyse de profil"] as string) || "",
+    instagramDmId: (f["Instagram DM ID"] as string) || "",
   };
 }
 

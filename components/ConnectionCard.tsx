@@ -92,11 +92,12 @@ export default function ConnectionCard({
 
   function handleSendDM() {
     if (!resolvedTemplate) return;
-    const username = record.username.replace("@", "");
-    const dmUrl = `https://www.instagram.com/direct/new/?text=${encodeURIComponent(resolvedTemplate)}&username=${username}`;
+    const dmUrl = record.instagramDmId
+      ? `https://www.instagram.com/direct/t/${record.instagramDmId}/`
+      : record.profileUrl;
     navigator.clipboard.writeText(resolvedTemplate).then(() => {
       setSentDM(true);
-      window.open(dmUrl, "_blank", "noopener,noreferrer");
+      if (dmUrl) window.open(dmUrl, "_blank", "noopener,noreferrer");
       setTimeout(() => setSentDM(false), 4000);
     });
   }
