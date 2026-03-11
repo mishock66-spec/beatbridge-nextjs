@@ -91,10 +91,12 @@ export default function ConnectionCard({
   }
 
   function handleSendDM() {
-    if (!resolvedTemplate || !record.profileUrl) return;
+    if (!resolvedTemplate) return;
+    const username = record.username.replace("@", "");
+    const dmUrl = `https://www.instagram.com/direct/new/?text=${encodeURIComponent(resolvedTemplate)}&username=${username}`;
     navigator.clipboard.writeText(resolvedTemplate).then(() => {
       setSentDM(true);
-      window.open(record.profileUrl, "_blank", "noopener,noreferrer");
+      window.open(dmUrl, "_blank", "noopener,noreferrer");
       setTimeout(() => setSentDM(false), 4000);
     });
   }
@@ -228,7 +230,7 @@ export default function ConnectionCard({
           >
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
-          {record.profileUrl && record.template && (
+          {record.template && (
             <button
               onClick={handleSendDM}
               className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-amber-400/40 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/70 transition-all duration-150 active:scale-95"
