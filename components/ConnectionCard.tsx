@@ -5,20 +5,80 @@ import type { AirtableRecord } from "@/lib/airtable";
 
 const TYPE_COLORS: Record<string, string> = {
   Beatmaker: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  Producteur: "bg-purple-500/20 text-purple-300 border-purple-500/30",
   Label: "bg-blue-500/20 text-blue-300 border-blue-500/30",
   Engineer: "bg-green-500/20 text-green-300 border-green-500/30",
+  "Ingé son": "bg-green-500/20 text-green-300 border-green-500/30",
   DJ: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   Manager: "bg-red-500/20 text-red-300 border-red-500/30",
+  "Manager/A&R": "bg-red-500/20 text-red-300 border-red-500/30",
   Studio: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
   Journalist: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Media: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Photographe: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Vidéaste: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Artist: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  Artiste: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  Rappeur: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  Entrepreneur: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+  Entourage: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+  Autre: "bg-gray-500/20 text-gray-300 border-gray-500/30",
   Other: "bg-gray-500/20 text-gray-300 border-gray-500/30",
 };
 
-function getInitials(name: string) {
-  if (!name) return "?";
-  const parts = name.trim().split(/\s+/);
-  if (parts.length === 1) return parts[0][0].toUpperCase();
-  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+const TYPE_EMOJI: Record<string, string> = {
+  Beatmaker: "🎹",
+  Producer: "🎹",
+  Producteur: "🎹",
+  "Producer / Beatmaker": "🎹",
+  "Producer / Beatmaker / Producteur": "🎹",
+  Label: "💿",
+  DJ: "🎧",
+  Studio: "🎙️",
+  Manager: "📋",
+  "Manager/A&R": "📋",
+  "Manager / A&R": "📋",
+  Engineer: "🔊",
+  "Ingé son": "🔊",
+  Artist: "🎨",
+  Artiste: "🎨",
+  Rappeur: "🎨",
+  Journalist: "📰",
+  Media: "📰",
+  Photographe: "📰",
+  Vidéaste: "📰",
+  Entrepreneur: "💼",
+  Entourage: "💼",
+  Autre: "💼",
+  Other: "💼",
+};
+
+function getTypeEmoji(profileType: string): string {
+  if (!profileType) return "✦";
+  // Exact match first
+  if (TYPE_EMOJI[profileType]) return TYPE_EMOJI[profileType];
+  // Partial match (for compound types like "Producer / Beatmaker / Producteur")
+  const lower = profileType.toLowerCase();
+  if (lower.includes("beat") || lower.includes("produc")) return "🎹";
+  if (lower.includes("label")) return "💿";
+  if (lower.includes("dj")) return "🎧";
+  if (lower.includes("studio")) return "🎙️";
+  if (lower.includes("manager") || lower.includes("a&r")) return "📋";
+  if (lower.includes("engin") || lower.includes("ingé") || lower.includes("inge")) return "🔊";
+  if (lower.includes("artist") || lower.includes("artiste") || lower.includes("rappeur")) return "🎨";
+  if (lower.includes("media") || lower.includes("photo") || lower.includes("vid")) return "📰";
+  if (lower.includes("entrepreneur") || lower.includes("entourage") || lower.includes("autre") || lower.includes("other")) return "💼";
+  return "✦";
+}
+
+function TypeEmoji({ profileType }: { profileType: string }) {
+  const emoji = getTypeEmoji(profileType);
+  return (
+    <div className="w-16 h-16 bg-gray-800 rounded-xl flex items-center justify-center text-3xl flex-shrink-0">
+      {emoji}
+    </div>
+  );
 }
 
 function formatFollowers(count: number) {
@@ -26,37 +86,6 @@ function formatFollowers(count: number) {
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
   if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
   return count.toString();
-}
-
-function Avatar({
-  username,
-  fullName,
-}: {
-  username: string;
-  fullName: string;
-}) {
-  const [imgError, setImgError] = useState(false);
-  const clean = username.replace("@", "");
-  const avatarUrl = clean ? `https://unavatar.io/instagram/${clean}` : null;
-  const initials = getInitials(fullName);
-
-  if (!imgError && avatarUrl) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img
-        src={avatarUrl}
-        alt={fullName}
-        onError={() => setImgError(true)}
-        className="w-14 h-14 rounded-full object-cover bg-[#2a2a2a]"
-      />
-    );
-  }
-
-  return (
-    <div className="w-14 h-14 rounded-full bg-amber-400/20 border border-amber-400/30 flex items-center justify-center flex-shrink-0">
-      <span className="text-amber-400 font-bold text-lg">{initials}</span>
-    </div>
-  );
 }
 
 export default function ConnectionCard({
@@ -74,10 +103,8 @@ export default function ConnectionCard({
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;
 
-  // Use customTemplate if set, otherwise fall back to the original from props
   const activeTemplate = customTemplate ?? record.template;
 
-  // Matches [LINK], [YOUR LINK], [YOUR LISTENING LINK] — covers all Airtable placeholder variants
   const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
 
   const resolvedTemplate =
@@ -127,36 +154,36 @@ export default function ConnectionCard({
             listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
             "g"
           ),
-          `<mark style="background-color:rgba(251,191,36,0.15);color:rgb(252,211,77);border-radius:3px;padding:0 3px;font-weight:600;">${listeningLink}</mark>`
+          `<mark style="background-color:rgba(249,115,22,0.15);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">${listeningLink}</mark>`
         )
       : resolvedTemplate.replace(
           LINK_PLACEHOLDER_RE,
-          (match) => `<mark style="background-color:rgba(251,191,36,0.3);color:rgb(252,211,77);border-radius:3px;padding:0 3px;font-weight:600;">${match}</mark>`
+          (match) => `<mark style="background-color:rgba(249,115,22,0.3);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">${match}</mark>`
         )
     : "";
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/[0.08] rounded-2xl p-5 flex flex-col gap-4 hover:border-amber-400/30 transition-all duration-200 hover:shadow-lg hover:shadow-amber-400/5">
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4 hover:border-orange-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/5 relative">
+      {/* Type badge — top right */}
+      <span
+        className={`absolute top-4 right-4 text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}
+      >
+        {record.profileType}
+      </span>
+
       {/* Header */}
       <div className="flex items-start gap-3">
-        <Avatar username={record.username} fullName={record.fullName} />
-        <div className="flex-1 min-w-0">
+        <TypeEmoji profileType={record.profileType} />
+        <div className="flex-1 min-w-0 pr-20">
           <p className="font-semibold text-white truncate">{record.fullName}</p>
-          <p className="text-amber-400 text-sm">
+          <p className="text-orange-400 text-sm">
             @{record.username.replace("@", "")}
           </p>
-          <div className="flex items-center gap-2 mt-1 flex-wrap">
-            <span
-              className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}
-            >
-              {record.profileType}
-            </span>
-            {record.followers > 0 && (
-              <span className="text-xs text-gray-500">
-                {formatFollowers(record.followers)} followers
-              </span>
-            )}
-          </div>
+          {record.followers > 0 && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              {formatFollowers(record.followers)} followers
+            </p>
+          )}
         </div>
       </div>
 
@@ -169,13 +196,13 @@ export default function ConnectionCard({
 
       {/* DM Template */}
       {record.template && (
-        <div className="bg-[#0f0f0f] rounded-xl p-3 border border-white/5">
+        <div className="bg-[#0a0a0a] rounded-xl p-3 border border-[#1f1f1f]">
           {/* Label row */}
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
               DM Template
               {customTemplate !== null && (
-                <span className="ml-2 text-amber-400/60 normal-case tracking-normal font-normal">
+                <span className="ml-2 text-orange-400/60 normal-case tracking-normal font-normal">
                   (edited)
                 </span>
               )}
@@ -183,7 +210,7 @@ export default function ConnectionCard({
             {!isEditing && (
               <button
                 onClick={handleEditClick}
-                className="text-xs text-gray-500 hover:text-amber-400 transition-colors px-1.5 py-0.5 rounded hover:bg-amber-400/10"
+                className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10"
               >
                 Edit
               </button>
@@ -197,18 +224,18 @@ export default function ConnectionCard({
                 value={draftTemplate}
                 onChange={(e) => setDraftTemplate(e.target.value)}
                 rows={6}
-                className="w-full bg-[#1a1a1a] border border-white/10 rounded-lg px-3 py-2 text-gray-300 text-xs leading-relaxed focus:outline-none focus:border-amber-400/50 resize-y"
+                className="w-full bg-[#111111] border border-[#1f1f1f] rounded-lg px-3 py-2 text-gray-300 text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-amber-400 text-black hover:bg-amber-300 transition-colors"
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-orange-500 text-white hover:bg-orange-400 transition-colors"
                 >
                   Save
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/10 text-gray-400 hover:border-white/30 hover:text-white transition-colors"
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-[#1f1f1f] text-gray-400 hover:border-white/30 hover:text-white transition-colors"
                 >
                   Reset to default
                 </button>
@@ -229,14 +256,14 @@ export default function ConnectionCard({
           <button
             onClick={handleCopyDM}
             disabled={!record.template}
-            className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-amber-400 text-black hover:bg-amber-300 active:scale-95"
+            className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 text-white hover:bg-orange-400 active:scale-95"
           >
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
           {record.template && (
             <button
               onClick={handleSendDM}
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-amber-400/40 text-amber-400 hover:bg-amber-400/10 hover:border-amber-400/70 transition-all duration-150 active:scale-95"
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
             >
               {sentDM ? "✓ Sent!" : "Send DM →"}
             </button>
@@ -246,7 +273,7 @@ export default function ConnectionCard({
               href={record.profileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-white/10 text-gray-300 hover:border-amber-400/50 hover:text-amber-400 transition-all duration-150 active:scale-95 text-center"
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
             >
               Open Instagram
             </a>
@@ -255,7 +282,7 @@ export default function ConnectionCard({
 
         {/* Send DM tooltip */}
         {sentDM && (
-          <p className="text-xs text-amber-400/80 text-center">
+          <p className="text-xs text-orange-400/80 text-center">
             DM copied — paste it in Instagram (Ctrl+V)
           </p>
         )}
