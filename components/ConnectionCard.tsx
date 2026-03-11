@@ -92,9 +92,8 @@ export default function ConnectionCard({
 
   function handleSendDM() {
     if (!resolvedTemplate) return;
-    const dmUrl = record.instagramDmId
-      ? `https://www.instagram.com/direct/t/${record.instagramDmId}/`
-      : record.profileUrl;
+    const username = record.username.replace("@", "");
+    const dmUrl = `https://ig.me/m/${username}`;
     navigator.clipboard.writeText(resolvedTemplate).then(() => {
       setSentDM(true);
       if (dmUrl) window.open(dmUrl, "_blank", "noopener,noreferrer");
