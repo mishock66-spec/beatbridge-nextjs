@@ -22,7 +22,7 @@ export default function WaitlistForm() {
     return (
       <div className="text-center py-4">
         <div className="text-3xl mb-3">🔥</div>
-        <p className="text-amber-400 font-bold text-lg">You&apos;re on the list.</p>
+        <p className="text-orange-500 font-bold text-lg">You&apos;re on the list.</p>
         <p className="text-gray-400 text-sm mt-1">We&apos;ll hit you when Pro drops.</p>
       </div>
     );
@@ -39,11 +39,11 @@ export default function WaitlistForm() {
         onChange={(e) => setEmail(e.target.value)}
         placeholder="your@email.com"
         required
-        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-full px-5 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-amber-400/60 text-sm"
+        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-full px-5 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/60 text-sm"
       />
       <button
         type="submit"
-        className="bg-amber-400 text-black font-bold px-6 py-3 rounded-full hover:bg-amber-300 transition-colors text-sm whitespace-nowrap"
+        className="bg-orange-500 text-black font-bold px-6 py-3 rounded-full hover:bg-orange-400 transition-colors text-sm whitespace-nowrap"
       >
         Get Early Access
       </button>

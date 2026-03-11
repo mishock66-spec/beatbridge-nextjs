@@ -4,12 +4,13 @@ import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 
 const ARTIST_META: Record<
   string,
-  { name: string; subtitle: string; igHandle: string | null; bio: string }
+  { name: string; subtitle: string; igHandle: string | null; bio: string; photo?: string }
 > = {
   currensy: {
     name: "Curren$y",
     subtitle: "Jet Life Recordings · New Orleans, LA",
     igHandle: "spitta_andretti",
+    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
     bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
   },
 };
@@ -66,10 +67,10 @@ export default async function ArtistNetwork({
         {/* Artist Header */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-12">
           <div className="w-32 h-32 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
-            {meta.igHandle ? (
+            {meta.photo || meta.igHandle ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={`https://unavatar.io/instagram/${meta.igHandle}`}
+                src={meta.photo ?? `https://unavatar.io/instagram/${meta.igHandle}`}
                 alt={meta.name}
                 className="w-full h-full object-cover"
               />

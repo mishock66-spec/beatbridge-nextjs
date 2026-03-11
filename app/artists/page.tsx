@@ -9,6 +9,7 @@ const ARTISTS = [
     connections: 29,
     genres: ["Hip-Hop", "New Orleans"],
     igHandle: "currencyspitta",
+    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
     description:
       "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
   },
@@ -75,22 +76,22 @@ function ArtistCard({ artist }: { artist: Artist }) {
     <div
       className={`bg-[#1a1a1a] border rounded-2xl p-6 relative flex flex-col transition-all duration-200 ${
         artist.free
-          ? "border-amber-400/20 hover:border-amber-400/50 hover:shadow-lg hover:shadow-amber-400/5"
+          ? "border-orange-500/20 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5"
           : "border-white/5"
       }`}
     >
       {!artist.free && (
-        <div className="absolute top-5 right-5 bg-amber-400/15 text-amber-400 text-xs font-bold px-3 py-1 rounded-full border border-amber-400/30">
+        <div className="absolute top-5 right-5 bg-orange-500/15 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-500/30">
           PRO
         </div>
       )}
 
       <div className="flex items-center gap-4 mb-4">
         <div className="w-16 h-16 rounded-full bg-[#2a2a2a] overflow-hidden flex-shrink-0 border border-white/5">
-          {artist.igHandle ? (
+          {artist.photo || artist.igHandle ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={`https://unavatar.io/instagram/${artist.igHandle}`}
+              src={artist.photo ?? `https://unavatar.io/instagram/${artist.igHandle}`}
               alt={artist.name}
               className="w-full h-full object-cover"
             />
@@ -119,7 +120,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
             {g}
           </span>
         ))}
-        <span className="text-xs text-amber-400 font-semibold ml-auto">
+        <span className="text-xs text-orange-500 font-semibold ml-auto">
           {artist.connections} connections
         </span>
       </div>
@@ -127,7 +128,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
       {artist.free && artist.slug ? (
         <Link
           href={`/artist/${artist.slug}`}
-          className="block text-center text-sm font-bold bg-amber-400 text-black px-4 py-3 rounded-xl hover:bg-amber-300 transition-colors"
+          className="block text-center text-sm font-bold bg-orange-500 text-black px-4 py-3 rounded-xl hover:bg-orange-400 transition-colors"
         >
           Explore Network →
         </Link>
@@ -146,7 +147,7 @@ export default function Artists() {
       <div className="max-w-6xl mx-auto px-4 py-16">
         {/* Header */}
         <div className="mb-16 max-w-2xl">
-          <div className="inline-flex items-center gap-2 bg-amber-400/10 border border-amber-400/20 rounded-full px-4 py-1.5 text-amber-400 text-xs font-semibold mb-6 tracking-wide uppercase">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 text-orange-500 text-xs font-semibold mb-6 tracking-wide uppercase">
             Artist Roster
           </div>
           <h1 className="text-4xl sm:text-5xl font-black mb-4">
@@ -167,10 +168,10 @@ export default function Artists() {
         </div>
 
         {/* Pro CTA */}
-        <div className="mt-20 bg-[#1a1a1a] border border-amber-400/20 rounded-2xl p-8 text-center">
+        <div className="mt-20 bg-[#1a1a1a] border border-orange-500/20 rounded-2xl p-8 text-center">
           <h2 className="text-2xl font-black mb-3">
             Want the full roster?{" "}
-            <span className="text-amber-400">Go Pro.</span>
+            <span className="text-orange-500">Go Pro.</span>
           </h2>
           <p className="text-gray-400 mb-6 max-w-lg mx-auto">
             Unlock every artist network, unlimited DM templates, and early
@@ -178,7 +179,7 @@ export default function Artists() {
           </p>
           <Link
             href="/#waitlist"
-            className="inline-block bg-amber-400 text-black font-bold px-8 py-3 rounded-full hover:bg-amber-300 transition-colors"
+            className="inline-block bg-orange-500 text-black font-bold px-8 py-3 rounded-full hover:bg-orange-400 transition-colors"
           >
             Join the Waitlist
           </Link>

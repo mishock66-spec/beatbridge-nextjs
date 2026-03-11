@@ -14,10 +14,10 @@ const TYPE_COLORS: Record<string, string> = {
   Manager: "bg-red-500/20 text-red-300 border-red-500/30",
   "Manager/A&R": "bg-red-500/20 text-red-300 border-red-500/30",
   Studio: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-  Journalist: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  Media: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  Photographe: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
-  Vidéaste: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Journalist: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  Media: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  Photographe: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  Vidéaste: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   Artist: "bg-pink-500/20 text-pink-300 border-pink-500/30",
   Artiste: "bg-pink-500/20 text-pink-300 border-pink-500/30",
   Rappeur: "bg-pink-500/20 text-pink-300 border-pink-500/30",
@@ -56,9 +56,7 @@ const TYPE_EMOJI: Record<string, string> = {
 
 function getTypeEmoji(profileType: string): string {
   if (!profileType) return "✦";
-  // Exact match first
   if (TYPE_EMOJI[profileType]) return TYPE_EMOJI[profileType];
-  // Partial match (for compound types like "Producer / Beatmaker / Producteur")
   const lower = profileType.toLowerCase();
   if (lower.includes("beat") || lower.includes("produc")) return "🎹";
   if (lower.includes("label")) return "💿";
