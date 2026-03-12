@@ -20,7 +20,7 @@ const ARTISTS = [
     free: false,
     connections: 40,
     genres: ["Hip-Hop", "Pittsburgh"],
-    igHandle: null,
+    photo: null,
     description:
       "Pittsburgh rapper and Taylor Gang founder. Deep ties to major labels and independent creatives.",
   },
@@ -31,7 +31,7 @@ const ARTISTS = [
     free: false,
     connections: 35,
     genres: ["Hip-Hop", "Gary"],
-    igHandle: null,
+    photo: null,
     description:
       "Gary, Indiana's finest. Connections spanning independent producers to legendary labels.",
   },
@@ -42,7 +42,7 @@ const ARTISTS = [
     free: false,
     connections: 28,
     genres: ["Hip-Hop", "LA"],
-    igHandle: null,
+    photo: null,
     description: "LA beatmaker and MC with deep underground hip-hop connections.",
   },
   {
@@ -52,7 +52,7 @@ const ARTISTS = [
     free: false,
     connections: 22,
     genres: ["Hip-Hop", "Detroit"],
-    igHandle: null,
+    photo: null,
     description:
       "Detroit rapper with a rich network of beatmakers and independent labels.",
   },
@@ -63,7 +63,7 @@ const ARTISTS = [
     free: false,
     connections: 30,
     genres: ["Hip-Hop", "Buffalo"],
-    igHandle: null,
+    photo: null,
     description:
       "Griselda's cornerstone. Heavy connections across the East Coast indie scene.",
   },
@@ -74,7 +74,7 @@ type Artist = (typeof ARTISTS)[0];
 function ArtistCard({ artist }: { artist: Artist }) {
   return (
     <div
-      className={`bg-[#1a1a1a] border rounded-2xl p-6 relative flex flex-col transition-all duration-200 ${
+      className={`bg-[#111111] border rounded-2xl p-6 relative flex flex-col transition-all duration-200 ${
         artist.free
           ? "border-orange-500/20 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5"
           : "border-white/5"
@@ -88,12 +88,13 @@ function ArtistCard({ artist }: { artist: Artist }) {
 
       <div className="flex items-center gap-4 mb-4">
         <div className="w-16 h-16 rounded-full bg-[#2a2a2a] overflow-hidden flex-shrink-0 border border-white/5">
-          {artist.photo || artist.igHandle ? (
+          {artist.photo || (artist as { igHandle?: string | null }).igHandle ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={artist.photo ?? `https://unavatar.io/instagram/${artist.igHandle}`}
+              src={artist.photo ?? `https://unavatar.io/instagram/${(artist as { igHandle?: string | null }).igHandle}`}
               alt={artist.name}
               className="w-full h-full object-cover"
+              loading="lazy"
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-xl font-black text-gray-500">
@@ -133,7 +134,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
           Explore Network →
         </Link>
       ) : (
-        <div className="text-center text-sm font-semibold text-gray-600 bg-white/[0.03] px-4 py-3 rounded-xl border border-white/5">
+        <div className="text-center text-sm font-semibold text-gray-600 bg-white/[0.03] px-4 py-3 rounded-xl border border-[#1f1f1f]">
           Available with Pro
         </div>
       )}

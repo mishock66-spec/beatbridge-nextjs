@@ -38,7 +38,7 @@ const PREVIEW_ARTISTS = [
     slug: null,
     free: false,
     connections: 40,
-    igHandle: null,
+    photo: null,
   },
   {
     name: "Freddie Gibbs",
@@ -46,7 +46,7 @@ const PREVIEW_ARTISTS = [
     slug: null,
     free: false,
     connections: 35,
-    igHandle: null,
+    photo: null,
   },
 ];
 
@@ -138,7 +138,7 @@ export default function Home() {
             {PREVIEW_ARTISTS.map((artist) => (
               <div
                 key={artist.name}
-                className={`bg-[#1a1a1a] border rounded-2xl p-6 relative overflow-hidden transition-all duration-200 ${
+                className={`bg-[#111111] border rounded-2xl p-6 relative overflow-hidden transition-all duration-200 ${
                   artist.free
                     ? "border-orange-500/30 hover:border-orange-500/60 cursor-pointer"
                     : "border-white/5 opacity-60"
@@ -150,12 +150,13 @@ export default function Home() {
                   </div>
                 )}
                 <div className="w-16 h-16 rounded-full bg-[#2a2a2a] mb-4 overflow-hidden">
-                  {artist.photo || artist.igHandle ? (
+                  {artist.photo || (artist as { igHandle?: string }).igHandle ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={artist.photo ?? `https://unavatar.io/instagram/${artist.igHandle}`}
+                      src={artist.photo ?? `https://unavatar.io/instagram/${(artist as { igHandle?: string }).igHandle}`}
                       alt={artist.name}
                       className="w-full h-full object-cover"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-2xl font-black text-gray-600">

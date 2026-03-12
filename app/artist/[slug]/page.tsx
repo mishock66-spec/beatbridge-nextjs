@@ -2,6 +2,8 @@ import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 
+export const revalidate = 3600;
+
 const ARTIST_META: Record<
   string,
   { name: string; subtitle: string; igHandle: string | null; bio: string; photo?: string }
