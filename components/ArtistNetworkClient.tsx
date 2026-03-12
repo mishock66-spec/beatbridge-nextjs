@@ -4,6 +4,41 @@ import { useState, useMemo } from "react";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard from "@/components/ConnectionCard";
 
+const DM_PRIORITY_ORDER = [
+  "themixed_hippie",
+  "markirecords_",
+  "yo_the_artist",
+  "610soundshop",
+  "prodmyles",
+  "doggystylerecordssouth",
+  "reuben_turner",
+  "mixbyrich",
+  "epidemicmusic_papo",
+  "drupey_beats",
+  "grooovymurphy",
+  "demiciavalon",
+  "ohso_flashy_photography",
+  "chehadetheking",
+  "dungaud_",
+  "inkedupchampion",
+  "v12thehitman",
+  "geestacks216",
+  "smittybeatz_",
+  "meansstreetstudio",
+  "djspin88",
+  "ikr3wcial",
+  "djkimblee",
+  "ndm_neodamatrix",
+  "dopeboyshake",
+  "surfclubinc",
+  "recordroommiami",
+  "power1047",
+];
+
+function normHandle(raw: string) {
+  return raw.replace(/^@/, "").toLowerCase().trim();
+}
+
 const FILTER_TYPES = [
   "All",
   "Beatmaker",
@@ -47,8 +82,14 @@ export default function ArtistNetworkClient({
   const [search, setSearch] = useState("");
   const [listeningLink, setListeningLink] = useState("");
 
+  const priorityMap = useMemo(() => {
+    const map = new Map<string, number>();
+    DM_PRIORITY_ORDER.forEach((handle, i) => map.set(handle, i + 1));
+    return map;
+  }, []);
+
   const filtered = useMemo(() => {
-    return records.filter((r) => {
+    const result = records.filter((r) => {
       const matchType =
         activeFilter === "All" || r.profileType === activeFilter;
       const matchSearch =
@@ -58,7 +99,13 @@ export default function ArtistNetworkClient({
         r.description.toLowerCase().includes(search.toLowerCase());
       return matchType && matchSearch;
     });
-  }, [records, activeFilter, search]);
+    result.sort((a, b) => {
+      const pa = priorityMap.get(normHandle(a.username)) ?? Infinity;
+      const pb = priorityMap.get(normHandle(b.username)) ?? Infinity;
+      return pa - pb;
+    });
+    return result;
+  }, [records, activeFilter, search, priorityMap]);
 
   const counts = useMemo(() => {
     const map: Record<string, number> = { All: records.length };
@@ -157,6 +204,7 @@ export default function ArtistNetworkClient({
                 key={record.id}
                 record={record}
                 listeningLink={listeningLink}
+                dmPriority={priorityMap.get(normHandle(record.username))}
               />
             ))}
       </div>

@@ -91,9 +91,11 @@ function formatFollowers(count: number) {
 export default function ConnectionCard({
   record,
   listeningLink,
+  dmPriority,
 }: {
   record: AirtableRecord;
   listeningLink: string;
+  dmPriority?: number;
 }) {
   const [copied, setCopied] = useState(false);
   const [sentDM, setSentDM] = useState(false);
@@ -164,6 +166,12 @@ export default function ConnectionCard({
 
   return (
     <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4 hover:border-orange-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/5 relative">
+      {/* DM priority badge — top left */}
+      {dmPriority !== undefined && (
+        <span className="absolute top-4 left-4 text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white z-10">
+          DM #{dmPriority}
+        </span>
+      )}
       {/* Type badge — top right */}
       <span
         className={`absolute top-4 right-4 text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}
@@ -172,7 +180,7 @@ export default function ConnectionCard({
       </span>
 
       {/* Header */}
-      <div className="flex items-start gap-3">
+      <div className={`flex items-start gap-3${dmPriority !== undefined ? " mt-5" : ""}`}>
         <TypeEmoji profileType={record.profileType} />
         <div className="flex-1 min-w-0 pr-20">
           <p className="font-semibold text-white truncate">{record.fullName}</p>
