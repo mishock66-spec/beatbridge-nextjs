@@ -8,7 +8,8 @@ const ARTISTS = [
     free: true,
     connections: 29,
     genres: ["Hip-Hop", "New Orleans"],
-    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
+    igHandle: "currencyspitta",
+    photo: "/images/currensy.png",
     description:
       "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
   },
@@ -76,21 +77,21 @@ function ArtistCard({ artist }: { artist: Artist }) {
       className={`bg-[#111111] border rounded-2xl p-6 relative flex flex-col transition-all duration-200 ${
         artist.free
           ? "border-orange-500/20 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5"
-          : "border-[#1f1f1f]"
+          : "border-white/5"
       }`}
     >
       {!artist.free && (
-        <div className="absolute top-5 right-5 bg-orange-500/15 text-orange-400 text-xs font-bold px-3 py-1 rounded-full border border-orange-500/30">
+        <div className="absolute top-5 right-5 bg-orange-500/15 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-500/30">
           PRO
         </div>
       )}
 
       <div className="flex items-center gap-4 mb-4">
-        <div className="w-16 h-16 rounded-xl bg-[#1a1a1a] overflow-hidden flex-shrink-0 border border-[#1f1f1f]">
-          {artist.photo ? (
+        <div className="w-16 h-16 rounded-full bg-[#2a2a2a] overflow-hidden flex-shrink-0 border border-white/5">
+          {artist.photo || (artist as { igHandle?: string | null }).igHandle ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={artist.photo}
+              src={artist.photo ?? `https://unavatar.io/instagram/${(artist as { igHandle?: string | null }).igHandle}`}
               alt={artist.name}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -128,7 +129,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
       {artist.free && artist.slug ? (
         <Link
           href={`/artist/${artist.slug}`}
-          className="block text-center text-sm font-bold bg-orange-500 text-white px-4 py-3 rounded-xl hover:bg-orange-400 transition-colors"
+          className="block text-center text-sm font-bold bg-orange-500 text-black px-4 py-3 rounded-xl hover:bg-orange-400 transition-colors"
         >
           Explore Network →
         </Link>
@@ -168,7 +169,7 @@ export default function Artists() {
         </div>
 
         {/* Pro CTA */}
-        <div className="mt-20 bg-[#111111] border border-orange-500/20 rounded-2xl p-8 text-center">
+        <div className="mt-20 bg-[#1a1a1a] border border-orange-500/20 rounded-2xl p-8 text-center">
           <h2 className="text-2xl font-black mb-3">
             Want the full roster?{" "}
             <span className="text-orange-500">Go Pro.</span>
@@ -179,7 +180,7 @@ export default function Artists() {
           </p>
           <Link
             href="/#waitlist"
-            className="inline-block bg-orange-500 text-white font-bold px-8 py-3 rounded-full hover:bg-orange-400 transition-colors"
+            className="inline-block bg-orange-500 text-black font-bold px-8 py-3 rounded-full hover:bg-orange-400 transition-colors"
           >
             Join the Waitlist
           </Link>

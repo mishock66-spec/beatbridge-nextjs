@@ -29,7 +29,8 @@ const PREVIEW_ARTISTS = [
     slug: "currensy",
     free: true,
     connections: 29,
-    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
+    igHandle: "currencyspitta",
+    photo: "/images/currensy.png",
   },
   {
     name: "Wiz Khalifa",
@@ -72,7 +73,7 @@ export default function Home() {
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
               href="/artists"
-              className="bg-orange-500 text-white font-bold px-8 py-4 rounded-full hover:bg-orange-400 transition-colors text-base"
+              className="bg-orange-500 text-black font-bold px-8 py-4 rounded-full hover:bg-orange-400 transition-colors text-base"
             >
               Explore Networks →
             </Link>
@@ -140,19 +141,19 @@ export default function Home() {
                 className={`bg-[#111111] border rounded-2xl p-6 relative overflow-hidden transition-all duration-200 ${
                   artist.free
                     ? "border-orange-500/30 hover:border-orange-500/60 cursor-pointer"
-                    : "border-[#1f1f1f] opacity-60"
+                    : "border-white/5 opacity-60"
                 }`}
               >
                 {!artist.free && (
-                  <div className="absolute top-4 right-4 bg-orange-500/20 text-orange-400 text-xs font-bold px-2 py-0.5 rounded-full border border-orange-500/30">
+                  <div className="absolute top-4 right-4 bg-orange-500/20 text-orange-500 text-xs font-bold px-2 py-0.5 rounded-full border border-orange-500/30">
                     PRO
                   </div>
                 )}
-                <div className="w-16 h-16 rounded-xl bg-[#1a1a1a] mb-4 overflow-hidden">
-                  {artist.photo ? (
+                <div className="w-16 h-16 rounded-full bg-[#2a2a2a] mb-4 overflow-hidden">
+                  {artist.photo || (artist as { igHandle?: string }).igHandle ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={artist.photo}
+                      src={artist.photo ?? `https://unavatar.io/instagram/${(artist as { igHandle?: string }).igHandle}`}
                       alt={artist.name}
                       className="w-full h-full object-cover"
                       loading="lazy"
@@ -171,7 +172,7 @@ export default function Home() {
                 {artist.free && artist.slug && (
                   <Link
                     href={`/artist/${artist.slug}`}
-                    className="mt-4 block text-center text-sm font-bold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
+                    className="mt-4 block text-center text-sm font-bold bg-orange-500 text-black px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
                   >
                     Explore Network
                   </Link>

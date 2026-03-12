@@ -56,9 +56,7 @@ const TYPE_EMOJI: Record<string, string> = {
 
 function getTypeEmoji(profileType: string): string {
   if (!profileType) return "✦";
-  // Exact match first
   if (TYPE_EMOJI[profileType]) return TYPE_EMOJI[profileType];
-  // Partial match (for compound types like "Producer / Beatmaker / Producteur")
   const lower = profileType.toLowerCase();
   if (lower.includes("beat") || lower.includes("produc")) return "🎹";
   if (lower.includes("label")) return "💿";
