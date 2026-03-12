@@ -9,7 +9,7 @@ const ARTISTS = [
     connections: 29,
     genres: ["Hip-Hop", "New Orleans"],
     igHandle: "currencyspitta",
-    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
+    photo: "/images/currensy.png",
     description:
       "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
   },

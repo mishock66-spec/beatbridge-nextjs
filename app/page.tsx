@@ -30,7 +30,7 @@ const PREVIEW_ARTISTS = [
     free: true,
     connections: 29,
     igHandle: "currencyspitta",
-    photo: "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Curren%24y_2012.jpg/440px-Curren%24y_2012.jpg",
+    photo: "/images/currensy.png",
   },
   {
     name: "Wiz Khalifa",
