@@ -48,12 +48,12 @@ function mapRecord(record: {
     followers: (f["Nombre de followers"] as number) || 0,
     profileType: normalizeType((f["Type de profil"] as string) || "Other"),
     template: (f["template"] as string) || "",
-    description: (f["Analyse de profil"] as string) || "",
+    description: (f["Notes"] as string) || "",
     instagramDmId: (f["Instagram DM ID"] as string) || "",
   };
 }
 
-export async function fetchAirtableRecords(suiviPar?: string): Promise<AirtableRecord[]> {
+export async function fetchAirtableRecords(suiviPar?: string | string[]): Promise<AirtableRecord[]> {
   const BASE_ID = "appW42oNhB9Hl14bq";
   const TABLE_ID = "tbl0nVXbK5BQnU5FM";
   const API_KEY = process.env.AIRTABLE_API_KEY;
@@ -67,8 +67,19 @@ export async function fetchAirtableRecords(suiviPar?: string): Promise<AirtableR
   let offset: string | null = null;
 
   do {
-    const params = new URLSearchParams({ pageSize: "100" });
-    if (suiviPar) params.set("filterByFormula", `{Suivi par}="${suiviPar}"`);
+    const params = new URLSearchParams({
+      pageSize: "100",
+      "sort[0][field]": "Nombre de followers",
+      "sort[0][direction]": "asc",
+    });
+    if (suiviPar) {
+      const values = Array.isArray(suiviPar) ? suiviPar : [suiviPar];
+      const formula =
+        values.length === 1
+          ? `{Suivi par}="${values[0]}"`
+          : `OR(${values.map((v) => `{Suivi par}="${v}"`).join(",")})`;
+      params.set("filterByFormula", formula);
+    }
     if (offset) params.set("offset", offset);
 
     const res = await fetch(`${url}?${params}`, {

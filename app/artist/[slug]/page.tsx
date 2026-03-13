@@ -14,7 +14,7 @@ const ARTIST_META: Record<
     igHandle: string | null;
     bio: string;
     photo?: string;
-    static?: boolean;
+    suiviPar: string | string[];
   }
 > = {
   currensy: {
@@ -22,6 +22,7 @@ const ARTIST_META: Record<
     subtitle: "Jet Life Recordings · New Orleans, LA",
     igHandle: "spitta_andretti",
     photo: "/images/currensy.png",
+    suiviPar: ["Curren$y", "CurrenSy"],
     bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
   },
   "harry-fraud": {
@@ -29,8 +30,8 @@ const ARTIST_META: Record<
     subtitle: "New York City · Boom-Bap Cinématique",
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
+    suiviPar: "Harry Fraud",
     bio: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
-    static: true,
   },
 };
 
@@ -67,16 +68,23 @@ export default async function ArtistNetwork({
   let error: string | null = null;
   let dmPriorityOrder: string[] | undefined;
 
-  if (meta.static) {
-    // Use hardcoded static data (Harry Fraud)
-    records = HARRY_FRAUD_CONNECTIONS;
-    dmPriorityOrder = HARRY_FRAUD_DM_ORDER;
-  } else {
-    try {
-      records = await fetchAirtableRecords();
-    } catch (err) {
+  try {
+    records = await fetchAirtableRecords(meta.suiviPar);
+  } catch (err) {
+    // Fall back to hardcoded data for harry-fraud
+    if (slug === "harry-fraud") {
+      records = HARRY_FRAUD_CONNECTIONS;
+      dmPriorityOrder = HARRY_FRAUD_DM_ORDER;
+    } else {
       error = err instanceof Error ? err.message : "Unknown error";
     }
+  }
+
+  // For harry-fraud, derive dmPriorityOrder from fetched records (followers asc)
+  if (slug === "harry-fraud" && records.length > 0 && !dmPriorityOrder) {
+    dmPriorityOrder = [...records]
+      .sort((a, b) => a.followers - b.followers)
+      .map((r) => r.username);
   }
 
   return (
