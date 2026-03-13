@@ -15,15 +15,15 @@ const ARTISTS = [
   },
   {
     name: "Harry Fraud",
-    subtitle: "NYC · Boom-Bap",
+    subtitle: "NYC · Cinematic Boom-Bap",
     slug: "harry-fraud",
     free: true,
-    connections: 40,
+    connections: 39,
     genres: ["Hip-Hop", "NYC"],
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
     description:
-      "Producteur NYC, architecte du son boom-bap cinématique — Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+      "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
   },
   {
     name: "Wiz Khalifa",

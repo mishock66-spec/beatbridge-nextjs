@@ -29,7 +29,7 @@ const ARTIST_META: Record<
     subtitle: "New York City · Boom-Bap Cinématique",
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
-    bio: "Architecte du son New York — boom-bap cinématique, jazz sombre, grime de rue. Derrière Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+    bio: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
     static: true,
   },
 };

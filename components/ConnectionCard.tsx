@@ -4,70 +4,31 @@ import { useState } from "react";
 import type { AirtableRecord } from "@/lib/airtable";
 
 const TYPE_COLORS: Record<string, string> = {
-  Beatmaker: "bg-purple-500/20 text-purple-300 border-purple-500/30",
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
-  Producteur: "bg-purple-500/20 text-purple-300 border-purple-500/30",
   Label: "bg-blue-500/20 text-blue-300 border-blue-500/30",
-  Engineer: "bg-green-500/20 text-green-300 border-green-500/30",
-  "Ingé son": "bg-green-500/20 text-green-300 border-green-500/30",
+  "Sound Engineer": "bg-green-500/20 text-green-300 border-green-500/30",
   DJ: "bg-orange-500/20 text-orange-300 border-orange-500/30",
   Manager: "bg-red-500/20 text-red-300 border-red-500/30",
-  "Manager/A&R": "bg-red-500/20 text-red-300 border-red-500/30",
   Studio: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
-  Journalist: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Media: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Photographe: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Vidéaste: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  Artist: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  Artiste: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  Rappeur: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  Entrepreneur: "bg-gray-500/20 text-gray-300 border-gray-500/30",
-  Entourage: "bg-gray-500/20 text-gray-300 border-gray-500/30",
-  Autre: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+  "Artist/Rapper": "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  "Photographer/Videographer": "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
   Other: "bg-gray-500/20 text-gray-300 border-gray-500/30",
 };
 
 const TYPE_EMOJI: Record<string, string> = {
-  Beatmaker: "🎹",
   Producer: "🎹",
-  Producteur: "🎹",
-  "Producer / Beatmaker": "🎹",
-  "Producer / Beatmaker / Producteur": "🎹",
   Label: "💿",
   DJ: "🎧",
   Studio: "🎙️",
   Manager: "📋",
-  "Manager/A&R": "📋",
-  "Manager / A&R": "📋",
-  Engineer: "🔊",
-  "Ingé son": "🔊",
-  Artist: "🎨",
-  Artiste: "🎨",
-  Rappeur: "🎨",
-  Journalist: "📰",
-  Media: "📰",
-  Photographe: "📰",
-  Vidéaste: "📰",
-  Entrepreneur: "💼",
-  Entourage: "💼",
-  Autre: "💼",
+  "Sound Engineer": "🔊",
+  "Artist/Rapper": "🎤",
+  "Photographer/Videographer": "📸",
   Other: "💼",
 };
 
 function getTypeEmoji(profileType: string): string {
-  if (!profileType) return "✦";
-  if (TYPE_EMOJI[profileType]) return TYPE_EMOJI[profileType];
-  const lower = profileType.toLowerCase();
-  if (lower.includes("beat") || lower.includes("produc")) return "🎹";
-  if (lower.includes("label")) return "💿";
-  if (lower.includes("dj")) return "🎧";
-  if (lower.includes("studio")) return "🎙️";
-  if (lower.includes("manager") || lower.includes("a&r")) return "📋";
-  if (lower.includes("engin") || lower.includes("ingé") || lower.includes("inge")) return "🔊";
-  if (lower.includes("artist") || lower.includes("artiste") || lower.includes("rappeur")) return "🎨";
-  if (lower.includes("media") || lower.includes("photo") || lower.includes("vid")) return "📰";
-  if (lower.includes("entrepreneur") || lower.includes("entourage") || lower.includes("autre") || lower.includes("other")) return "💼";
-  return "✦";
+  return TYPE_EMOJI[profileType] ?? "✦";
 }
 
 function TypeEmoji({ profileType }: { profileType: string }) {

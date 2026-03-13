@@ -10,6 +10,31 @@ export type AirtableRecord = {
   instagramDmId: string;
 };
 
+const TYPE_MAP: Record<string, string> = {
+  "Beatmaker/Producteur": "Producer",
+  "Beatmaker": "Producer",
+  "Producteur": "Producer",
+  "Producer / Beatmaker": "Producer",
+  "Ingé son": "Sound Engineer",
+  "Engineer": "Sound Engineer",
+  "Artiste/Rappeur": "Artist/Rapper",
+  "Artiste": "Artist/Rapper",
+  "Rappeur": "Artist/Rapper",
+  "Artist": "Artist/Rapper",
+  "Photographe/Vidéaste": "Photographer/Videographer",
+  "Photographe": "Photographer/Videographer",
+  "Vidéaste": "Photographer/Videographer",
+  "Autre": "Other",
+  "Entourage": "Other",
+  "Entrepreneur": "Other",
+  "Journalist": "Other",
+  "Media": "Other",
+};
+
+function normalizeType(raw: string): string {
+  return TYPE_MAP[raw] ?? raw;
+}
+
 function mapRecord(record: {
   id: string;
   fields: Record<string, unknown>;
@@ -21,7 +46,7 @@ function mapRecord(record: {
     fullName: (f["Nom complet"] as string) || "",
     profileUrl: (f["Lien profil"] as string) || "",
     followers: (f["Nombre de followers"] as number) || 0,
-    profileType: (f["Type de profil"] as string) || "Other",
+    profileType: normalizeType((f["Type de profil"] as string) || "Other"),
     template: (f["template"] as string) || "",
     description: (f["Analyse de profil"] as string) || "",
     instagramDmId: (f["Instagram DM ID"] as string) || "",
