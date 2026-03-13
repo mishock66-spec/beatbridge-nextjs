@@ -27,7 +27,7 @@ const ARTIST_META: Record<
   },
   "harry-fraud": {
     name: "Harry Fraud",
-    subtitle: "New York City · Boom-Bap Cinématique",
+    subtitle: "New York City · Cinematic Boom-Bap",
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
     suiviPar: "Harry Fraud",
