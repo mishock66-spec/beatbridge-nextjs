@@ -21,7 +21,7 @@ const ARTISTS = [
     connections: 40,
     genres: ["Hip-Hop", "NYC"],
     igHandle: "harryfraud",
-    photo: "/images/harry-fraud.png",
+    photo: "/images/harryfraud.jpg",
     description:
       "Producteur NYC, architecte du son boom-bap cinématique — Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
   },

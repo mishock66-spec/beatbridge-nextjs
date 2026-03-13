@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard from "@/components/ConnectionCard";
 
-const DM_PRIORITY_ORDER = [
+const CURRENSY_DM_PRIORITY_ORDER = [
   "themixed_hippie",
   "markirecords_",
   "yo_the_artist",
@@ -39,18 +39,6 @@ function normHandle(raw: string) {
   return raw.replace(/^@/, "").toLowerCase().trim();
 }
 
-const FILTER_TYPES = [
-  "All",
-  "Beatmaker",
-  "Label",
-  "Engineer",
-  "DJ",
-  "Manager",
-  "Studio",
-  "Journalist",
-  "Other",
-];
-
 function Skeleton() {
   return (
     <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 animate-pulse">
@@ -73,20 +61,31 @@ export default function ArtistNetworkClient({
   records,
   loading,
   error,
+  dmPriorityOrder,
 }: {
   records: AirtableRecord[];
   loading: boolean;
   error: string | null;
+  dmPriorityOrder?: string[];
 }) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [listeningLink, setListeningLink] = useState("");
 
+  const priorityList = dmPriorityOrder ?? CURRENSY_DM_PRIORITY_ORDER;
+
   const priorityMap = useMemo(() => {
     const map = new Map<string, number>();
-    DM_PRIORITY_ORDER.forEach((handle, i) => map.set(handle, i + 1));
+    priorityList.forEach((handle, i) => map.set(normHandle(handle), i + 1));
     return map;
-  }, []);
+  }, [priorityList]);
+
+  // Derive filter types from actual data
+  const filterTypes = useMemo(() => {
+    const types = new Set<string>();
+    records.forEach((r) => { if (r.profileType) types.add(r.profileType); });
+    return ["All", ...Array.from(types).sort()];
+  }, [records]);
 
   const filtered = useMemo(() => {
     const result = records.filter((r) => {
@@ -114,6 +113,8 @@ export default function ArtistNetworkClient({
     });
     return map;
   }, [records]);
+
+  const hasPriorityBadges = !loading && filtered.some((r) => priorityMap.has(normHandle(r.username)));
 
   return (
     <>
@@ -147,7 +148,7 @@ export default function ArtistNetworkClient({
             className="w-full sm:max-w-sm bg-[#111111] border border-[#1f1f1f] rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
           />
           <div className="flex gap-2 flex-wrap">
-            {FILTER_TYPES.map((type) => {
+            {filterTypes.map((type) => {
               const count = counts[type] || 0;
               if (type !== "All" && !count) return null;
               return (
@@ -185,13 +186,13 @@ export default function ArtistNetworkClient({
       )}
 
       {/* DM Priority Banner */}
-      {!loading && filtered.some((r) => priorityMap.has(normHandle(r.username))) && (
+      {hasPriorityBadges && (
         <div className="bg-gray-900 border border-orange-500/30 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
           <span className="text-base leading-none mt-0.5">📊</span>
           <p className="text-xs text-gray-400 leading-relaxed">
             Contacts ranked by{" "}
-            <span className="text-orange-400 font-semibold">DM priority</span>
-            {" "}— ordered by follower count (lowest first). Start with{" "}
+            <span className="text-orange-400 font-semibold">follower count, lowest first</span>
+            {" "}— smaller accounts reply faster. Start with{" "}
             <span className="text-orange-400 font-semibold">DM #1</span> for the highest chance of a response.
           </p>
         </div>

@@ -33,6 +33,15 @@ const PREVIEW_ARTISTS = [
     photo: "/images/currensy.png",
   },
   {
+    name: "Harry Fraud",
+    subtitle: "NYC · Boom-Bap",
+    slug: "harry-fraud",
+    free: true,
+    connections: 39,
+    igHandle: "harryfraud",
+    photo: "/images/harryfraud.jpg",
+  },
+  {
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,
@@ -134,7 +143,7 @@ export default function Home() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
             {PREVIEW_ARTISTS.map((artist) => (
               <div
                 key={artist.name}

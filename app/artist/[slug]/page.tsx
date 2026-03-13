@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
+import { HARRY_FRAUD_CONNECTIONS, HARRY_FRAUD_DM_ORDER } from "@/lib/harry-fraud-connections";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
+import type { AirtableRecord } from "@/lib/airtable";
 
 export const revalidate = 3600;
 
 const ARTIST_META: Record<
   string,
-  { name: string; subtitle: string; igHandle: string | null; bio: string; photo?: string; suiviPar?: string }
+  {
+    name: string;
+    subtitle: string;
+    igHandle: string | null;
+    bio: string;
+    photo?: string;
+    static?: boolean;
+  }
 > = {
   currensy: {
     name: "Curren$y",
@@ -17,11 +26,11 @@ const ARTIST_META: Record<
   },
   "harry-fraud": {
     name: "Harry Fraud",
-    subtitle: "NYC · Boom-Bap Cinématique",
+    subtitle: "New York City · Boom-Bap Cinématique",
     igHandle: "harryfraud",
-    photo: "/images/harry-fraud.png",
-    bio: "Producteur NYC, architecte du son boom-bap cinématique — Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
-    suiviPar: "Harry Fraud",
+    photo: "/images/harryfraud.jpg",
+    bio: "Architecte du son New York — boom-bap cinématique, jazz sombre, grime de rue. Derrière Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+    static: true,
   },
 };
 
@@ -54,13 +63,20 @@ export default async function ArtistNetwork({
 
   const meta = ARTIST_META[slug];
 
-  let records: Awaited<ReturnType<typeof fetchAirtableRecords>> = [];
+  let records: AirtableRecord[] = [];
   let error: string | null = null;
+  let dmPriorityOrder: string[] | undefined;
 
-  try {
-    records = await fetchAirtableRecords(meta.suiviPar);
-  } catch (err) {
-    error = err instanceof Error ? err.message : "Unknown error";
+  if (meta.static) {
+    // Use hardcoded static data (Harry Fraud)
+    records = HARRY_FRAUD_CONNECTIONS;
+    dmPriorityOrder = HARRY_FRAUD_DM_ORDER;
+  } else {
+    try {
+      records = await fetchAirtableRecords();
+    } catch (err) {
+      error = err instanceof Error ? err.message : "Unknown error";
+    }
   }
 
   return (
@@ -115,6 +131,7 @@ export default async function ArtistNetwork({
           records={records}
           loading={false}
           error={error}
+          dmPriorityOrder={dmPriorityOrder}
         />
       </div>
     </div>
