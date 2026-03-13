@@ -3,7 +3,7 @@ import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import type { AirtableRecord } from "@/lib/airtable";
 
-export const revalidate = 3600;
+export const revalidate = 0;
 
 const ARTIST_META: Record<
   string,
