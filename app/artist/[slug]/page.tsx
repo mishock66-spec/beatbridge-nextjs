@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
-import { HARRY_FRAUD_CONNECTIONS, HARRY_FRAUD_DM_ORDER } from "@/lib/harry-fraud-connections";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import type { AirtableRecord } from "@/lib/airtable";
 
@@ -71,17 +70,11 @@ export default async function ArtistNetwork({
   try {
     records = await fetchAirtableRecords(meta.suiviPar);
   } catch (err) {
-    // Fall back to hardcoded data for harry-fraud
-    if (slug === "harry-fraud") {
-      records = HARRY_FRAUD_CONNECTIONS;
-      dmPriorityOrder = HARRY_FRAUD_DM_ORDER;
-    } else {
-      error = err instanceof Error ? err.message : "Unknown error";
-    }
+    error = err instanceof Error ? err.message : "Unknown error";
   }
 
-  // For harry-fraud, derive dmPriorityOrder from fetched records (followers asc)
-  if (slug === "harry-fraud" && records.length > 0 && !dmPriorityOrder) {
+  // Derive dmPriorityOrder from fetched records (followers asc) for badge ordering
+  if (records.length > 0) {
     dmPriorityOrder = [...records]
       .sort((a, b) => a.followers - b.followers)
       .map((r) => r.username);
