@@ -28,7 +28,7 @@ function mapRecord(record: {
   };
 }
 
-export async function fetchAirtableRecords(): Promise<AirtableRecord[]> {
+export async function fetchAirtableRecords(suiviPar?: string): Promise<AirtableRecord[]> {
   const BASE_ID = "appW42oNhB9Hl14bq";
   const TABLE_ID = "tbl0nVXbK5BQnU5FM";
   const API_KEY = process.env.AIRTABLE_API_KEY;
@@ -43,6 +43,7 @@ export async function fetchAirtableRecords(): Promise<AirtableRecord[]> {
 
   do {
     const params = new URLSearchParams({ pageSize: "100" });
+    if (suiviPar) params.set("filterByFormula", `{Suivi par}="${suiviPar}"`);
     if (offset) params.set("offset", offset);
 
     const res = await fetch(`${url}?${params}`, {

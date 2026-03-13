@@ -6,7 +6,7 @@ export const revalidate = 3600;
 
 const ARTIST_META: Record<
   string,
-  { name: string; subtitle: string; igHandle: string | null; bio: string; photo?: string }
+  { name: string; subtitle: string; igHandle: string | null; bio: string; photo?: string; suiviPar?: string }
 > = {
   currensy: {
     name: "Curren$y",
@@ -14,6 +14,14 @@ const ARTIST_META: Record<
     igHandle: "spitta_andretti",
     photo: "/images/currensy.png",
     bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
+  },
+  "harry-fraud": {
+    name: "Harry Fraud",
+    subtitle: "NYC · Boom-Bap Cinématique",
+    igHandle: "harryfraud",
+    photo: "/images/harry-fraud.png",
+    bio: "Producteur NYC, architecte du son boom-bap cinématique — Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+    suiviPar: "Harry Fraud",
   },
 };
 
@@ -24,7 +32,7 @@ export default async function ArtistNetwork({
 }) {
   const { slug } = params;
 
-  if (slug !== "currensy") {
+  if (!ARTIST_META[slug]) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="text-center">
@@ -50,7 +58,7 @@ export default async function ArtistNetwork({
   let error: string | null = null;
 
   try {
-    records = await fetchAirtableRecords();
+    records = await fetchAirtableRecords(meta.suiviPar);
   } catch (err) {
     error = err instanceof Error ? err.message : "Unknown error";
   }

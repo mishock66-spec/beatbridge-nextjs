@@ -14,6 +14,18 @@ const ARTISTS = [
       "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
   },
   {
+    name: "Harry Fraud",
+    subtitle: "NYC · Boom-Bap",
+    slug: "harry-fraud",
+    free: true,
+    connections: 40,
+    genres: ["Hip-Hop", "NYC"],
+    igHandle: "harryfraud",
+    photo: "/images/harry-fraud.png",
+    description:
+      "Producteur NYC, architecte du son boom-bap cinématique — Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+  },
+  {
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,
