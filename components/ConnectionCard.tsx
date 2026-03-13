@@ -166,8 +166,13 @@ export default function ConnectionCard({
     <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4 hover:border-orange-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/5 relative">
       {/* DM priority badge — top left */}
       {dmPriority !== undefined && (
-        <span className="absolute top-4 left-4 text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white z-10">
-          DM #{dmPriority}
+        <span className="absolute top-4 left-4 z-10 group">
+          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white cursor-default">
+            DM #{dmPriority}
+          </span>
+          <span className="pointer-events-none absolute left-0 top-full mt-1.5 w-max max-w-[180px] rounded-lg bg-gray-900 border border-orange-500/20 px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
+            Priority based on follower count — easier to reach
+          </span>
         </span>
       )}
       {/* Type badge — top right */}

@@ -184,6 +184,19 @@ export default function ArtistNetworkClient({
         </div>
       )}
 
+      {/* DM Priority Banner */}
+      {!loading && filtered.some((r) => priorityMap.has(normHandle(r.username))) && (
+        <div className="bg-gray-900 border border-orange-500/30 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+          <span className="text-base leading-none mt-0.5">📊</span>
+          <p className="text-xs text-gray-400 leading-relaxed">
+            Contacts ranked by{" "}
+            <span className="text-orange-400 font-semibold">DM priority</span>
+            {" "}— ordered by follower count (lowest first). Start with{" "}
+            <span className="text-orange-400 font-semibold">DM #1</span> for the highest chance of a response.
+          </p>
+        </div>
+      )}
+
       {/* Results count */}
       {!loading && (
         <p className="text-gray-600 text-sm mb-6">
