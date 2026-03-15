@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
 
 export default function Navbar() {
   const pathname = usePathname();
+  const { isSignedIn, isLoaded } = useUser();
 
   return (
     <nav className="sticky top-0 z-50 border-b border-[#1f1f1f] backdrop-blur-md bg-[#0a0a0a]/90">
@@ -26,12 +28,38 @@ export default function Navbar() {
           >
             Artists
           </Link>
-          <Link
-            href="/#waitlist"
-            className="text-sm font-semibold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
-          >
-            Get Early Access
-          </Link>
+
+          {isLoaded && isSignedIn ? (
+            <>
+              <Link
+                href="/dashboard"
+                className={`text-sm font-medium transition-colors ${
+                  pathname === "/dashboard"
+                    ? "text-orange-500"
+                    : "text-gray-400 hover:text-white"
+                }`}
+              >
+                Dashboard
+              </Link>
+              <UserButton />
+            </>
+          ) : (
+            <>
+              {isLoaded && (
+                <SignInButton>
+                  <button className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                    Sign in
+                  </button>
+                </SignInButton>
+              )}
+              <Link
+                href="/#waitlist"
+                className="text-sm font-semibold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
+              >
+                Get Early Access
+              </Link>
+            </>
+          )}
         </div>
       </div>
     </nav>

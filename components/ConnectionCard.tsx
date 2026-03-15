@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { AirtableRecord } from "@/lib/airtable";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -47,20 +47,41 @@ function formatFollowers(count: number) {
   return count.toString();
 }
 
+function storageKey(artistSlug: string, username: string) {
+  return `beatbridge_contacted_${artistSlug}_${username.replace("@", "")}`;
+}
+
 export default function ConnectionCard({
   record,
   listeningLink,
   dmPriority,
+  artistSlug,
 }: {
   record: AirtableRecord;
   listeningLink: string;
   dmPriority?: number;
+  artistSlug?: string;
 }) {
   const [copied, setCopied] = useState(false);
   const [sentDM, setSentDM] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [customTemplate, setCustomTemplate] = useState<string | null>(null);
   const [draftTemplate, setDraftTemplate] = useState("");
+  const [contacted, setContacted] = useState(false);
+
+  useEffect(() => {
+    if (!artistSlug) return;
+    const key = storageKey(artistSlug, record.username);
+    setContacted(localStorage.getItem(key) === "true");
+  }, [artistSlug, record.username]);
+
+  function toggleContacted() {
+    if (!artistSlug) return;
+    const key = storageKey(artistSlug, record.username);
+    const next = !contacted;
+    localStorage.setItem(key, String(next));
+    setContacted(next);
+  }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;
 
@@ -257,6 +278,25 @@ export default function ConnectionCard({
           <p className="text-xs text-orange-400/80 text-center">
             DM copied — paste it in Instagram (Ctrl+V)
           </p>
+        )}
+
+        {/* Mark as contacted */}
+        {artistSlug && (
+          <label
+            className={`flex items-center gap-2 cursor-pointer mt-1 pt-3 border-t border-[#1f1f1f] transition-colors ${
+              contacted ? "text-orange-400" : "text-gray-600 hover:text-gray-400"
+            }`}
+          >
+            <input
+              type="checkbox"
+              checked={contacted}
+              onChange={toggleContacted}
+              className="accent-orange-500 w-3.5 h-3.5 flex-shrink-0 cursor-pointer"
+            />
+            <span className="text-xs font-medium">
+              {contacted ? "Contacted" : "Mark as contacted"}
+            </span>
+          </label>
         )}
       </div>
     </div>

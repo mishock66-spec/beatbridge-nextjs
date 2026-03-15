@@ -133,6 +133,7 @@ export default async function ArtistNetwork({
           loading={false}
           error={error}
           dmPriorityOrder={dmPriorityOrder}
+          artistSlug={slug}
         />
       </div>
     </div>

@@ -62,11 +62,13 @@ export default function ArtistNetworkClient({
   loading,
   error,
   dmPriorityOrder,
+  artistSlug,
 }: {
   records: AirtableRecord[];
   loading: boolean;
   error: string | null;
   dmPriorityOrder?: string[];
+  artistSlug?: string;
 }) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
@@ -219,6 +221,7 @@ export default function ArtistNetworkClient({
                 record={record}
                 listeningLink={listeningLink}
                 dmPriority={priorityMap.get(normHandle(record.username))}
+                artistSlug={artistSlug}
               />
             ))}
       </div>
