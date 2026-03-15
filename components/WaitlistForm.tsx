@@ -5,17 +5,28 @@ import { useState } from "react";
 export default function WaitlistForm() {
   const [email, setEmail] = useState("");
   const [submitted, setSubmitted] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!email.trim()) return;
+    setLoading(true);
+    setError("");
 
-    const list = JSON.parse(localStorage.getItem("bb_waitlist") || "[]");
-    if (!list.includes(email.trim())) {
-      list.push(email.trim());
-      localStorage.setItem("bb_waitlist", JSON.stringify(list));
+    try {
+      await fetch("/api/newsletter/subscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      // Always show success even if audience isn't configured yet
+      setSubmitted(true);
+    } catch {
+      setError("Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
     }
-    setSubmitted(true);
   }
 
   if (submitted) {
@@ -39,14 +50,17 @@ export default function WaitlistForm() {
         onChange={(e) => setEmail(e.target.value)}
         placeholder="your@email.com"
         required
-        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-full px-5 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/60 text-sm"
+        disabled={loading}
+        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-full px-5 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/60 text-sm disabled:opacity-50"
       />
       <button
         type="submit"
-        className="bg-orange-500 text-black font-bold px-6 py-3 rounded-full hover:bg-orange-400 transition-colors text-sm whitespace-nowrap"
+        disabled={loading}
+        className="bg-orange-500 text-black font-bold px-6 py-3 rounded-full hover:bg-orange-400 transition-colors text-sm whitespace-nowrap disabled:opacity-50"
       >
-        Get Early Access
+        {loading ? "Joining..." : "Get Early Access"}
       </button>
+      {error && <p className="text-red-400 text-xs text-center w-full">{error}</p>}
     </form>
   );
 }

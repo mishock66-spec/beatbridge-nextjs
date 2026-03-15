@@ -1,5 +1,6 @@
 import Link from "next/link";
 import WaitlistForm from "@/components/WaitlistForm";
+import SignInValueProp from "@/components/SignInValueProp";
 
 const STEPS = [
   {
@@ -200,6 +201,9 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+      {/* Sign in value prop */}
+      <SignInValueProp />
 
       {/* Waitlist */}
       <section id="waitlist" className="py-24 px-4 border-t border-white/5">
