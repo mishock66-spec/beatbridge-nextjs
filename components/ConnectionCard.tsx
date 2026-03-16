@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
 
 const TYPE_COLORS: Record<string, string> = {
@@ -62,6 +64,7 @@ export default function ConnectionCard({
   dmPriority?: number;
   artistSlug?: string;
 }) {
+  const { isSignedIn } = useUser();
   const [copied, setCopied] = useState(false);
   const [sentDM, setSentDM] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -189,18 +192,18 @@ export default function ConnectionCard({
 
       {/* DM Template */}
       {record.template && (
-        <div className="bg-[#0a0a0a] rounded-xl p-3 border border-[#1f1f1f]">
+        <div className="bg-[#0a0a0a] rounded-xl p-3 border border-[#1f1f1f] relative">
           {/* Label row */}
           <div className="flex items-center justify-between mb-1.5">
             <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
               DM Template
-              {customTemplate !== null && (
+              {customTemplate !== null && isSignedIn && (
                 <span className="ml-2 text-orange-400/60 normal-case tracking-normal font-normal">
                   (edited)
                 </span>
               )}
             </p>
-            {!isEditing && (
+            {!isEditing && isSignedIn && (
               <button
                 onClick={handleEditClick}
                 className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10"
@@ -210,8 +213,8 @@ export default function ConnectionCard({
             )}
           </div>
 
-          {/* Edit mode */}
-          {isEditing ? (
+          {/* Edit mode (signed in only) */}
+          {isSignedIn && isEditing ? (
             <div className="flex flex-col gap-2">
               <textarea
                 value={draftTemplate}
@@ -235,10 +238,23 @@ export default function ConnectionCard({
               </div>
             </div>
           ) : (
-            <p
-              className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
-              dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
-            />
+            <div className="relative">
+              <p
+                className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
+                style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
+                dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
+              />
+              {!isSignedIn && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Link
+                    href="/sign-in"
+                    className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors"
+                  >
+                    Sign in to view
+                  </Link>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -281,7 +297,7 @@ export default function ConnectionCard({
         )}
 
         {/* Mark as contacted */}
-        {artistSlug && (
+        {artistSlug && isSignedIn && (
           <label
             className={`flex items-center gap-2 cursor-pointer mt-1 pt-3 border-t border-[#1f1f1f] transition-colors ${
               contacted ? "text-orange-400" : "text-gray-600 hover:text-gray-400"
