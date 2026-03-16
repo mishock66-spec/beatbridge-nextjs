@@ -106,14 +106,19 @@ export default function ConnectionCard({
   }
 
   function handleSendDM() {
-    if (!resolvedTemplate) return;
     const username = record.username.replace("@", "");
     const dmUrl = `https://ig.me/m/${username}`;
-    navigator.clipboard.writeText(resolvedTemplate).then(() => {
+    if (isSignedIn && resolvedTemplate) {
+      navigator.clipboard.writeText(resolvedTemplate).then(() => {
+        setSentDM(true);
+        window.open(dmUrl, "_blank", "noopener,noreferrer");
+        setTimeout(() => setSentDM(false), 4000);
+      });
+    } else {
       setSentDM(true);
-      if (dmUrl) window.open(dmUrl, "_blank", "noopener,noreferrer");
+      window.open(dmUrl, "_blank", "noopener,noreferrer");
       setTimeout(() => setSentDM(false), 4000);
-    });
+    }
   }
 
   function handleEditClick() {
@@ -172,9 +177,14 @@ export default function ConnectionCard({
         <TypeEmoji profileType={record.profileType} />
         <div className="flex-1 min-w-0 pr-20">
           <p className="font-semibold text-white truncate">{record.fullName}</p>
-          <p className="text-orange-400 text-sm">
+          <a
+            href={record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-orange-400 text-sm hover:underline"
+          >
             @{record.username.replace("@", "")}
-          </p>
+          </a>
           {record.followers > 0 && (
             <p className="text-xs text-gray-500 mt-0.5">
               {formatFollowers(record.followers)} followers
@@ -264,7 +274,7 @@ export default function ConnectionCard({
         <div className="flex gap-2">
           <button
             onClick={handleCopyDM}
-            disabled={!record.template}
+            disabled={!record.template || !isSignedIn}
             className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 text-white hover:bg-orange-400 active:scale-95"
           >
             {copied ? "✓ Copied!" : "Copy DM"}
