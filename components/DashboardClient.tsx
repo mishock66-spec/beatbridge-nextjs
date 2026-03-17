@@ -4,6 +4,12 @@ import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
+import {
+  type ContactStatus,
+  CONTACT_STATUSES,
+  STATUS_STYLE,
+  statusStorageKey,
+} from "@/components/ConnectionCard";
 
 interface ArtistData {
   slug: string;
@@ -12,39 +18,58 @@ interface ArtistData {
   records: AirtableRecord[];
 }
 
-function storageKey(artistSlug: string, username: string) {
-  return `beatbridge_contacted_${artistSlug}_${username.replace("@", "")}`;
+interface ContactWithMeta {
+  record: AirtableRecord;
+  artistSlug: string;
+  artistName: string;
+  status: ContactStatus;
 }
 
-function useContactedState(artists: ArtistData[]) {
-  const [contacted, setContacted] = useState<Record<string, boolean>>({});
+function useStatusState(artists: ArtistData[]) {
+  const [statuses, setStatuses] = useState<Record<string, ContactStatus>>({});
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    const all: Record<string, boolean> = {};
+    const all: Record<string, ContactStatus> = {};
     artists.forEach((artist) => {
       artist.records.forEach((record) => {
-        const key = storageKey(artist.slug, record.username);
-        all[key] = localStorage.getItem(key) === "true";
+        const key = statusStorageKey(artist.slug, record.username);
+        const stored = localStorage.getItem(key) as ContactStatus | null;
+        all[key] = stored && CONTACT_STATUSES.includes(stored) ? stored : "To contact";
       });
     });
-    setContacted(all);
+    setStatuses(all);
     setMounted(true);
   }, [artists]);
 
-  function toggle(artistSlug: string, username: string) {
-    const key = storageKey(artistSlug, username);
-    const newVal = !contacted[key];
-    localStorage.setItem(key, String(newVal));
-    setContacted((prev) => ({ ...prev, [key]: newVal }));
-  }
+  return { statuses, mounted };
+}
 
-  return { contacted, toggle, mounted };
+function StatCard({
+  label,
+  value,
+  sub,
+  accent,
+}: {
+  label: string;
+  value: string | number;
+  sub?: string;
+  accent?: string;
+}) {
+  return (
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-1">
+      <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">{label}</p>
+      <p className="text-3xl font-black" style={accent ? { color: accent } : undefined}>
+        {value}
+      </p>
+      {sub && <p className="text-xs text-gray-600">{sub}</p>}
+    </div>
+  );
 }
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { contacted, toggle, mounted } = useContactedState(artists);
+  const { statuses, mounted } = useStatusState(artists);
 
   if (!isLoaded) {
     return (
@@ -79,11 +104,34 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
     user.emailAddresses[0]?.emailAddress?.split("@")[0] ??
     "Producer";
 
-  const totalAll = artists.reduce((s, a) => s + a.records.length, 0);
-  const doneAll = artists.reduce(
-    (s, a) =>
-      s + a.records.filter((r) => contacted[storageKey(a.slug, r.username)]).length,
-    0
+  // Aggregate all contacts with their status
+  const allContacts: ContactWithMeta[] = artists.flatMap((artist) =>
+    artist.records.map((record) => {
+      const key = statusStorageKey(artist.slug, record.username);
+      return {
+        record,
+        artistSlug: artist.slug,
+        artistName: artist.name,
+        status: mounted ? (statuses[key] ?? "To contact") : "To contact",
+      };
+    })
+  );
+
+  const totalAll = allContacts.length;
+  const totalDMsSent = allContacts.filter(
+    (c) => c.status === "DM sent" || c.status === "Replied"
+  ).length;
+  const totalReplied = allContacts.filter((c) => c.status === "Replied").length;
+  const responseRate =
+    totalDMsSent > 0 ? Math.round((totalReplied / totalDMsSent) * 100) : 0;
+
+  // Group contacts by status (excluding "To contact" which is the default noise)
+  const grouped = CONTACT_STATUSES.reduce<Record<ContactStatus, ContactWithMeta[]>>(
+    (acc, s) => {
+      acc[s] = allContacts.filter((c) => c.status === s);
+      return acc;
+    },
+    {} as Record<ContactStatus, ContactWithMeta[]>
   );
 
   return (
@@ -93,31 +141,47 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         <div className="mb-10">
           <p className="text-gray-500 text-sm mb-1">Welcome back,</p>
           <h1 className="text-3xl font-black">{displayName}</h1>
-          <p className="text-gray-500 text-sm mt-2">
-            {mounted ? (
-              <>
-                <span className="text-orange-500 font-semibold">{doneAll}</span>
-                <span> of {totalAll} contacts reached</span>
-              </>
-            ) : (
-              "Your outreach progress"
-            )}
-          </p>
+          <p className="text-gray-500 text-sm mt-2">Your outreach dashboard</p>
         </div>
+
+        {/* Stats row */}
+        {mounted && (
+          <div className="grid grid-cols-3 gap-3 mb-10">
+            <StatCard
+              label="DMs Sent"
+              value={totalDMsSent}
+              sub={`out of ${totalAll} contacts`}
+              accent="#f97316"
+            />
+            <StatCard
+              label="Replies"
+              value={totalReplied}
+              sub={totalDMsSent > 0 ? `from ${totalDMsSent} DMs sent` : "no DMs sent yet"}
+              accent="#22c55e"
+            />
+            <StatCard
+              label="Response Rate"
+              value={totalDMsSent > 0 ? `${responseRate}%` : "—"}
+              sub={totalDMsSent > 0 ? "replies ÷ DMs sent" : "send some DMs first"}
+              accent={responseRate >= 20 ? "#22c55e" : responseRate > 0 ? "#f97316" : undefined}
+            />
+          </div>
+        )}
 
         {/* Artist sections */}
         {artists.map((artist) => {
           const total = artist.records.length;
-          const done = mounted
-            ? artist.records.filter((r) =>
-                contacted[storageKey(artist.slug, r.username)]
-              ).length
+          const dmSentOrReplied = mounted
+            ? artist.records.filter((r) => {
+                const key = statusStorageKey(artist.slug, r.username);
+                const s = statuses[key] ?? "To contact";
+                return s === "DM sent" || s === "Replied";
+              }).length
             : 0;
-          const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+          const pct = total > 0 ? Math.round((dmSentOrReplied / total) * 100) : 0;
 
           return (
             <div key={artist.slug} className="mb-10">
-              {/* Artist summary card */}
               <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 mb-3">
                 <div className="flex items-center gap-4 mb-5">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#1f1f1f] flex-shrink-0">
@@ -132,9 +196,9 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                     <div className="flex items-center justify-between gap-3">
                       <h2 className="text-lg font-black truncate">{artist.name}</h2>
                       <span className="text-sm flex-shrink-0">
-                        <span className="text-orange-500 font-bold">{done}</span>
+                        <span className="text-orange-500 font-bold">{dmSentOrReplied}</span>
                         <span className="text-gray-600"> / {total}</span>
-                        <span className="text-gray-500 ml-1 text-xs">DMs sent</span>
+                        <span className="text-gray-500 ml-1 text-xs">contacted</span>
                       </span>
                     </div>
                   </div>
@@ -148,7 +212,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                   />
                 </div>
                 <div className="flex justify-between mt-2">
-                  <span className="text-xs text-gray-600">{pct}% complete</span>
+                  <span className="text-xs text-gray-600">{pct}% contacted (DM sent or replied)</span>
                   <Link
                     href={`/artist/${artist.slug}`}
                     className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
@@ -157,55 +221,61 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                   </Link>
                 </div>
               </div>
-
-              {/* Contact checklist */}
-              <div className="space-y-1.5">
-                {artist.records.map((record) => {
-                  const key = storageKey(artist.slug, record.username);
-                  const isDone = mounted ? (contacted[key] ?? false) : false;
-                  return (
-                    <label
-                      key={record.id}
-                      className={`flex items-center gap-3 px-4 py-3 rounded-xl border cursor-pointer transition-all duration-150 ${
-                        isDone
-                          ? "bg-orange-500/5 border-orange-500/20"
-                          : "bg-[#111111] border-[#1f1f1f] hover:border-orange-500/20"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={isDone}
-                        onChange={() => toggle(artist.slug, record.username)}
-                        className="accent-orange-500 w-4 h-4 flex-shrink-0 cursor-pointer"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p
-                          className={`text-sm font-semibold truncate transition-colors ${
-                            isDone ? "text-gray-600 line-through" : "text-white"
-                          }`}
-                        >
-                          {record.fullName}
-                        </p>
-                        <p className="text-xs text-gray-600 truncate">
-                          @{record.username.replace("@", "")}
-                        </p>
-                      </div>
-                      <span className="text-xs text-gray-600 flex-shrink-0">
-                        {record.profileType}
-                      </span>
-                    </label>
-                  );
-                })}
-
-                {artist.records.length === 0 && (
-                  <p className="text-sm text-gray-600 px-4 py-3">
-                    No contacts loaded.
-                  </p>
-                )}
-              </div>
             </div>
           );
         })}
+
+        {/* All contacts grouped by status */}
+        <div className="mt-4">
+          <h2 className="text-lg font-black mb-4">All Contacts by Status</h2>
+          {CONTACT_STATUSES.filter((s) => grouped[s].length > 0).map((s) => {
+            const style = STATUS_STYLE[s];
+            return (
+              <div key={s} className="mb-6">
+                <div className="flex items-center gap-2 mb-2">
+                  <span
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: style.dot }}
+                  />
+                  <span className="text-sm font-semibold" style={{ color: style.pill.color as string }}>
+                    {s}
+                  </span>
+                  <span className="text-xs text-gray-600">({grouped[s].length})</span>
+                </div>
+                <div className="space-y-1.5">
+                  {grouped[s].map((c) => (
+                    <div
+                      key={`${c.artistSlug}-${c.record.id}`}
+                      className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-[#111111] border-[#1f1f1f]"
+                    >
+                      <span
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: style.dot }}
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate text-white">
+                          {c.record.fullName}
+                        </p>
+                        <p className="text-xs text-gray-600 truncate">
+                          @{c.record.username.replace("@", "")} · {c.artistName}
+                        </p>
+                      </div>
+                      <span className="text-xs text-gray-600 flex-shrink-0">
+                        {c.record.profileType}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+
+          {mounted && allContacts.every((c) => c.status === "To contact") && (
+            <p className="text-sm text-gray-600 px-4 py-6 text-center">
+              No contacts tracked yet — start sending DMs and update statuses on each card.
+            </p>
+          )}
+        </div>
       </div>
     </div>
   );
