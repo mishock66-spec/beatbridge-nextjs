@@ -298,14 +298,14 @@ export default function ConnectionCard({
         <TypeEmoji profileType={record.profileType} />
         <div className="flex-1 min-w-0 pr-20">
           <p className="font-semibold text-white truncate">{record.fullName}</p>
-          <a
-            href={record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-orange-400 text-sm hover:underline"
+          <button
+            onClick={() => {
+              window.location.href = record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`;
+            }}
+            className="text-orange-400 text-sm hover:underline text-left"
           >
             @{record.username.replace("@", "")}
-          </a>
+          </button>
           {record.followers > 0 && (
             <p className="text-xs text-gray-500 mt-0.5">
               {formatFollowers(record.followers)} followers
