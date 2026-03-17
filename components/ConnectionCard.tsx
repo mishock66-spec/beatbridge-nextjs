@@ -201,7 +201,6 @@ export default function ConnectionCard({
 }) {
   const { isSignedIn } = useUser();
   const [copied, setCopied] = useState(false);
-  const [sentDM, setSentDM] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [customTemplate, setCustomTemplate] = useState<string | null>(null);
   const [draftTemplate, setDraftTemplate] = useState("");
@@ -240,22 +239,6 @@ export default function ConnectionCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
-  }
-
-  function handleSendDM() {
-    const username = record.username.replace("@", "");
-    const dmUrl = `https://ig.me/m/${username}`;
-    if (isSignedIn && resolvedTemplate) {
-      navigator.clipboard.writeText(resolvedTemplate).then(() => {
-        setSentDM(true);
-        window.open(dmUrl, "_blank", "noopener,noreferrer");
-        setTimeout(() => setSentDM(false), 4000);
-      });
-    } else {
-      setSentDM(true);
-      window.open(dmUrl, "_blank", "noopener,noreferrer");
-      setTimeout(() => setSentDM(false), 4000);
-    }
   }
 
   function handleEditClick() {
@@ -420,12 +403,19 @@ export default function ConnectionCard({
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
           {record.template && (
-            <button
-              onClick={handleSendDM}
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
+            <a
+              href={`https://ig.me/m/${record.username.replace("@", "")}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => {
+                if (isSignedIn && resolvedTemplate) {
+                  navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
+                }
+              }}
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95 text-center"
             >
-              {sentDM ? "✓ Sent!" : "Send DM →"}
-            </button>
+              Send DM →
+            </a>
           )}
           {record.profileUrl && !record.template && (
             <a
@@ -438,13 +428,6 @@ export default function ConnectionCard({
             </a>
           )}
         </div>
-
-        {/* Send DM tooltip */}
-        {sentDM && (
-          <p className="text-xs text-orange-400/80 text-center">
-            DM copied — paste it in Instagram (Ctrl+V)
-          </p>
-        )}
 
         {/* Status selector — signed in only */}
         {artistSlug && isSignedIn && (
