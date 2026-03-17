@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
 import {
@@ -18,12 +18,28 @@ interface ArtistData {
   records: AirtableRecord[];
 }
 
-interface ContactWithMeta {
-  record: AirtableRecord;
-  artistSlug: string;
-  artistName: string;
-  status: ContactStatus;
+// ─── shared helpers ────────────────────────────────────────────────────────────
+
+function formatFollowers(count: number) {
+  if (!count) return null;
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K`;
+  return count.toString();
 }
+
+const TYPE_COLORS: Record<string, string> = {
+  Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
+  Label: "bg-blue-500/20 text-blue-300 border-blue-500/30",
+  "Sound Engineer": "bg-green-500/20 text-green-300 border-green-500/30",
+  DJ: "bg-orange-500/20 text-orange-300 border-orange-500/30",
+  Manager: "bg-red-500/20 text-red-300 border-red-500/30",
+  Studio: "bg-cyan-500/20 text-cyan-300 border-cyan-500/30",
+  "Artist/Rapper": "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  "Photographer/Videographer": "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+  Other: "bg-gray-500/20 text-gray-300 border-gray-500/30",
+};
+
+// ─── status hook (read + write) ────────────────────────────────────────────────
 
 function useStatusState(artists: ArtistData[]) {
   const [statuses, setStatuses] = useState<Record<string, ContactStatus>>({});
@@ -42,8 +58,79 @@ function useStatusState(artists: ArtistData[]) {
     setMounted(true);
   }, [artists]);
 
-  return { statuses, mounted };
+  function updateStatus(artistSlug: string, username: string, next: ContactStatus) {
+    const key = statusStorageKey(artistSlug, username);
+    localStorage.setItem(key, next);
+    setStatuses((prev) => ({ ...prev, [key]: next }));
+  }
+
+  return { statuses, mounted, updateStatus };
 }
+
+// ─── StatusPill (inline, same logic as ConnectionCard) ─────────────────────────
+
+function StatusPill({
+  status,
+  onChange,
+}: {
+  status: ContactStatus;
+  onChange: (s: ContactStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const style = STATUS_STYLE[status];
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80 whitespace-nowrap"
+        style={style.pill}
+      >
+        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.dot }} />
+        {status}
+        <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-1.5 right-0 z-20 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[152px]">
+          {CONTACT_STATUSES.map((s) => {
+            const st = STATUS_STYLE[s];
+            return (
+              <button
+                key={s}
+                onClick={() => { onChange(s); setOpen(false); }}
+                className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center gap-2.5"
+                style={{ color: st.pill.color as string }}
+              >
+                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: st.dot }} />
+                {s}
+                {s === status && (
+                  <svg className="w-3 h-3 ml-auto opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── StatCard ─────────────────────────────────────────────────────────────────
 
 function StatCard({
   label,
@@ -67,9 +154,146 @@ function StatCard({
   );
 }
 
+// ─── ArtistContactList ────────────────────────────────────────────────────────
+
+type FilterTab = "All" | ContactStatus;
+
+function ArtistContactList({
+  artist,
+  statuses,
+  updateStatus,
+  mounted,
+}: {
+  artist: ArtistData;
+  statuses: Record<string, ContactStatus>;
+  updateStatus: (slug: string, username: string, s: ContactStatus) => void;
+  mounted: boolean;
+}) {
+  const [activeTab, setActiveTab] = useState<FilterTab>("All");
+
+  const records = artist.records;
+
+  const countFor = (tab: FilterTab) => {
+    if (!mounted) return tab === "All" ? records.length : 0;
+    if (tab === "All") return records.length;
+    return records.filter((r) => {
+      const key = statusStorageKey(artist.slug, r.username);
+      return (statuses[key] ?? "To contact") === tab;
+    }).length;
+  };
+
+  const filtered = !mounted
+    ? records
+    : activeTab === "All"
+    ? records
+    : records.filter((r) => {
+        const key = statusStorageKey(artist.slug, r.username);
+        return (statuses[key] ?? "To contact") === activeTab;
+      });
+
+  const tabs: FilterTab[] = ["All", ...CONTACT_STATUSES];
+
+  return (
+    <div>
+      {/* Filter tabs */}
+      <div className="flex gap-1.5 flex-wrap mb-3">
+        {tabs.map((tab) => {
+          const count = countFor(tab);
+          const isActive = activeTab === tab;
+          return (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all ${
+                isActive
+                  ? "bg-orange-500 border-orange-500 text-white"
+                  : "bg-transparent border-[#2f2f2f] text-gray-400 hover:border-gray-500 hover:text-gray-300"
+              }`}
+            >
+              {tab}
+              {mounted && (
+                <span className={`ml-1.5 ${isActive ? "opacity-80" : "opacity-50"}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Contact rows */}
+      <div className="space-y-1.5">
+        {filtered.map((record) => {
+          const key = statusStorageKey(artist.slug, record.username);
+          const status: ContactStatus = mounted ? (statuses[key] ?? "To contact") : "To contact";
+          const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;
+          const followers = formatFollowers(record.followers);
+          const username = record.username.replace("@", "");
+
+          return (
+            <div
+              key={record.id}
+              className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-[#111111] border-[#1f1f1f] hover:border-orange-500/20 transition-colors"
+            >
+              {/* Name + username */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-white truncate">{record.fullName}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <a
+                    href={record.profileUrl || `https://instagram.com/${username}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs text-orange-400 hover:underline flex-shrink-0"
+                  >
+                    @{username}
+                  </a>
+                  {followers && (
+                    <span className="text-xs text-gray-600">{followers} followers</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Profile type badge */}
+              <span
+                className={`hidden sm:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${typeColor}`}
+              >
+                {record.profileType}
+              </span>
+
+              {/* Status dropdown */}
+              <StatusPill
+                status={status}
+                onChange={(s) => updateStatus(artist.slug, record.username, s)}
+              />
+
+              {/* Send DM */}
+              <a
+                href={`https://ig.me/m/${username}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
+              >
+                Send DM →
+              </a>
+            </div>
+          );
+        })}
+
+        {filtered.length === 0 && (
+          <p className="text-sm text-gray-600 px-4 py-4 text-center">
+            No contacts with status &quot;{activeTab}&quot;.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── DashboardClient ──────────────────────────────────────────────────────────
+
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { statuses, mounted } = useStatusState(artists);
+  const { statuses, mounted, updateStatus } = useStatusState(artists);
 
   if (!isLoaded) {
     return (
@@ -104,35 +328,30 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
     user.emailAddresses[0]?.emailAddress?.split("@")[0] ??
     "Producer";
 
-  // Aggregate all contacts with their status
-  const allContacts: ContactWithMeta[] = artists.flatMap((artist) =>
-    artist.records.map((record) => {
-      const key = statusStorageKey(artist.slug, record.username);
-      return {
-        record,
-        artistSlug: artist.slug,
-        artistName: artist.name,
-        status: mounted ? (statuses[key] ?? "To contact") : "To contact",
-      };
-    })
-  );
-
-  const totalAll = allContacts.length;
-  const totalDMsSent = allContacts.filter(
-    (c) => c.status === "DM sent" || c.status === "Replied"
-  ).length;
-  const totalReplied = allContacts.filter((c) => c.status === "Replied").length;
+  const totalAll = artists.reduce((s, a) => s + a.records.length, 0);
+  const totalDMsSent = mounted
+    ? artists.reduce(
+        (sum, a) =>
+          sum +
+          a.records.filter((r) => {
+            const s = statuses[statusStorageKey(a.slug, r.username)] ?? "To contact";
+            return s === "DM sent" || s === "Replied";
+          }).length,
+        0
+      )
+    : 0;
+  const totalReplied = mounted
+    ? artists.reduce(
+        (sum, a) =>
+          sum +
+          a.records.filter(
+            (r) => (statuses[statusStorageKey(a.slug, r.username)] ?? "To contact") === "Replied"
+          ).length,
+        0
+      )
+    : 0;
   const responseRate =
     totalDMsSent > 0 ? Math.round((totalReplied / totalDMsSent) * 100) : 0;
-
-  // Group contacts by status (excluding "To contact" which is the default noise)
-  const grouped = CONTACT_STATUSES.reduce<Record<ContactStatus, ContactWithMeta[]>>(
-    (acc, s) => {
-      acc[s] = allContacts.filter((c) => c.status === s);
-      return acc;
-    },
-    {} as Record<ContactStatus, ContactWithMeta[]>
-  );
 
   return (
     <div className="min-h-screen">
@@ -173,24 +392,20 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           const total = artist.records.length;
           const dmSentOrReplied = mounted
             ? artist.records.filter((r) => {
-                const key = statusStorageKey(artist.slug, r.username);
-                const s = statuses[key] ?? "To contact";
+                const s = statuses[statusStorageKey(artist.slug, r.username)] ?? "To contact";
                 return s === "DM sent" || s === "Replied";
               }).length
             : 0;
           const pct = total > 0 ? Math.round((dmSentOrReplied / total) * 100) : 0;
 
           return (
-            <div key={artist.slug} className="mb-10">
-              <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 mb-3">
+            <div key={artist.slug} className="mb-12">
+              {/* Progress bar card */}
+              <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 mb-4">
                 <div className="flex items-center gap-4 mb-5">
                   <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#1f1f1f] flex-shrink-0">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src={artist.photo}
-                      alt={artist.name}
-                      className="w-full h-full object-cover"
-                    />
+                    <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-3">
@@ -203,8 +418,6 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                     </div>
                   </div>
                 </div>
-
-                {/* Progress bar */}
                 <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
                   <div
                     className="h-full bg-orange-500 rounded-full transition-all duration-500"
@@ -221,61 +434,17 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                   </Link>
                 </div>
               </div>
+
+              {/* Contact list with filter tabs */}
+              <ArtistContactList
+                artist={artist}
+                statuses={statuses}
+                updateStatus={updateStatus}
+                mounted={mounted}
+              />
             </div>
           );
         })}
-
-        {/* All contacts grouped by status */}
-        <div className="mt-4">
-          <h2 className="text-lg font-black mb-4">All Contacts by Status</h2>
-          {CONTACT_STATUSES.filter((s) => grouped[s].length > 0).map((s) => {
-            const style = STATUS_STYLE[s];
-            return (
-              <div key={s} className="mb-6">
-                <div className="flex items-center gap-2 mb-2">
-                  <span
-                    className="w-2 h-2 rounded-full flex-shrink-0"
-                    style={{ backgroundColor: style.dot }}
-                  />
-                  <span className="text-sm font-semibold" style={{ color: style.pill.color as string }}>
-                    {s}
-                  </span>
-                  <span className="text-xs text-gray-600">({grouped[s].length})</span>
-                </div>
-                <div className="space-y-1.5">
-                  {grouped[s].map((c) => (
-                    <div
-                      key={`${c.artistSlug}-${c.record.id}`}
-                      className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-[#111111] border-[#1f1f1f]"
-                    >
-                      <span
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: style.dot }}
-                      />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate text-white">
-                          {c.record.fullName}
-                        </p>
-                        <p className="text-xs text-gray-600 truncate">
-                          @{c.record.username.replace("@", "")} · {c.artistName}
-                        </p>
-                      </div>
-                      <span className="text-xs text-gray-600 flex-shrink-0">
-                        {c.record.profileType}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })}
-
-          {mounted && allContacts.every((c) => c.status === "To contact") && (
-            <p className="text-sm text-gray-600 px-4 py-6 text-center">
-              No contacts tracked yet — start sending DMs and update statuses on each card.
-            </p>
-          )}
-        </div>
       </div>
     </div>
   );
