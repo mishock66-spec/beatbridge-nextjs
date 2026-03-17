@@ -403,19 +403,17 @@ export default function ConnectionCard({
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
           {record.template && (
-            <a
-              href={`https://ig.me/m/${record.username.replace("@", "")}`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
               onClick={() => {
                 if (isSignedIn && resolvedTemplate) {
                   navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
                 }
+                window.location.href = `https://ig.me/m/${record.username.replace("@", "")}`;
               }}
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95 text-center"
+              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
             >
               Send DM →
-            </a>
+            </button>
           )}
           {record.profileUrl && !record.template && (
             <a

@@ -13,6 +13,7 @@
 
 ## CONTACT CARD RULES
 - Instagram @usernames on contact cards MUST always be clickable links to the contact's Instagram profile wall (profileUrl), opening in a new tab. Never link to ig.me for the username — that is reserved for the Send DM button only.
+- Never use window.open() or <a target='_blank'> for the Send DM button — use window.location.href to avoid popup blockers on all mobile browsers.
 
 ## Self-Improvement Loop
 
