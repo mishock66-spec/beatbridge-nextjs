@@ -416,14 +416,12 @@ export default function ConnectionCard({
             </button>
           )}
           {record.profileUrl && !record.template && (
-            <a
-              href={record.profileUrl}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => { window.location.href = record.profileUrl; }}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
             >
               Open Instagram
-            </a>
+            </button>
           )}
         </div>
 

@@ -239,14 +239,12 @@ function ArtistContactList({
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-white truncate">{record.fullName}</p>
                 <div className="flex items-center gap-2 mt-0.5">
-                  <a
-                    href={record.profileUrl || `https://instagram.com/${username}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-xs text-orange-400 hover:underline flex-shrink-0"
+                  <button
+                    onClick={() => { window.location.href = record.profileUrl || `https://instagram.com/${username}`; }}
+                    className="text-xs text-orange-400 hover:underline flex-shrink-0 text-left"
                   >
                     @{username}
-                  </a>
+                  </button>
                   {followers && (
                     <span className="text-xs text-gray-600">{followers} followers</span>
                   )}
@@ -269,14 +267,12 @@ function ArtistContactList({
                 />
 
                 {/* Send DM */}
-                <a
-                  href={`https://ig.me/m/${username}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                <button
+                  onClick={() => { window.location.href = `https://ig.me/m/${username}`; }}
                   className="flex-1 sm:flex-none text-center text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
                 >
                   Send DM →
-                </a>
+                </button>
               </div>
             </div>
           );

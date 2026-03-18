@@ -11,6 +11,10 @@
 - Airtable base: appW42oNhB9Hl14bq
 - Local folder: C:\Users\crayx\beatbridge-nextjs
 
+## ABSOLUTE RULE — External Navigation
+- Never use window.open() or <a target='_blank'> anywhere in the codebase. Always use window.location.href for ALL external navigation. This applies to every component, every page, every button, no exceptions.
+- Reason: window.open() and target="_blank" are blocked by aggressive ad blockers on mobile (e.g. Free Adblock Browser). window.location.href always works.
+
 ## MOBILE FIRST
 - Every UI change must be tested mentally for mobile screens (< 640px). Always use responsive Tailwind classes (sm:, md:, lg:).
 - Never add elements to the navbar without checking mobile overflow. Navbar must always fit on 375px screens.
