@@ -17,10 +17,10 @@ export default function Navbar() {
           </span>
         </Link>
 
-        <div className="flex items-center gap-6">
+        <div className="flex items-center gap-3 sm:gap-6">
           <Link
             href="/artists"
-            className={`text-sm font-medium transition-colors ${
+            className={`hidden sm:block text-sm font-medium transition-colors ${
               pathname.startsWith("/artist")
                 ? "text-orange-500"
                 : "text-gray-400 hover:text-white"
@@ -31,7 +31,7 @@ export default function Navbar() {
 
           <Link
             href="/community"
-            className={`text-sm font-medium transition-colors ${
+            className={`hidden sm:block text-sm font-medium transition-colors ${
               pathname === "/community"
                 ? "text-orange-500"
                 : "text-gray-400 hover:text-white"
@@ -65,7 +65,7 @@ export default function Navbar() {
               )}
               <Link
                 href="/#waitlist"
-                className="text-sm font-semibold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
+                className="hidden sm:flex text-sm font-semibold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
               >
                 Get Early Access
               </Link>

@@ -394,11 +394,11 @@ export default function ConnectionCard({
 
       {/* Actions */}
       <div className="flex flex-col gap-2 mt-auto pt-1">
-        <div className="flex gap-2">
+        <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleCopyDM}
             disabled={!record.template || !isSignedIn}
-            className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 text-white hover:bg-orange-400 active:scale-95"
+            className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 text-white hover:bg-orange-400 active:scale-95"
           >
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
@@ -410,7 +410,7 @@ export default function ConnectionCard({
                 }
                 window.location.href = `https://ig.me/m/${record.username.replace("@", "")}`;
               }}
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
             >
               Send DM →
             </button>
@@ -420,7 +420,7 @@ export default function ConnectionCard({
               href={record.profileUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex-1 text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
             >
               Open Instagram
             </a>

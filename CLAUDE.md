@@ -11,6 +11,15 @@
 - Airtable base: appW42oNhB9Hl14bq
 - Local folder: C:\Users\crayx\beatbridge-nextjs
 
+## MOBILE FIRST
+- Every UI change must be tested mentally for mobile screens (< 640px). Always use responsive Tailwind classes (sm:, md:, lg:).
+- Never add elements to the navbar without checking mobile overflow. Navbar must always fit on 375px screens.
+- "Get Early Access" button in Navbar is hidden on mobile (hidden sm:flex) — never make it visible on mobile.
+- Artists and Community nav links are hidden on mobile (hidden sm:block) — navigation is simplified on small screens.
+- Contact cards on the dashboard (DashboardClient) must use flex-col on mobile, flex-row on sm+. Status dropdown and Send DM button must be in the same actions row, never overflowing the card.
+- ConnectionCard action buttons (Copy DM, Send DM) must be full-width on mobile (w-full, flex-col on mobile, flex-row on sm+). Buttons must never overlap other elements.
+- All pages must have minimum px-4 padding on mobile.
+
 ## CONTACT CARD RULES
 - Instagram @usernames on contact cards MUST always be clickable links to the contact's Instagram profile wall (profileUrl), opening in a new tab. Never link to ig.me for the username — that is reserved for the Send DM button only.
 - Never use <a target='_blank'> or window.open() for any Instagram links — always use window.location.href to avoid popup blockers on all mobile browsers.

@@ -233,7 +233,7 @@ function ArtistContactList({
           return (
             <div
               key={record.id}
-              className="flex items-center gap-3 px-4 py-3 rounded-xl border bg-[#111111] border-[#1f1f1f] hover:border-orange-500/20 transition-colors"
+              className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3 px-4 py-3 rounded-xl border bg-[#111111] border-[#1f1f1f] hover:border-orange-500/20 transition-colors"
             >
               {/* Name + username */}
               <div className="flex-1 min-w-0">
@@ -253,28 +253,31 @@ function ArtistContactList({
                 </div>
               </div>
 
-              {/* Profile type badge */}
-              <span
-                className={`hidden sm:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${typeColor}`}
-              >
-                {record.profileType}
-              </span>
+              {/* Actions row: type badge + status + Send DM */}
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Profile type badge */}
+                <span
+                  className={`hidden sm:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border flex-shrink-0 ${typeColor}`}
+                >
+                  {record.profileType}
+                </span>
 
-              {/* Status dropdown */}
-              <StatusPill
-                status={status}
-                onChange={(s) => updateStatus(artist.slug, record.username, s)}
-              />
+                {/* Status dropdown */}
+                <StatusPill
+                  status={status}
+                  onChange={(s) => updateStatus(artist.slug, record.username, s)}
+                />
 
-              {/* Send DM */}
-              <a
-                href={`https://ig.me/m/${username}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
-              >
-                Send DM →
-              </a>
+                {/* Send DM */}
+                <a
+                  href={`https://ig.me/m/${username}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex-1 sm:flex-none text-center text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
+                >
+                  Send DM →
+                </a>
+              </div>
             </div>
           );
         })}
