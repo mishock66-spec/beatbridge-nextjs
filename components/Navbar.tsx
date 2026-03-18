@@ -29,23 +29,16 @@ export default function Navbar() {
             Artists
           </Link>
 
-          {isLoaded && isSignedIn ? (
-            <button
-              onClick={() => { window.location.href = "https://t.me/+H5L7HpvQtUdlYWFk"; }}
-              className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
-            >
-              Community
-            </button>
-          ) : (
-            isLoaded && (
-              <Link
-                href="/sign-in"
-                className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
-              >
-                Community
-              </Link>
-            )
-          )}
+          <Link
+            href="/community"
+            className={`text-sm font-medium transition-colors ${
+              pathname === "/community"
+                ? "text-orange-500"
+                : "text-gray-400 hover:text-white"
+            }`}
+          >
+            Community
+          </Link>
 
           {isLoaded && isSignedIn ? (
             <>

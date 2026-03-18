@@ -16,6 +16,14 @@ export default function RootLayout({
 }>) {
   return (
     <ClerkProvider
+      localization={{
+        signIn: {
+          start: {
+            title: "Sign in to BeatBridge",
+            subtitle: "Welcome back",
+          },
+        },
+      }}
       appearance={{
         variables: {
           colorPrimary: "#f97316",
