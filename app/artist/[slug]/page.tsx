@@ -2,6 +2,7 @@ import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import type { AirtableRecord } from "@/lib/airtable";
+import { TelegramButton } from "@/components/TelegramButton";
 
 export const revalidate = 0;
 
@@ -135,6 +136,14 @@ export default async function ArtistNetwork({
           dmPriorityOrder={dmPriorityOrder}
           artistSlug={slug}
         />
+
+        {/* Telegram community banner */}
+        <div className="mt-16 border-t border-[#1f1f1f] pt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <p className="text-gray-400 text-sm">
+            🎹 Got a reply? Share it with the community
+          </p>
+          <TelegramButton label="Join Telegram →" />
+        </div>
       </div>
     </div>
   );

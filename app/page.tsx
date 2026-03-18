@@ -1,6 +1,7 @@
 import Link from "next/link";
 import WaitlistForm from "@/components/WaitlistForm";
 import SignInValueProp from "@/components/SignInValueProp";
+import { TelegramButton } from "@/components/TelegramButton";
 
 const STEPS = [
   {
@@ -217,6 +218,22 @@ export default function Home() {
             be the first to know when your favorite artist&apos;s network drops.
           </p>
           <WaitlistForm />
+        </div>
+      </section>
+
+      {/* Community CTA */}
+      <section className="py-16 px-4 border-t border-white/5">
+        <div className="max-w-2xl mx-auto">
+          <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-10 text-center">
+            <div className="text-4xl mb-4">✈️</div>
+            <h2 className="text-2xl sm:text-3xl font-black mb-3">
+              Join the BeatBridge Community
+            </h2>
+            <p className="text-gray-400 text-sm leading-relaxed mb-8 max-w-lg mx-auto">
+              Connect with beatmakers, share wins, and get tips from producers who are actively networking.
+            </p>
+            <TelegramButton />
+          </div>
         </div>
       </section>
 

@@ -29,6 +29,13 @@ export default function Navbar() {
             Artists
           </Link>
 
+          <button
+            onClick={() => { window.location.href = "https://t.me/+H5L7HpvQtUdlYWFk"; }}
+            className="text-sm font-medium text-gray-400 hover:text-white transition-colors"
+          >
+            Community
+          </button>
+
           {isLoaded && isSignedIn ? (
             <>
               <Link
