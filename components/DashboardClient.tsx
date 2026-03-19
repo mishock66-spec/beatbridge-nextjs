@@ -20,6 +20,15 @@ interface ArtistData {
 
 // ─── shared helpers ────────────────────────────────────────────────────────────
 
+function openExternalUrl(url: string) {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = url;
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 function formatFollowers(count: number) {
   if (!count) return null;
   if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
@@ -240,7 +249,7 @@ function ArtistContactList({
                 <p className="text-sm font-semibold text-white truncate">{record.fullName}</p>
                 <div className="flex items-center gap-2 mt-0.5">
                   <button
-                    onClick={() => { window.location.href = record.profileUrl || `https://instagram.com/${username}`; }}
+                    onClick={() => { openExternalUrl(record.profileUrl || `https://instagram.com/${username}`); }}
                     className="text-xs text-orange-400 hover:underline flex-shrink-0 text-left"
                   >
                     @{username}
@@ -268,7 +277,7 @@ function ArtistContactList({
 
                 {/* Send DM */}
                 <button
-                  onClick={() => { window.location.href = `https://ig.me/m/${username}`; }}
+                  onClick={() => { openExternalUrl(`https://ig.me/m/${username}`); }}
                   className="flex-1 sm:flex-none text-center text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
                 >
                   Send DM →

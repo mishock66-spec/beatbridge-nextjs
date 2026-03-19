@@ -11,9 +11,10 @@
 - Airtable base: appW42oNhB9Hl14bq
 - Local folder: C:\Users\crayx\beatbridge-nextjs
 
-## ABSOLUTE RULE — External Navigation
-- Never use window.open() or <a target='_blank'> anywhere in the codebase. Always use window.location.href for ALL external navigation. This applies to every component, every page, every button, no exceptions.
-- Reason: window.open() and target="_blank" are blocked by aggressive ad blockers on mobile (e.g. Free Adblock Browser). window.location.href always works.
+## ABSOLUTE RULE — External Navigation (Device-Aware)
+- Send DM and Instagram links use device-aware navigation: window.location.href on mobile (avoids popup blockers), window.open(_blank) on desktop (opens new tab). Always use this pattern for external links.
+- Use the helper: `const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);` then `isMobile ? window.location.href = url : window.open(url, '_blank', 'noopener,noreferrer')`.
+- Reason: window.open() is blocked by ad blockers on mobile (e.g. Free Adblock Browser), but on desktop it provides the better UX of opening a new tab.
 
 ## MOBILE FIRST
 - Every UI change must be tested mentally for mobile screens (< 640px). Always use responsive Tailwind classes (sm:, md:, lg:).
@@ -26,7 +27,7 @@
 
 ## CONTACT CARD RULES
 - Instagram @usernames on contact cards MUST always be clickable links to the contact's Instagram profile wall (profileUrl), opening in a new tab. Never link to ig.me for the username — that is reserved for the Send DM button only.
-- Never use <a target='_blank'> or window.open() for any Instagram links — always use window.location.href to avoid popup blockers on all mobile browsers.
+- Always use the device-aware navigation pattern (see ABSOLUTE RULE above) for Instagram links — window.location.href on mobile, window.open(_blank) on desktop.
 
 ## Self-Improvement Loop
 

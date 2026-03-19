@@ -29,6 +29,15 @@ const TYPE_EMOJI: Record<string, string> = {
   Other: "💼",
 };
 
+function openExternalUrl(url: string) {
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  if (isMobile) {
+    window.location.href = url;
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
 function getTypeEmoji(profileType: string): string {
   return TYPE_EMOJI[profileType] ?? "✦";
 }
@@ -300,7 +309,7 @@ export default function ConnectionCard({
           <p className="font-semibold text-white truncate">{record.fullName}</p>
           <button
             onClick={() => {
-              window.location.href = record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`;
+              openExternalUrl(record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`);
             }}
             className="text-orange-400 text-sm hover:underline text-left"
           >
@@ -408,7 +417,7 @@ export default function ConnectionCard({
                 if (isSignedIn && resolvedTemplate) {
                   navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
                 }
-                window.location.href = `https://ig.me/m/${record.username.replace("@", "")}`;
+                openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
               }}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
             >
@@ -417,7 +426,7 @@ export default function ConnectionCard({
           )}
           {record.profileUrl && !record.template && (
             <button
-              onClick={() => { window.location.href = record.profileUrl; }}
+              onClick={() => { openExternalUrl(record.profileUrl); }}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
             >
               Open Instagram
