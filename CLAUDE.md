@@ -25,6 +25,9 @@
 - ConnectionCard action buttons (Copy DM, Send DM) must be full-width on mobile (w-full, flex-col on mobile, flex-row on sm+). Buttons must never overlap other elements.
 - All pages must have minimum px-4 padding on mobile.
 
+## ABSOLUTE RULE — No Orphan Pages
+- Every new page created must be accessible from the site — either via the navbar, footer, or a clearly visible link. Never create orphan pages that can only be accessed by typing the URL directly.
+
 ## CONTACT CARD RULES
 - Instagram @usernames on contact cards MUST always be clickable links to the contact's Instagram profile wall (profileUrl), opening in a new tab. Never link to ig.me for the username — that is reserved for the Send DM button only.
 - Always use the device-aware navigation pattern (see ABSOLUTE RULE above) for Instagram links — window.location.href on mobile, window.open(_blank) on desktop.

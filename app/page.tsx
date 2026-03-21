@@ -243,6 +243,11 @@ export default function Home() {
           Beat<span className="text-orange-500">Bridge</span>
         </p>
         <p>© 2025 BeatBridge. Built for the independent grind.</p>
+        <p className="mt-2">
+          <Link href="/privacy" className="hover:text-gray-400 transition-colors">Privacy Policy</Link>
+          <span className="mx-2">·</span>
+          <Link href="/terms" className="hover:text-gray-400 transition-colors">Terms of Service</Link>
+        </p>
       </footer>
     </div>
   );
