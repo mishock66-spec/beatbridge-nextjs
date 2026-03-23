@@ -51,8 +51,8 @@ export default function TermsPage() {
           <h2 className="text-white font-bold text-lg mb-2">Contact</h2>
           <p>
             Questions about these terms?{" "}
-            <a href="mailto:mishock66@gmail.com" className="text-orange-500 hover:text-orange-400">
-              mishock66@gmail.com
+            <a href="mailto:contact@beatbridge.live" className="text-orange-500 hover:text-orange-400">
+              contact@beatbridge.live
             </a>
           </p>
         </section>

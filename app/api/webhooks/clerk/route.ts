@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
 
     await resend.emails.send({
       from: "BeatBridge <onboarding@resend.dev>",
-      to: "mishock66@gmail.com",
+      to: "contact@beatbridge.live",
       subject: "🎹 New BeatBridge signup!",
       html: `
         <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0f0f0f; color: #f1f1f1; border-radius: 8px;">
