@@ -41,18 +41,18 @@ function normHandle(raw: string) {
 
 function Skeleton() {
   return (
-    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 animate-pulse">
+    <div className="bg-white/[0.025] border border-white/[0.06] rounded-2xl p-6 animate-pulse">
       <div className="flex items-start gap-3 mb-4">
-        <div className="w-16 h-16 rounded-xl bg-white/5" />
+        <div className="w-14 h-14 rounded-xl bg-white/[0.04]" />
         <div className="flex-1">
-          <div className="h-4 bg-white/5 rounded w-3/4 mb-2" />
-          <div className="h-3 bg-white/5 rounded w-1/2 mb-2" />
-          <div className="h-3 bg-white/5 rounded w-1/3" />
+          <div className="h-4 bg-white/[0.04] rounded w-3/4 mb-2" />
+          <div className="h-3 bg-white/[0.04] rounded w-1/2 mb-2" />
+          <div className="h-3 bg-white/[0.04] rounded w-1/3" />
         </div>
       </div>
-      <div className="h-3 bg-white/5 rounded w-full mb-2" />
-      <div className="h-3 bg-white/5 rounded w-5/6 mb-2" />
-      <div className="h-3 bg-white/5 rounded w-4/6" />
+      <div className="h-3 bg-white/[0.04] rounded w-full mb-2" />
+      <div className="h-3 bg-white/[0.04] rounded w-5/6 mb-2" />
+      <div className="h-3 bg-white/[0.04] rounded w-4/6" />
     </div>
   );
 }
@@ -122,7 +122,7 @@ export default function ArtistNetworkClient({
     <>
       {/* Listening Link Input */}
       <div className="mb-6">
-        <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+        <label className="block text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-2">
           Your Listening Link
         </label>
         <input
@@ -130,7 +130,7 @@ export default function ArtistNetworkClient({
           value={listeningLink}
           onChange={(e) => setListeningLink(e.target.value)}
           placeholder="Paste your SoundCloud, YouTube or BeatStars link..."
-          className="w-full bg-[#111111] border border-[#1f1f1f] rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50 focus:bg-[#161616] transition-colors"
+          className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors"
         />
         {listeningLink && (
           <p className="text-xs text-orange-400/70 mt-1.5">
@@ -140,14 +140,14 @@ export default function ArtistNetworkClient({
       </div>
 
       {/* Filters + Search */}
-      <div className="sticky top-16 z-40 bg-[#0a0a0a]/95 backdrop-blur-sm py-4 mb-8 border-b border-[#1f1f1f]">
+      <div className="sticky top-14 z-40 bg-[rgba(8,8,8,0.92)] backdrop-blur-[20px] py-4 mb-8 border-b border-white/[0.05]">
         <div className="flex flex-col gap-4">
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search by name, handle, or keyword..."
-            className="w-full sm:max-w-sm bg-[#111111] border border-[#1f1f1f] rounded-full px-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/50"
+            className="w-full sm:max-w-sm bg-white/[0.03] border border-white/[0.08] rounded-full px-4 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors"
           />
           <div className="flex gap-2 flex-wrap">
             {filterTypes.map((type) => {
@@ -157,17 +157,17 @@ export default function ArtistNetworkClient({
                 <button
                   key={type}
                   onClick={() => setActiveFilter(type)}
-                  className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-all duration-150 ${
+                  className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150 tracking-[0.05em] uppercase min-h-[36px] ${
                     activeFilter === type
-                      ? "bg-orange-500 text-white border-orange-500"
-                      : "border-[#1f1f1f] text-gray-400 hover:border-orange-500/40 hover:text-orange-400"
+                      ? "bg-orange-500 text-white border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
+                      : "border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/30 hover:text-orange-400"
                   }`}
                 >
                   {type}
                   {count > 0 && (
                     <span
                       className={`ml-1.5 text-xs ${
-                        activeFilter === type ? "text-white/60" : "text-gray-600"
+                        activeFilter === type ? "text-white/60" : "text-[#505050]"
                       }`}
                     >
                       {count}
@@ -182,16 +182,16 @@ export default function ArtistNetworkClient({
 
       {/* Error */}
       {error && (
-        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 mb-8 text-red-400 text-sm">
+        <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-4 mb-8 text-red-400 text-sm">
           Failed to load connections: {error}
         </div>
       )}
 
       {/* DM Priority Banner */}
       {hasPriorityBadges && (
-        <div className="bg-gray-900 border border-orange-500/30 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
+        <div className="bg-white/[0.02] border border-orange-500/20 rounded-xl px-4 py-3 mb-6 flex items-start gap-3">
           <span className="text-base leading-none mt-0.5">📊</span>
-          <p className="text-xs text-gray-400 leading-relaxed">
+          <p className="text-xs text-[#a0a0a0] leading-relaxed">
             Contacts ranked by{" "}
             <span className="text-orange-400 font-semibold">follower count, lowest first</span>
             {" "}— smaller accounts reply faster. Start with{" "}
@@ -202,9 +202,9 @@ export default function ArtistNetworkClient({
 
       {/* Results count */}
       {!loading && (
-        <p className="text-gray-600 text-sm mb-6">
+        <p className="text-[#505050] text-sm mb-6">
           Showing{" "}
-          <span className="text-gray-400 font-semibold">{filtered.length}</span>{" "}
+          <span className="text-[#a0a0a0] font-medium">{filtered.length}</span>{" "}
           connection{filtered.length !== 1 ? "s" : ""}
           {activeFilter !== "All" && ` · ${activeFilter}`}
           {search && ` · "${search}"`}
@@ -215,21 +215,28 @@ export default function ArtistNetworkClient({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {loading
           ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
-          : filtered.map((record) => (
-              <ConnectionCard
+          : filtered.map((record, index) => (
+              <div
                 key={record.id}
-                record={record}
-                listeningLink={listeningLink}
-                dmPriority={priorityMap.get(normHandle(record.username))}
-                artistSlug={artistSlug}
-              />
+                style={{
+                  animation: "fadeInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+                  animationDelay: `${Math.min(index * 50, 400)}ms`,
+                }}
+              >
+                <ConnectionCard
+                  record={record}
+                  listeningLink={listeningLink}
+                  dmPriority={priorityMap.get(normHandle(record.username))}
+                  artistSlug={artistSlug}
+                />
+              </div>
             ))}
       </div>
 
       {!loading && filtered.length === 0 && (
-        <div className="text-center py-24 text-gray-600">
+        <div className="text-center py-24 text-[#505050]">
           <p className="text-4xl mb-4">🔍</p>
-          <p className="font-semibold text-lg text-gray-400">
+          <p className="font-medium text-lg text-[#a0a0a0]">
             No connections found
           </p>
           <p className="text-sm mt-2">Try a different filter or search term</p>

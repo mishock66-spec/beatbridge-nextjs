@@ -45,7 +45,7 @@ function getTypeEmoji(profileType: string): string {
 function TypeEmoji({ profileType }: { profileType: string }) {
   const emoji = getTypeEmoji(profileType);
   return (
-    <div className="w-16 h-16 bg-gray-800 rounded-xl flex items-center justify-center text-3xl flex-shrink-0">
+    <div className="w-14 h-14 bg-white/[0.05] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
       {emoji}
     </div>
   );
@@ -159,7 +159,7 @@ function StatusPill({
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1.5 left-0 z-20 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[150px]">
+        <div className="absolute bottom-full mb-1.5 left-0 z-20 bg-[#0d0d0d] border border-white/[0.1] rounded-xl overflow-hidden shadow-2xl min-w-[150px]">
           {CONTACT_STATUSES.map((s) => {
             const st = STATUS_STYLE[s];
             return (
@@ -283,7 +283,7 @@ export default function ConnectionCard({
     : "";
 
   return (
-    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-4 hover:border-orange-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-orange-500/5 relative">
+    <div className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative" style={{ willChange: "transform" }}>
       {/* DM priority badge — top left */}
       {dmPriority !== undefined && (
         <span className="absolute top-4 left-4 z-10 group">
@@ -325,15 +325,15 @@ export default function ConnectionCard({
 
       {/* Description */}
       {record.description && (
-        <p className="text-gray-400 text-sm leading-relaxed">{record.description}</p>
+        <p className="text-[#a0a0a0] text-sm leading-relaxed">{record.description}</p>
       )}
 
       {/* DM Template */}
       {record.template && (
-        <div className="bg-[#0a0a0a] rounded-xl p-3 border border-[#1f1f1f] relative">
+        <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06] relative">
           {/* Label row */}
           <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs text-gray-500 font-medium uppercase tracking-wider">
+            <p className="text-xs text-[#606060] font-medium uppercase tracking-[0.1em]">
               DM Template
               {customTemplate !== null && isSignedIn && (
                 <span className="ml-2 text-orange-400/60 normal-case tracking-normal font-normal">
@@ -358,18 +358,18 @@ export default function ConnectionCard({
                 value={draftTemplate}
                 onChange={(e) => setDraftTemplate(e.target.value)}
                 rows={6}
-                className="w-full bg-[#111111] border border-[#1f1f1f] rounded-lg px-3 py-2 text-gray-300 text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y"
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y"
               />
               <div className="flex gap-2">
                 <button
                   onClick={handleSave}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-orange-500 text-white hover:bg-orange-400 transition-colors"
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity"
                 >
                   Save
                 </button>
                 <button
                   onClick={handleReset}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-[#1f1f1f] text-gray-400 hover:border-white/30 hover:text-white transition-colors"
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors"
                 >
                   Reset to default
                 </button>
@@ -407,7 +407,7 @@ export default function ConnectionCard({
           <button
             onClick={handleCopyDM}
             disabled={!record.template || !isSignedIn}
-            className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl transition-all duration-150 disabled:opacity-40 disabled:cursor-not-allowed bg-orange-500 text-white hover:bg-orange-400 active:scale-95"
+            className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95"
           >
             {copied ? "✓ Copied!" : "Copy DM"}
           </button>
@@ -419,7 +419,7 @@ export default function ConnectionCard({
                 }
                 openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
               }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all duration-150 active:scale-95"
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95"
             >
               Send DM →
             </button>
@@ -427,7 +427,7 @@ export default function ConnectionCard({
           {record.profileUrl && !record.template && (
             <button
               onClick={() => { openExternalUrl(record.profileUrl); }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-xl border border-[#1f1f1f] text-gray-300 hover:border-orange-500/50 hover:text-orange-400 transition-all duration-150 active:scale-95 text-center"
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center"
             >
               Open Instagram
             </button>
@@ -436,8 +436,8 @@ export default function ConnectionCard({
 
         {/* Status selector — signed in only */}
         {artistSlug && isSignedIn && (
-          <div className="flex items-center gap-2 mt-1 pt-3 border-t border-[#1f1f1f]">
-            <span className="text-xs text-gray-600">Status:</span>
+          <div className="flex items-center gap-2 mt-1 pt-3 border-t border-white/[0.06]">
+            <span className="text-xs text-[#505050] uppercase tracking-[0.08em]">Status:</span>
             <StatusPill status={status} onChange={handleStatusChange} />
           </div>
         )}

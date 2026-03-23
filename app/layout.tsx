@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import ScrollAnimations from "@/components/ScrollAnimations";
 import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
@@ -47,8 +48,9 @@ export default function RootLayout({
       }}
     >
       <html lang="en">
-        <body className="bg-[#0a0a0a] text-white antialiased">
+        <body className="bg-[#080808] text-white antialiased">
           <Navbar />
+          <ScrollAnimations />
           {children}
         </body>
       </html>

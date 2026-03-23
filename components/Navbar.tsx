@@ -3,16 +3,31 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
+import { useState, useEffect } from "react";
 
 export default function Navbar() {
   const pathname = usePathname();
   const { isSignedIn, isLoaded } = useUser();
+  const [scrolled, setScrolled] = useState(false);
+
+  useEffect(() => {
+    const handler = () => setScrolled(window.scrollY > 10);
+    handler();
+    window.addEventListener("scroll", handler, { passive: true });
+    return () => window.removeEventListener("scroll", handler);
+  }, []);
 
   return (
-    <nav className="sticky top-0 z-50 border-b border-[#1f1f1f] backdrop-blur-md bg-[#0a0a0a]/90">
-      <div className="max-w-6xl mx-auto px-4 h-16 flex items-center justify-between">
+    <nav
+      className={`sticky top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300 ${
+        scrolled
+          ? "border-white/[0.06] backdrop-blur-[20px] bg-[rgba(8,8,8,0.85)]"
+          : "border-transparent bg-transparent"
+      }`}
+    >
+      <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
-          <span className="text-2xl font-black tracking-tight">
+          <span className="text-xl font-semibold tracking-tight">
             Beat<span className="text-orange-500">Bridge</span>
           </span>
         </Link>
@@ -20,10 +35,10 @@ export default function Navbar() {
         <div className="flex items-center gap-3 sm:gap-6">
           <Link
             href="/artists"
-            className={`hidden sm:block text-sm font-medium transition-colors ${
+            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
               pathname.startsWith("/artist")
                 ? "text-orange-500"
-                : "text-gray-400 hover:text-white"
+                : "text-[#a0a0a0] hover:text-white"
             }`}
           >
             Artists
@@ -31,10 +46,10 @@ export default function Navbar() {
 
           <Link
             href="/community"
-            className={`hidden sm:block text-sm font-medium transition-colors ${
+            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
               pathname === "/community"
                 ? "text-orange-500"
-                : "text-gray-400 hover:text-white"
+                : "text-[#a0a0a0] hover:text-white"
             }`}
           >
             Community
@@ -44,10 +59,10 @@ export default function Navbar() {
             <>
               <Link
                 href="/dashboard"
-                className={`text-sm font-medium transition-colors ${
+                className={`text-sm font-medium tracking-wide transition-colors ${
                   pathname === "/dashboard"
                     ? "text-orange-500"
-                    : "text-gray-400 hover:text-white"
+                    : "text-[#a0a0a0] hover:text-white"
                 }`}
               >
                 Dashboard
@@ -58,14 +73,14 @@ export default function Navbar() {
             <>
               {isLoaded && (
                 <SignInButton>
-                  <button className="text-sm font-medium text-gray-400 hover:text-white transition-colors">
+                  <button className="text-sm font-medium tracking-wide text-[#a0a0a0] hover:text-white transition-colors">
                     Sign in
                   </button>
                 </SignInButton>
               )}
               <Link
                 href="/#waitlist"
-                className="hidden sm:flex text-sm font-semibold bg-orange-500 text-white px-4 py-2 rounded-full hover:bg-orange-400 transition-colors"
+                className="hidden sm:flex text-sm font-semibold bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity"
               >
                 Get Early Access
               </Link>

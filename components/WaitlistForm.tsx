@@ -33,8 +33,8 @@ export default function WaitlistForm() {
     return (
       <div className="text-center py-4">
         <div className="text-3xl mb-3">🔥</div>
-        <p className="text-orange-500 font-bold text-lg">You&apos;re on the list.</p>
-        <p className="text-gray-400 text-sm mt-1">We&apos;ll hit you when Pro drops.</p>
+        <p className="text-orange-500 font-medium text-lg">You&apos;re on the list.</p>
+        <p className="text-[#a0a0a0] text-sm mt-1">We&apos;ll hit you when Pro drops.</p>
       </div>
     );
   }
@@ -51,12 +51,12 @@ export default function WaitlistForm() {
         placeholder="your@email.com"
         required
         disabled={loading}
-        className="flex-1 bg-[#1a1a1a] border border-white/10 rounded-full px-5 py-3 text-white placeholder-gray-600 focus:outline-none focus:border-orange-500/60 text-sm disabled:opacity-50"
+        className="flex-1 bg-white/[0.04] border border-white/[0.1] rounded-lg px-5 py-3 text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/60 text-sm disabled:opacity-50 transition-colors min-h-[44px]"
       />
       <button
         type="submit"
         disabled={loading}
-        className="bg-orange-500 text-black font-bold px-6 py-3 rounded-full hover:bg-orange-400 transition-colors text-sm whitespace-nowrap disabled:opacity-50"
+        className="bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white font-semibold px-6 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200 text-sm whitespace-nowrap disabled:opacity-50 min-h-[44px]"
       >
         {loading ? "Joining..." : "Get Early Access"}
       </button>

@@ -86,11 +86,12 @@ type Artist = (typeof ARTISTS)[0];
 function ArtistCard({ artist }: { artist: Artist }) {
   return (
     <div
-      className={`bg-[#111111] border rounded-2xl p-6 relative flex flex-col transition-all duration-200 ${
+      className={`bg-white/[0.025] backdrop-blur-md border rounded-2xl p-7 relative flex flex-col transition-all duration-200 scroll-animate ${
         artist.free
-          ? "border-orange-500/20 hover:border-orange-500/50 hover:shadow-lg hover:shadow-orange-500/5"
-          : "border-white/5"
+          ? "border-orange-500/20 hover:border-orange-500/40 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-black/30"
+          : "border-white/[0.06] opacity-60"
       }`}
+      style={{ willChange: "transform" }}
     >
       {!artist.free && (
         <div className="absolute top-5 right-5 bg-orange-500/15 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-500/30">
@@ -98,8 +99,8 @@ function ArtistCard({ artist }: { artist: Artist }) {
         </div>
       )}
 
-      <div className="flex items-center gap-4 mb-4">
-        <div className="w-16 h-16 rounded-full bg-[#2a2a2a] overflow-hidden flex-shrink-0 border border-white/5">
+      <div className="flex items-center gap-4 mb-5">
+        <div className="w-14 h-14 rounded-full bg-white/[0.05] overflow-hidden flex-shrink-0 border border-white/[0.06]">
           {artist.photo || (artist as { igHandle?: string | null }).igHandle ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -109,18 +110,18 @@ function ArtistCard({ artist }: { artist: Artist }) {
               loading="lazy"
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center text-xl font-black text-gray-500">
+            <div className="w-full h-full flex items-center justify-center text-xl font-medium text-[#404040]">
               {artist.name[0]}
             </div>
           )}
         </div>
         <div>
-          <h3 className="font-black text-xl">{artist.name}</h3>
-          <p className="text-gray-500 text-sm">{artist.subtitle}</p>
+          <h3 className="font-medium text-lg tracking-[0.01em]">{artist.name}</h3>
+          <p className="text-[#606060] text-sm">{artist.subtitle}</p>
         </div>
       </div>
 
-      <p className="text-gray-400 text-sm leading-relaxed mb-4 flex-1">
+      <p className="text-[#a0a0a0] text-sm leading-relaxed mb-5 flex-1">
         {artist.description}
       </p>
 
@@ -128,12 +129,12 @@ function ArtistCard({ artist }: { artist: Artist }) {
         {artist.genres.map((g) => (
           <span
             key={g}
-            className="text-xs text-gray-500 bg-white/5 px-2 py-0.5 rounded-full"
+            className="text-xs text-[#606060] bg-white/[0.04] px-2 py-0.5 rounded-full border border-white/[0.06]"
           >
             {g}
           </span>
         ))}
-        <span className="text-xs text-orange-500 font-semibold ml-auto">
+        <span className="text-xs text-orange-500 font-medium tracking-[0.05em] uppercase ml-auto">
           {artist.connections} connections
         </span>
       </div>
@@ -141,12 +142,12 @@ function ArtistCard({ artist }: { artist: Artist }) {
       {artist.free && artist.slug ? (
         <Link
           href={`/artist/${artist.slug}`}
-          className="block text-center text-sm font-bold bg-orange-500 text-black px-4 py-3 rounded-xl hover:bg-orange-400 transition-colors"
+          className="block text-center text-sm font-semibold bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
         >
           Explore Network →
         </Link>
       ) : (
-        <div className="text-center text-sm font-semibold text-gray-600 bg-white/[0.03] px-4 py-3 rounded-xl border border-[#1f1f1f]">
+        <div className="text-center text-sm font-medium text-[#505050] bg-white/[0.02] px-4 py-3 rounded-lg border border-white/[0.06]">
           Available with Pro
         </div>
       )}
@@ -157,16 +158,16 @@ function ArtistCard({ artist }: { artist: Artist }) {
 export default function Artists() {
   return (
     <div className="min-h-screen">
-      <div className="max-w-6xl mx-auto px-4 py-16">
+      <div className="max-w-6xl mx-auto px-4 py-20">
         {/* Header */}
-        <div className="mb-16 max-w-2xl">
-          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 text-orange-500 text-xs font-semibold mb-6 tracking-wide uppercase">
+        <div className="mb-20 max-w-2xl">
+          <div className="inline-flex items-center gap-2 bg-orange-500/10 border border-orange-500/20 rounded-full px-4 py-1.5 text-orange-500 text-xs font-medium mb-8 tracking-[0.1em] uppercase">
             Artist Roster
           </div>
-          <h1 className="text-4xl sm:text-5xl font-black mb-4">
+          <h1 className="text-4xl sm:text-5xl font-light tracking-[0.02em] mb-5">
             Networks, mapped.
           </h1>
-          <p className="text-gray-400 text-lg leading-relaxed">
+          <p className="text-[#a0a0a0] text-lg leading-relaxed">
             Each artist&apos;s Instagram network is hand-researched and filtered
             to the people who actually move the needle — producers, labels,
             engineers, managers.
@@ -181,18 +182,20 @@ export default function Artists() {
         </div>
 
         {/* Pro CTA */}
-        <div className="mt-20 bg-[#1a1a1a] border border-orange-500/20 rounded-2xl p-8 text-center">
-          <h2 className="text-2xl font-black mb-3">
+        <div className="mt-24 bg-white/[0.025] backdrop-blur-md border border-orange-500/15 rounded-2xl p-10 text-center scroll-animate">
+          <h2 className="text-2xl font-light tracking-[0.02em] mb-3">
             Want the full roster?{" "}
-            <span className="text-orange-500">Go Pro.</span>
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-[#f85c00]">
+              Go Pro.
+            </span>
           </h2>
-          <p className="text-gray-400 mb-6 max-w-lg mx-auto">
+          <p className="text-[#a0a0a0] mb-8 max-w-lg mx-auto">
             Unlock every artist network, unlimited DM templates, and early
             access to new additions.
           </p>
           <Link
             href="/#waitlist"
-            className="inline-block bg-orange-500 text-black font-bold px-8 py-3 rounded-full hover:bg-orange-400 transition-colors"
+            className="inline-block bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white font-semibold px-8 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
           >
             Join the Waitlist
           </Link>
