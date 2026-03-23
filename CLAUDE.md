@@ -32,6 +32,26 @@
 - Instagram @usernames on contact cards MUST always be clickable links to the contact's Instagram profile wall (profileUrl), opening in a new tab. Never link to ig.me for the username — that is reserved for the Send DM button only.
 - Always use the device-aware navigation pattern (see ABSOLUTE RULE above) for Instagram links — window.location.href on mobile, window.open(_blank) on desktop.
 
+## DESIGN SYSTEM — Apple-style Premium Aesthetic
+- Background: #080808 (not #0a0a0a)
+- Font: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif
+- Body text: #a0a0a0 (not pure gray-400)
+- Small labels: uppercase + tracking-[0.1em]
+- Heading font-weight: font-light (300) for hero/sections, NOT font-black
+- Heading letter-spacing: tracking-[0.02em]
+- Cards: bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl — NOT bg-[#111111]
+- Card hover: hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200
+- Buttons: rounded-lg (NOT rounded-full), bg-gradient-to-br from-[#f97316] to-[#f85c00]
+- Button hover: hover:opacity-90 hover:scale-[1.02] transition-all duration-200
+- Filter pill active: shadow-[0_0_12px_rgba(249,115,22,0.3)]
+- Navbar: scroll-aware — transparent at top, backdrop-blur-[20px] bg-[rgba(8,8,8,0.85)] on scroll (scrollY > 10), h-14
+- Animations: CSS @keyframes fadeInUp via hero-animate + hero-delay-N classes; scroll-triggered via .scroll-animate → .is-visible (IntersectionObserver in ScrollAnimations.tsx)
+- Card stagger: animationDelay: `${Math.min(index * 50, 400)}ms` on connection card wrappers
+- All animations respect prefers-reduced-motion via globals.css media query
+- Sticky filter bar: top-14 (not top-16) to match the h-14 navbar
+- Touch targets: min-h-[44px] on all interactive form elements
+- Gradient text: text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-[#f85c00]
+
 ## Self-Improvement Loop
 
 After ANY correction or fix requested by the user:
