@@ -10,6 +10,7 @@ import {
   STATUS_STYLE,
   statusStorageKey,
 } from "@/components/ConnectionCard";
+import { supabase } from "@/lib/supabase";
 
 interface ArtistData {
   slug: string;
@@ -50,7 +51,7 @@ const TYPE_COLORS: Record<string, string> = {
 
 // ─── status hook (read + write) ────────────────────────────────────────────────
 
-function useStatusState(artists: ArtistData[]) {
+function useStatusState(artists: ArtistData[], userId: string | undefined) {
   const [statuses, setStatuses] = useState<Record<string, ContactStatus>>({});
   const [mounted, setMounted] = useState(false);
 
@@ -58,19 +59,49 @@ function useStatusState(artists: ArtistData[]) {
     const all: Record<string, ContactStatus> = {};
     artists.forEach((artist) => {
       artist.records.forEach((record) => {
-        const key = statusStorageKey(artist.slug, record.username);
-        const stored = localStorage.getItem(key) as ContactStatus | null;
-        all[key] = stored && CONTACT_STATUSES.includes(stored) ? stored : "To contact";
+        all[statusStorageKey(artist.slug, record.username)] = "To contact";
       });
     });
-    setStatuses(all);
-    setMounted(true);
-  }, [artists]);
 
-  function updateStatus(artistSlug: string, username: string, next: ContactStatus) {
+    if (!userId) {
+      setStatuses(all);
+      setMounted(true);
+      return;
+    }
+
+    supabase
+      .from("dm_status")
+      .select("artist_slug, username, status")
+      .eq("user_id", userId)
+      .then(({ data }) => {
+        if (data) {
+          data.forEach((row) => {
+            const key = statusStorageKey(row.artist_slug, row.username);
+            if (CONTACT_STATUSES.includes(row.status as ContactStatus)) {
+              all[key] = row.status as ContactStatus;
+            }
+          });
+        }
+        setStatuses(all);
+        setMounted(true);
+      });
+  }, [artists, userId]);
+
+  async function updateStatus(artistSlug: string, username: string, next: ContactStatus) {
     const key = statusStorageKey(artistSlug, username);
-    localStorage.setItem(key, next);
     setStatuses((prev) => ({ ...prev, [key]: next }));
+    if (userId) {
+      await supabase.from("dm_status").upsert(
+        {
+          user_id: userId,
+          artist_slug: artistSlug,
+          username: username.replace("@", ""),
+          status: next,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,artist_slug,username" }
+      );
+    }
   }
 
   return { statuses, mounted, updateStatus };
@@ -301,7 +332,7 @@ function ArtistContactList({
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
-  const { statuses, mounted, updateStatus } = useStatusState(artists);
+  const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
 
   if (!isLoaded) {
     return (

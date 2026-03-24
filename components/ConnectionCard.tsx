@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
+import { supabase } from "@/lib/supabase";
 
 const TYPE_COLORS: Record<string, string> = {
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
@@ -208,7 +209,7 @@ export default function ConnectionCard({
   dmPriority?: number;
   artistSlug?: string;
 }) {
-  const { isSignedIn } = useUser();
+  const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [customTemplate, setCustomTemplate] = useState<string | null>(null);
@@ -216,19 +217,34 @@ export default function ConnectionCard({
   const [status, setStatus] = useState<ContactStatus>("To contact");
 
   useEffect(() => {
-    if (!artistSlug) return;
-    const key = statusStorageKey(artistSlug, record.username);
-    const stored = localStorage.getItem(key) as ContactStatus | null;
-    if (stored && CONTACT_STATUSES.includes(stored)) {
-      setStatus(stored);
-    }
-  }, [artistSlug, record.username]);
+    if (!artistSlug || !isSignedIn || !user) return;
+    supabase
+      .from("dm_status")
+      .select("status")
+      .eq("user_id", user.id)
+      .eq("artist_slug", artistSlug)
+      .eq("username", record.username.replace("@", ""))
+      .single()
+      .then(({ data }) => {
+        if (data && CONTACT_STATUSES.includes(data.status as ContactStatus)) {
+          setStatus(data.status as ContactStatus);
+        }
+      });
+  }, [artistSlug, record.username, isSignedIn, user]);
 
-  function handleStatusChange(next: ContactStatus) {
-    if (!artistSlug) return;
-    const key = statusStorageKey(artistSlug, record.username);
-    localStorage.setItem(key, next);
+  async function handleStatusChange(next: ContactStatus) {
+    if (!artistSlug || !isSignedIn || !user) return;
     setStatus(next);
+    await supabase.from("dm_status").upsert(
+      {
+        user_id: user.id,
+        artist_slug: artistSlug,
+        username: record.username.replace("@", ""),
+        status: next,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,artist_slug,username" }
+    );
   }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;

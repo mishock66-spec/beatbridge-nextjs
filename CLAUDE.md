@@ -60,3 +60,10 @@ After ANY correction or fix requested by the user:
 3. End every correction session with: "CLAUDE.md updated — rule added to prevent this mistake in the future."
 
 This file gets smarter with every session.
+
+## DATA STORAGE — Supabase
+- User DM status is stored in Supabase `dm_status` table, never localStorage.
+- Table columns: user_id (Clerk user.id), artist_slug, username (no @ prefix), status, updated_at.
+- On status change: upsert with onConflict: "user_id,artist_slug,username".
+- On page load: fetch from Supabase filtered by user_id. Fallback to "To contact" if not signed in or no record.
+- revalidate = 0 always. No middleware.ts. All text in English.
