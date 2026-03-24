@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
+import toast from "react-hot-toast";
 import type { AirtableRecord } from "@/lib/airtable";
 import { supabase } from "@/lib/supabase";
 
@@ -265,10 +266,15 @@ export default function ConnectionCard({
       : activeTemplate;
 
   function handleCopyDM() {
+    if (!isSignedIn) {
+      toast("Sign in to copy DM templates", { icon: "🔒" });
+      return;
+    }
     if (!resolvedTemplate) return;
     navigator.clipboard.writeText(resolvedTemplate).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+      toast.success("DM copied to clipboard ✓");
     });
   }
 
@@ -428,7 +434,7 @@ export default function ConnectionCard({
         <div className="flex flex-col sm:flex-row gap-2">
           <button
             onClick={handleCopyDM}
-            disabled={!record.template || !isSignedIn}
+            disabled={!record.template}
             className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95"
           >
             {copied ? "✓ Copied!" : "Copy DM"}

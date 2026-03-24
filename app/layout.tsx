@@ -3,6 +3,7 @@ import "./globals.css";
 import Navbar from "@/components/Navbar";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
+import ToastProvider from "@/components/ToastProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
@@ -105,6 +106,7 @@ export default function RootLayout({
         </head>
         <body className="bg-[#080808] text-white antialiased">
           <ServiceWorkerRegistration />
+          <ToastProvider />
           <Navbar />
           <ScrollAnimations />
           {children}
