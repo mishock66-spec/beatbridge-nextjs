@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
 import ScrollAnimations from "@/components/ScrollAnimations";
+import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
@@ -48,7 +49,15 @@ export default function RootLayout({
       }}
     >
       <html lang="en">
+        <head>
+          <link rel="manifest" href="/manifest.json" />
+          <meta name="theme-color" content="#f97316" />
+          <meta name="apple-mobile-web-app-capable" content="yes" />
+          <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+          <meta name="apple-mobile-web-app-title" content="BeatBridge" />
+        </head>
         <body className="bg-[#080808] text-white antialiased">
+          <ServiceWorkerRegistration />
           <Navbar />
           <ScrollAnimations />
           {children}
