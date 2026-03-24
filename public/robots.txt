@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Disallow: /dashboard
+Disallow: /sign-in
+Disallow: /sign-up
+Sitemap: https://beatbridge.live/sitemap.xml
+
+# Allow AI crawlers
+User-agent: GPTBot
+Allow: /
+
+User-agent: Claude-Web
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Googlebot
+Allow: /

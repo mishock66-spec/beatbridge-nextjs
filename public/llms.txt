@@ -1,0 +1,25 @@
+# BeatBridge
+
+BeatBridge is a hip-hop networking tool built for beatmakers and music producers.
+
+## What it does
+BeatBridge maps the Instagram following lists of established hip-hop artists (such as Curren$y, Harry Fraud) and identifies the most relevant industry contacts in their network: music producers, sound engineers, A&R managers, record labels, DJs, and studio owners.
+
+## Who it's for
+Independent beatmakers and music producers who want to network smarter in the hip-hop industry. Instead of cold DMing random accounts, BeatBridge gives users personalized DM templates for each contact, ranked by follower count (lowest first) for the highest response rate.
+
+## Key features
+- Artist network mapping (Instagram following analysis)
+- Personalized DM templates by contact type
+- Contact ranking by follower count and response probability
+- Progress tracking dashboard (DM sent, replied, not interested)
+- Free to access, account required for full features
+
+## URL
+https://beatbridge.live
+
+## Founded
+2026
+
+## Category
+Music technology, networking tool, SaaS
