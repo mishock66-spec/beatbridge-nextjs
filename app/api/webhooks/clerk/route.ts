@@ -59,6 +59,7 @@ export async function POST(req: NextRequest) {
       ? new Date(createdAt).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "long", timeStyle: "short" }) + " UTC"
       : new Date().toUTCString();
 
+    // Admin notification
     await resend.emails.send({
       from: "BeatBridge <onboarding@resend.dev>",
       to: "contact@beatbridge.live",
@@ -84,6 +85,72 @@ export async function POST(req: NextRequest) {
         </div>
       `,
     });
+
+    // Welcome email to new user
+    if (userEmail && userEmail !== "Unknown") {
+      await resend.emails.send({
+        from: "BeatBridge <onboarding@resend.dev>",
+        to: userEmail,
+        subject: "Welcome to BeatBridge 🎹",
+        html: `
+          <!DOCTYPE html>
+          <html>
+          <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+          <body style="margin:0;padding:0;background:#080808;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+            <div style="max-width:560px;margin:40px auto;padding:0 16px;">
+
+              <!-- Header -->
+              <div style="text-align:center;padding:40px 0 32px;">
+                <span style="font-size:22px;font-weight:600;color:#ffffff;letter-spacing:-0.3px;">
+                  Beat<span style="color:#f97316;">Bridge</span>
+                </span>
+              </div>
+
+              <!-- Card -->
+              <div style="background:#111111;border:1px solid #1f1f1f;border-radius:16px;padding:40px 36px;">
+
+                <h1 style="margin:0 0 12px;font-size:24px;font-weight:700;color:#ffffff;line-height:1.3;">
+                  Welcome to BeatBridge${firstName ? `, ${firstName}` : ""}!
+                </h1>
+
+                <p style="margin:0 0 20px;font-size:15px;color:#a0a0a0;line-height:1.6;">
+                  You now have access to the hip-hop networking tool built for beatmakers like you.
+                </p>
+
+                <p style="margin:0 0 32px;font-size:15px;color:#a0a0a0;line-height:1.6;">
+                  Start by exploring <strong style="color:#ffffff;">Curren$y</strong> or
+                  <strong style="color:#ffffff;">Harry Fraud</strong>'s network — find producers,
+                  engineers, managers and labels, and use the built-in DM templates to reach out
+                  the right way.
+                </p>
+
+                <!-- CTA Button -->
+                <div style="text-align:center;margin-bottom:8px;">
+                  <a href="https://beatbridge.live/artists"
+                     style="display:inline-block;background:linear-gradient(135deg,#f97316,#f85c00);color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 32px;border-radius:10px;letter-spacing:0.01em;">
+                    Explore Networks →
+                  </a>
+                </div>
+
+              </div>
+
+              <!-- Footer -->
+              <div style="text-align:center;padding:28px 0 40px;">
+                <p style="margin:0;font-size:13px;color:#404040;line-height:1.6;">
+                  Questions?
+                  <a href="mailto:contact@beatbridge.live"
+                     style="color:#606060;text-decoration:none;">
+                    contact@beatbridge.live
+                  </a>
+                </p>
+              </div>
+
+            </div>
+          </body>
+          </html>
+        `,
+      });
+    }
   }
 
   return NextResponse.json({ received: true });
