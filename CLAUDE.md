@@ -66,4 +66,5 @@ This file gets smarter with every session.
 - Table columns: user_id (Clerk user.id), artist_slug, username (no @ prefix), status, updated_at.
 - On status change: upsert with onConflict: "user_id,artist_slug,username".
 - On page load: fetch from Supabase filtered by user_id. Fallback to "To contact" if not signed in or no record.
+- RLS is DISABLED on dm_status — Clerk and Supabase use different auth systems so auth.uid() always returns null. Never re-enable RLS on this table without setting up Clerk JWT integration first.
 - revalidate = 0 always. No middleware.ts. All text in English.
