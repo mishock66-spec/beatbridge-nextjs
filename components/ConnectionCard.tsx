@@ -217,7 +217,7 @@ export default function ConnectionCard({
   const [status, setStatus] = useState<ContactStatus>("To contact");
 
   useEffect(() => {
-    if (!artistSlug || !isSignedIn || !user) return;
+    if (!artistSlug || !isSignedIn || !user || !supabase) return;
     supabase
       .from("dm_status")
       .select("status")
@@ -229,22 +229,28 @@ export default function ConnectionCard({
         if (data && CONTACT_STATUSES.includes(data.status as ContactStatus)) {
           setStatus(data.status as ContactStatus);
         }
-      });
+      })
+      .catch(() => {});
   }, [artistSlug, record.username, isSignedIn, user]);
 
   async function handleStatusChange(next: ContactStatus) {
     if (!artistSlug || !isSignedIn || !user) return;
     setStatus(next);
-    await supabase.from("dm_status").upsert(
-      {
-        user_id: user.id,
-        artist_slug: artistSlug,
-        username: record.username.replace("@", ""),
-        status: next,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,artist_slug,username" }
-    );
+    if (!supabase) return;
+    try {
+      await supabase.from("dm_status").upsert(
+        {
+          user_id: user.id,
+          artist_slug: artistSlug,
+          username: record.username.replace("@", ""),
+          status: next,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,artist_slug,username" }
+      );
+    } catch {
+      // silent — status is already updated in UI
+    }
   }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;

@@ -63,7 +63,7 @@ function useStatusState(artists: ArtistData[], userId: string | undefined) {
       });
     });
 
-    if (!userId) {
+    if (!userId || !supabase) {
       setStatuses(all);
       setMounted(true);
       return;
@@ -84,13 +84,18 @@ function useStatusState(artists: ArtistData[], userId: string | undefined) {
         }
         setStatuses(all);
         setMounted(true);
+      })
+      .catch(() => {
+        setStatuses(all);
+        setMounted(true);
       });
   }, [artists, userId]);
 
   async function updateStatus(artistSlug: string, username: string, next: ContactStatus) {
     const key = statusStorageKey(artistSlug, username);
     setStatuses((prev) => ({ ...prev, [key]: next }));
-    if (userId) {
+    if (!userId || !supabase) return;
+    try {
       await supabase.from("dm_status").upsert(
         {
           user_id: userId,
@@ -101,6 +106,8 @@ function useStatusState(artists: ArtistData[], userId: string | undefined) {
         },
         { onConflict: "user_id,artist_slug,username" }
       );
+    } catch {
+      // silent — status is already updated in UI
     }
   }
 
