@@ -145,6 +145,45 @@ export default async function ArtistNetwork({
           artistSlug={slug}
         />
 
+        {/* Explore Full Network — Wheezy only */}
+        {slug === "wheezy" && (
+          <div className="mt-16 border-t border-[#1f1f1f] pt-12">
+            <div className="mb-6">
+              <h2 className="text-2xl font-light tracking-[0.02em] mb-2">
+                Explore Full Network
+              </h2>
+              <p className="text-[#a0a0a0] text-sm">
+                Browse all contacts by follower range.{" "}
+                <span className="text-orange-400">Smaller accounts reply faster</span> — start low.
+              </p>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {[
+                { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate" },
+                { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement" },
+                { slug: "10k-15k", label: "10K – 15K",  desc: "Mid-tier reach" },
+                { slug: "15k-20k", label: "15K – 20K",  desc: "Mid-tier reach" },
+                { slug: "20k-25k", label: "20K – 25K",  desc: "Growing accounts" },
+                { slug: "25k-30k", label: "25K – 30K",  desc: "Growing accounts" },
+                { slug: "30k-35k", label: "30K – 35K",  desc: "Established" },
+                { slug: "35k-40k", label: "35K – 40K",  desc: "Established" },
+                { slug: "40k-50k", label: "40K – 50K",  desc: "Large following" },
+              ].map(({ slug: rangeSlug, label, desc }) => (
+                <Link
+                  key={rangeSlug}
+                  href={`/artist/wheezy/network/${rangeSlug}`}
+                  className="bg-white/[0.025] border border-white/[0.08] rounded-xl p-4 hover:border-orange-500/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group text-center"
+                >
+                  <p className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors">
+                    {label}
+                  </p>
+                  <p className="text-xs text-[#505050] mt-1">{desc}</p>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Telegram community banner */}
         <div className="mt-16 border-t border-[#1f1f1f] pt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-400 text-sm">

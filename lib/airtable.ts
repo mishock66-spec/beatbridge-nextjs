@@ -53,7 +53,10 @@ function mapRecord(record: {
   };
 }
 
-export async function fetchAirtableRecords(suiviPar?: string | string[]): Promise<AirtableRecord[]> {
+export async function fetchAirtableRecords(
+  suiviPar?: string | string[],
+  followerRange?: { min: number; max: number }
+): Promise<AirtableRecord[]> {
   const BASE_ID = "appW42oNhB9Hl14bq";
   const TABLE_ID = "tbl0nVXbK5BQnU5FM";
   const API_KEY = process.env.AIRTABLE_API_KEY;
@@ -72,14 +75,27 @@ export async function fetchAirtableRecords(suiviPar?: string | string[]): Promis
       "sort[0][field]": "Nombre de followers",
       "sort[0][direction]": "asc",
     });
+
+    const conditions: string[] = [];
     if (suiviPar) {
       const values = Array.isArray(suiviPar) ? suiviPar : [suiviPar];
-      const formula =
+      const suivi =
         values.length === 1
           ? `{Suivi par}="${values[0]}"`
           : `OR(${values.map((v) => `{Suivi par}="${v}"`).join(",")})`;
-      params.set("filterByFormula", formula);
+      conditions.push(suivi);
     }
+    if (followerRange) {
+      conditions.push(`{Nombre de followers}>=${followerRange.min}`);
+      conditions.push(`{Nombre de followers}<=${followerRange.max}`);
+    }
+    if (conditions.length > 0) {
+      params.set(
+        "filterByFormula",
+        conditions.length === 1 ? conditions[0] : `AND(${conditions.join(",")})`
+      );
+    }
+
     if (offset) params.set("offset", offset);
 
     const res = await fetch(`${url}?${params}`, {
