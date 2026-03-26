@@ -33,6 +33,14 @@ const ARTIST_META: Record<
     suiviPar: "Harry Fraud",
     bio: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
   },
+  wheezy: {
+    name: "Wheezy",
+    subtitle: "Atlanta · Trap · Certified Trapper",
+    igHandle: "wheezyouttahere",
+    photo: "/images/wheezy.jpg",
+    suiviPar: "Wheezy",
+    bio: "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper, Wheezy's sound defines modern Atlanta trap.",
+  },
 };
 
 export default async function ArtistNetwork({

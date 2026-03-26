@@ -26,6 +26,18 @@ const ARTISTS = [
       "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
   },
   {
+    name: "Wheezy",
+    subtitle: "Atlanta · Certified Trapper",
+    slug: "wheezy",
+    free: true,
+    connections: 53,
+    genres: ["Hip-Hop", "Atlanta", "Trap"],
+    igHandle: "wheezyouttahere",
+    photo: "/images/wheezy.jpg",
+    description:
+      "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper.",
+  },
+  {
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,

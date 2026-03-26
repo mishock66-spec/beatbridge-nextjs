@@ -44,19 +44,20 @@ const PREVIEW_ARTISTS = [
     photo: "/images/harryfraud.jpg",
   },
   {
+    name: "Wheezy",
+    subtitle: "Atlanta · Trap",
+    slug: "wheezy",
+    free: true,
+    connections: 53,
+    igHandle: "wheezyouttahere",
+    photo: "/images/wheezy.jpg",
+  },
+  {
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,
     free: false,
     connections: 40,
-    photo: null,
-  },
-  {
-    name: "Freddie Gibbs",
-    subtitle: "ESGN",
-    slug: null,
-    free: false,
-    connections: 35,
     photo: null,
   },
 ];
