@@ -204,11 +204,13 @@ export default function ConnectionCard({
   listeningLink,
   dmPriority,
   artistSlug,
+  artistName,
 }: {
   record: AirtableRecord;
   listeningLink: string;
   dmPriority?: number;
   artistSlug?: string;
+  artistName?: string;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
@@ -216,6 +218,7 @@ export default function ConnectionCard({
   const [customTemplate, setCustomTemplate] = useState<string | null>(null);
   const [draftTemplate, setDraftTemplate] = useState("");
   const [status, setStatus] = useState<ContactStatus>("To contact");
+  const [isGenerating, setIsGenerating] = useState(false);
 
   useEffect(() => {
     if (!artistSlug || !isSignedIn || !user || !supabase) return;
@@ -292,6 +295,35 @@ export default function ConnectionCard({
     setCustomTemplate(null);
     setDraftTemplate("");
     setIsEditing(false);
+  }
+
+  async function handleGenerateDM() {
+    if (!isSignedIn) return;
+    setIsGenerating(true);
+    try {
+      const res = await fetch("/api/generate-dm", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contactName: record.fullName,
+          username: record.username.replace("@", ""),
+          contactType: record.profileType,
+          followers: record.followers,
+          contactBio: record.description,
+          artistName: artistName || artistSlug || "the artist",
+        }),
+      });
+      if (!res.ok) throw new Error("Generation failed");
+      const { dm } = await res.json();
+      if (dm) {
+        setCustomTemplate(dm);
+        setIsEditing(false);
+      }
+    } catch {
+      // silent — user can retry
+    } finally {
+      setIsGenerating(false);
+    }
   }
 
   const highlightedTemplate = resolvedTemplate
@@ -427,6 +459,24 @@ export default function ConnectionCard({
             </div>
           )}
         </div>
+      )}
+
+      {/* AI DM Generation — signed in only */}
+      {isSignedIn && record.template && (
+        <button
+          onClick={handleGenerateDM}
+          disabled={isGenerating}
+          className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+        >
+          {isGenerating ? (
+            <>
+              <span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+              Generating...
+            </>
+          ) : (
+            "✨ Generate my DM"
+          )}
+        </button>
       )}
 
       {/* Actions */}

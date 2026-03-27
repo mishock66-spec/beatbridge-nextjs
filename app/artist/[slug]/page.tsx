@@ -143,6 +143,7 @@ export default async function ArtistNetwork({
           error={error}
           dmPriorityOrder={dmPriorityOrder}
           artistSlug={slug}
+          artistName={meta.name}
         />
 
         {/* Explore Full Network — Wheezy only */}

@@ -67,6 +67,16 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
+              <Link
+                href="/onboarding"
+                className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
+                  pathname === "/onboarding"
+                    ? "text-orange-500"
+                    : "text-[#a0a0a0] hover:text-white"
+                }`}
+              >
+                My Profile
+              </Link>
               <UserButton />
             </>
           ) : (
