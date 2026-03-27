@@ -5,6 +5,7 @@
 - NEVER create feature branches
 - NEVER create pull requests
 - Always run: git add -A && git commit -m "..." && git push origin main
+- Artist connection counts on roster cards must always reflect the TOTAL number of Airtable records filtered by Suivi par = artist name. Never hardcode connection counts. Use fetchAirtableCount() from lib/airtable.ts in an async server component with revalidate = 0.
 
 ## PROJECT INFO
 - Live site: https://beatbridge-nextjs.vercel.app

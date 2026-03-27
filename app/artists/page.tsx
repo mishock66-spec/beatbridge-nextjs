@@ -1,12 +1,15 @@
 import Link from "next/link";
+import { fetchAirtableCount } from "@/lib/airtable";
+
+export const revalidate = 0;
 
 const ARTISTS = [
   {
     name: "Curren$y",
     subtitle: "Jet Life Recordings",
     slug: "currensy",
+    suiviPar: ["Curren$y", "CurrenSy"] as string | string[],
     free: true,
-    connections: 29,
     genres: ["Hip-Hop", "New Orleans"],
     igHandle: "currencyspitta",
     photo: "/images/currensy.png",
@@ -17,8 +20,8 @@ const ARTISTS = [
     name: "Harry Fraud",
     subtitle: "NYC · Cinematic Boom-Bap",
     slug: "harry-fraud",
+    suiviPar: "Harry Fraud" as string | string[],
     free: true,
-    connections: 39,
     genres: ["Hip-Hop", "NYC"],
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
@@ -29,8 +32,8 @@ const ARTISTS = [
     name: "Wheezy",
     subtitle: "Atlanta · Certified Trapper",
     slug: "wheezy",
+    suiviPar: "Wheezy" as string | string[],
     free: true,
-    connections: 53,
     genres: ["Hip-Hop", "Atlanta", "Trap"],
     igHandle: "wheezyouttahere",
     photo: "/images/wheezy.jpg",
@@ -41,8 +44,8 @@ const ARTISTS = [
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 40,
     genres: ["Hip-Hop", "Pittsburgh"],
     photo: null,
     description:
@@ -52,8 +55,8 @@ const ARTISTS = [
     name: "Freddie Gibbs",
     subtitle: "ESGN",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 35,
     genres: ["Hip-Hop", "Gary"],
     photo: null,
     description:
@@ -63,8 +66,8 @@ const ARTISTS = [
     name: "Evidence",
     subtitle: "Rhymesayers",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 28,
     genres: ["Hip-Hop", "LA"],
     photo: null,
     description: "LA beatmaker and MC with deep underground hip-hop connections.",
@@ -73,8 +76,8 @@ const ARTISTS = [
     name: "Boldy James",
     subtitle: "Detroit",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 22,
     genres: ["Hip-Hop", "Detroit"],
     photo: null,
     description:
@@ -84,8 +87,8 @@ const ARTISTS = [
     name: "Benny The Butcher",
     subtitle: "Griselda",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 30,
     genres: ["Hip-Hop", "Buffalo"],
     photo: null,
     description:
@@ -95,7 +98,13 @@ const ARTISTS = [
 
 type Artist = (typeof ARTISTS)[0];
 
-function ArtistCard({ artist }: { artist: Artist }) {
+function ArtistCard({
+  artist,
+  connections,
+}: {
+  artist: Artist;
+  connections: number;
+}) {
   return (
     <div
       className={`bg-white/[0.025] backdrop-blur-md border rounded-2xl p-7 relative flex flex-col transition-all duration-200 scroll-animate ${
@@ -116,7 +125,10 @@ function ArtistCard({ artist }: { artist: Artist }) {
           {artist.photo || (artist as { igHandle?: string | null }).igHandle ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
-              src={artist.photo ?? `https://unavatar.io/instagram/${(artist as { igHandle?: string | null }).igHandle}`}
+              src={
+                artist.photo ??
+                `https://unavatar.io/instagram/${(artist as { igHandle?: string | null }).igHandle}`
+              }
               alt={artist.name}
               className="w-full h-full object-cover"
               loading="lazy"
@@ -147,7 +159,7 @@ function ArtistCard({ artist }: { artist: Artist }) {
           </span>
         ))}
         <span className="text-xs text-orange-500 font-medium tracking-[0.05em] uppercase ml-auto">
-          {artist.connections} connections
+          {connections} connections
         </span>
       </div>
 
@@ -167,7 +179,17 @@ function ArtistCard({ artist }: { artist: Artist }) {
   );
 }
 
-export default function Artists() {
+export default async function Artists() {
+  // Fetch live counts for all active artists in parallel
+  const activeArtists = ARTISTS.filter((a) => a.suiviPar !== null);
+  const counts = await Promise.all(
+    activeArtists.map((a) =>
+      fetchAirtableCount(a.suiviPar as string | string[]).catch(() => 0)
+    )
+  );
+  const countMap = new Map<string, number>();
+  activeArtists.forEach((a, i) => countMap.set(a.name, counts[i]));
+
   return (
     <div className="min-h-screen">
       <div className="max-w-6xl mx-auto px-4 py-20">
@@ -189,7 +211,11 @@ export default function Artists() {
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {ARTISTS.map((artist) => (
-            <ArtistCard key={artist.name} artist={artist} />
+            <ArtistCard
+              key={artist.name}
+              artist={artist}
+              connections={countMap.get(artist.name) ?? 0}
+            />
           ))}
         </div>
 

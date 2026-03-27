@@ -2,6 +2,9 @@ import Link from "next/link";
 import WaitlistForm from "@/components/WaitlistForm";
 import SignInValueProp from "@/components/SignInValueProp";
 import { TelegramButton } from "@/components/TelegramButton";
+import { fetchAirtableCount } from "@/lib/airtable";
+
+export const revalidate = 0;
 
 const STEPS = [
   {
@@ -29,8 +32,8 @@ const PREVIEW_ARTISTS = [
     name: "Curren$y",
     subtitle: "Jet Life Recordings",
     slug: "currensy",
+    suiviPar: ["Curren$y", "CurrenSy"] as string | string[],
     free: true,
-    connections: 29,
     igHandle: "currencyspitta",
     photo: "/images/currensy.png",
   },
@@ -38,8 +41,8 @@ const PREVIEW_ARTISTS = [
     name: "Harry Fraud",
     subtitle: "NYC · Boom-Bap",
     slug: "harry-fraud",
+    suiviPar: "Harry Fraud" as string | string[],
     free: true,
-    connections: 39,
     igHandle: "harryfraud",
     photo: "/images/harryfraud.jpg",
   },
@@ -47,8 +50,8 @@ const PREVIEW_ARTISTS = [
     name: "Wheezy",
     subtitle: "Atlanta · Trap",
     slug: "wheezy",
+    suiviPar: "Wheezy" as string | string[],
     free: true,
-    connections: 53,
     igHandle: "wheezyouttahere",
     photo: "/images/wheezy.jpg",
   },
@@ -56,13 +59,23 @@ const PREVIEW_ARTISTS = [
     name: "Wiz Khalifa",
     subtitle: "Taylor Gang",
     slug: null,
+    suiviPar: null as null,
     free: false,
-    connections: 40,
     photo: null,
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  // Fetch live connection counts for active preview artists
+  const activePreview = PREVIEW_ARTISTS.filter((a) => a.suiviPar !== null);
+  const previewCounts = await Promise.all(
+    activePreview.map((a) =>
+      fetchAirtableCount(a.suiviPar as string | string[]).catch(() => 0)
+    )
+  );
+  const previewCountMap = new Map<string, number>();
+  activePreview.forEach((a, i) => previewCountMap.set(a.name, previewCounts[i]));
+
   return (
     <div className="min-h-screen">
       {/* Hero */}
@@ -186,7 +199,7 @@ export default function Home() {
                 <h3 className="font-medium text-base tracking-[0.01em]">{artist.name}</h3>
                 <p className="text-[#606060] text-sm mb-3">{artist.subtitle}</p>
                 <p className="text-orange-500 text-xs font-medium tracking-[0.05em] uppercase">
-                  {artist.connections} connections
+                  {previewCountMap.get(artist.name) ?? 0} connections
                 </p>
                 {artist.free && artist.slug && (
                   <Link
