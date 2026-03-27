@@ -313,14 +313,18 @@ export default function ConnectionCard({
           artistName: artistName || artistSlug || "the artist",
         }),
       });
-      if (!res.ok) throw new Error("Generation failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Generation failed");
+      }
       const { dm } = await res.json();
       if (dm) {
         setCustomTemplate(dm);
         setIsEditing(false);
       }
-    } catch {
-      // silent — user can retry
+    } catch (err) {
+      console.error("[generate-dm] client error:", err);
+      toast.error("Failed to generate DM. Please try again.");
     } finally {
       setIsGenerating(false);
     }
