@@ -324,7 +324,7 @@ export default function ConnectionCard({
       }
     } catch (err) {
       console.error("[generate-dm] client error:", err);
-      toast.error("Failed to generate DM. Please try again.");
+      toast.error(err instanceof Error ? err.message : "Failed to generate DM");
     } finally {
       setIsGenerating(false);
     }
