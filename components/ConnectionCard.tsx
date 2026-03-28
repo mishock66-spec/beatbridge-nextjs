@@ -311,6 +311,7 @@ export default function ConnectionCard({
           followers: record.followers,
           contactBio: record.description,
           artistName: artistName || artistSlug || "the artist",
+          userId: user?.id,
         }),
       });
       if (!res.ok) {

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
-import { auth } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: NextRequest) {
@@ -13,14 +12,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Server misconfiguration: missing API key" }, { status: 500 });
     }
 
-    const { userId } = await auth();
+    const body = await req.json();
+    const { contactName, username, contactType, followers, contactBio, artistName, userId } = body;
+
     if (!userId) {
-      console.error("[generate-dm] No userId from Clerk auth");
+      console.error("[generate-dm] No userId in request body");
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const body = await req.json();
-    const { contactName, username, contactType, followers, contactBio, artistName } = body;
     console.error("[generate-dm] Request for:", { contactName, username, userId });
 
     const supabase = createClient(
