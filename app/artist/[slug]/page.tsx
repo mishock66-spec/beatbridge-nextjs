@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
+import ScoringDisclaimer from "@/components/ScoringDisclaimer";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 
@@ -135,6 +136,8 @@ export default async function ArtistNetwork({
             <p className="text-gray-500 text-xs mt-1">Connections mapped</p>
           </div>
         </div>
+
+        <ScoringDisclaimer />
 
         {/* Client component handles listening link, filter, search, and grid */}
         <ArtistNetworkClient

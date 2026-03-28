@@ -2,46 +2,37 @@ import type { AirtableRecord } from "./airtable";
 
 const EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/;
 
-export function scoreContact(record: AirtableRecord): number {
-  let score = 0;
-
-  // 1. Follower count (most important)
-  const f = record.followers;
-  if (f >= 500 && f <= 2_000) score += 4;
-  else if (f > 2_000 && f <= 5_000) score += 3;
-  else if (f > 5_000 && f <= 15_000) score += 2;
-  else if (f > 15_000 && f <= 30_000) score += 1;
-  // 30K+ → 0
-
-  // 2. Profile type
-  const t = record.profileType;
-  if (t === "Producer" || t === "Sound Engineer") score += 3;
-  else if (t === "Manager" || t === "Label" || t === "Studio" || t === "DJ") score += 2;
-  else score += 1; // Artist/Rapper, Photographer/Videographer, Other
-
-  // 3. Has public email in description
-  if (record.description && EMAIL_RE.test(record.description)) score += 2;
-
-  // 4. Has bio
-  if (record.description && record.description.trim().length > 0) score += 1;
-
-  return Math.max(1, Math.min(10, score));
+function hasEmail(record: AirtableRecord): boolean {
+  return !!(record.description && EMAIL_RE.test(record.description));
 }
 
-export function scoreLabel(score: number): { emoji: string; label: string; classes: string } {
-  if (score >= 8) return {
-    emoji: "🔥",
-    label: "High chance of reply",
-    classes: "bg-green-500/20 text-green-300 border-green-500/30",
-  };
-  if (score >= 5) return {
-    emoji: "⚡",
-    label: "Moderate chance",
-    classes: "bg-orange-500/20 text-orange-300 border-orange-500/30",
-  };
-  return {
-    emoji: "",
-    label: "Lower chance",
-    classes: "bg-white/[0.05] text-[#606060] border-white/[0.08]",
-  };
+export type Badge = {
+  label: string;
+  symbol: string;
+  classes: string;
+  tooltip: string;
+};
+
+export function replyProbability(record: AirtableRecord): Badge {
+  const f = record.followers;
+  const email = hasEmail(record);
+
+  if (f >= 500 && f <= 2_000 && email)
+    return { symbol: "🔥", label: "Very likely", classes: "bg-green-500/20 text-green-300 border-green-500/30", tooltip: "Small account + contact info = high reply chance" };
+  if (f >= 500 && f <= 2_000)
+    return { symbol: "⚡", label: "Likely", classes: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", tooltip: "Small account — tends to read DMs" };
+  if (f > 2_000 && f <= 10_000 && email)
+    return { symbol: "⚡", label: "Likely", classes: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30", tooltip: "Mid-size account with contact info" };
+  if (f > 2_000 && f <= 10_000)
+    return { symbol: "·", label: "Moderate", classes: "bg-white/[0.05] text-[#707070] border-white/[0.08]", tooltip: "Mid-size account — DMs can get buried" };
+  if (f > 10_000 && f <= 30_000)
+    return { symbol: "·", label: "Moderate", classes: "bg-white/[0.05] text-[#707070] border-white/[0.08]", tooltip: "Larger account — lower reply rate" };
+  return { symbol: "·", label: "Lower", classes: "bg-white/[0.04] text-[#505050] border-white/[0.06]", tooltip: "High-follower accounts rarely reply to cold DMs" };
+}
+
+export function contactPriority(record: AirtableRecord): Badge {
+  const t = record.profileType;
+  if (["Producer", "Sound Engineer", "Studio", "DJ", "Manager", "Label"].includes(t))
+    return { symbol: "★", label: "High priority", classes: "bg-orange-500/15 text-orange-300/80 border-orange-500/25", tooltip: "Directly connected to the artist's creative process" };
+  return { symbol: "◆", label: "Medium priority", classes: "bg-white/[0.04] text-[#606060] border-white/[0.08]", tooltip: "Part of the network — worth reaching out to" };
 }

@@ -6,7 +6,7 @@ import { useUser } from "@clerk/nextjs";
 import toast from "react-hot-toast";
 import type { AirtableRecord } from "@/lib/airtable";
 import { supabase } from "@/lib/supabase";
-import { scoreContact, scoreLabel } from "@/lib/scoreContact";
+import { replyProbability, contactPriority } from "@/lib/scoreContact";
 
 const TYPE_COLORS: Record<string, string> = {
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
@@ -259,8 +259,8 @@ export default function ConnectionCard({
   }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;
-  const score = scoreContact(record);
-  const { emoji: scoreEmoji, label: scoreTooltip, classes: scoreClasses } = scoreLabel(score);
+  const reply = replyProbability(record);
+  const priority = contactPriority(record);
 
   const activeTemplate = customTemplate ?? record.template;
 
@@ -363,15 +363,21 @@ export default function ConnectionCard({
           </span>
         </span>
       )}
-      {/* Top-right badges: type + score */}
+      {/* Top-right badges: type + priority + reply probability */}
       <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
         <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
           {record.profileType}
         </span>
-        <span className={`group relative text-xs font-medium px-2 py-0.5 rounded-full border cursor-default ${scoreClasses}`}>
-          {scoreEmoji && <>{scoreEmoji} </>}{score}/10
-          <span className="pointer-events-none absolute right-0 top-full mt-1.5 z-20 w-max max-w-[140px] rounded-lg bg-gray-900 border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
-            {scoreTooltip}
+        <span className={`group relative text-xs font-medium px-2 py-0.5 rounded-full border cursor-default ${priority.classes}`}>
+          {priority.symbol} {priority.label}
+          <span className="pointer-events-none absolute right-0 top-full mt-1.5 z-20 w-max max-w-[160px] rounded-lg bg-gray-900 border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
+            {priority.tooltip}
+          </span>
+        </span>
+        <span className={`group relative text-xs font-medium px-2 py-0.5 rounded-full border cursor-default ${reply.classes}`}>
+          {reply.symbol} {reply.label}
+          <span className="pointer-events-none absolute right-0 top-full mt-1.5 z-20 w-max max-w-[160px] rounded-lg bg-gray-900 border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
+            {reply.tooltip}
           </span>
         </span>
       </div>

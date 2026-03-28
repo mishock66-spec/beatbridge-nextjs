@@ -69,5 +69,5 @@ This file gets smarter with every session.
 - On page load: fetch from Supabase filtered by user_id. Fallback to "To contact" if not signed in or no record.
 - RLS is DISABLED on dm_status — Clerk and Supabase use different auth systems so auth.uid() always returns null. Never re-enable RLS on this table without setting up Clerk JWT integration first.
 - revalidate = 0 always. No middleware.ts. All text in English.
-- Every contact card must display a response probability score (1-10) calculated by lib/scoreContact.ts
+- Contact cards have two badges: reply probability (based on followers + email) and contact priority (based on profile type). Logic in lib/scoreContact.ts. Always include the ScoringDisclaimer component on every artist page explaining these are estimates only.
 - NEVER use auth() from @clerk/nextjs/server in API routes — it requires clerkMiddleware() which is not used. Pass userId from the client via useUser() in the request body instead.
