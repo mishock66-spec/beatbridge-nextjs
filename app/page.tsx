@@ -267,9 +267,11 @@ export default async function Home() {
           Beat<span className="text-orange-500">Bridge</span>
         </p>
         <p>© 2025 BeatBridge. Built for the independent grind.</p>
-        <p className="mt-2.5">
+        <p className="mt-2.5 flex items-center justify-center gap-3 flex-wrap">
+          <Link href="/why-beatbridge" className="hover:text-[#a0a0a0] transition-colors">Why BeatBridge</Link>
+          <span>·</span>
           <Link href="/privacy" className="hover:text-[#a0a0a0] transition-colors">Privacy Policy</Link>
-          <span className="mx-2">·</span>
+          <span>·</span>
           <Link href="/terms" className="hover:text-[#a0a0a0] transition-colors">Terms of Service</Link>
         </p>
       </footer>

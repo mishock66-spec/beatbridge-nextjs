@@ -24,6 +24,7 @@ export default function sitemap() {
     { url: 'https://beatbridge.live/artist/wheezy/network/30k-35k', lastModified: new Date() },
     { url: 'https://beatbridge.live/artist/wheezy/network/35k-40k', lastModified: new Date() },
     { url: 'https://beatbridge.live/artist/wheezy/network/40k-50k', lastModified: new Date() },
+    { url: 'https://beatbridge.live/why-beatbridge', lastModified: new Date() },
     { url: 'https://beatbridge.live/privacy', lastModified: new Date() },
     { url: 'https://beatbridge.live/terms', lastModified: new Date() },
   ];
