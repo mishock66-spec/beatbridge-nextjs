@@ -2,6 +2,24 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import { createClient } from "@supabase/supabase-js";
 
+// Strip any [LINK] variants, raw URLs, and "here it is / check it out" bridge phrases
+// that sometimes leak into ice-breakers despite the prompt instruction.
+function cleanIceBreaker(text: string): string {
+  let t = text;
+  // Remove [LINK] / [YOUR LINK] / [LISTENING LINK] / [YOUR LISTENING LINK]
+  t = t.replace(/\[(?:YOUR\s+)?(?:LISTENING\s+)?LINK\]/gi, "");
+  // Remove raw URLs (http / https)
+  t = t.replace(/https?:\/\/\S+/gi, "");
+  // Remove trailing "— here it is", "check it out at", "link below" phrases
+  t = t.replace(
+    /[,\s]*[-–—]?\s*(?:here(?:'s|\s+it\s+is)?|check\s+it\s+out(?:\s+at)?|listen\s+(?:here|at|to\s+it)|link\s+(?:here|below|inside))[^.!?]*[.!?]?/gi,
+    ""
+  );
+  // Collapse stray punctuation / double spaces left behind
+  t = t.replace(/\s{2,}/g, " ").replace(/^\s*[,\-–—]\s*/, "").trim();
+  return t;
+}
+
 export async function POST(req: NextRequest) {
   try {
     console.error("[generate-dm] API Key exists:", !!process.env.ANTHROPIC_API_KEY);
@@ -67,9 +85,9 @@ export async function POST(req: NextRequest) {
 
 Write a short ice-breaker DM from ${producerName}, a ${beatStyles} producer influenced by ${influences}, reaching out to ${contactName} (@${username}), a ${contactType} with ${formattedFollowers} followers in ${artistName}'s network. Contact bio: ${contactBio || "N/A"}.
 
-CRITICAL RULES:
+CRITICAL RULES — NO EXCEPTIONS:
 - Max 2-3 sentences. Sound human, not corporate. No emoji overload.
-- ABSOLUTELY NO links, URLs, or placeholders of any kind.
+- ZERO links, URLs, or placeholders of any kind. Do NOT write [LINK], [YOUR LINK], a URL, "here it is", "check it out at", or anything that implies sharing a link. This is an ice-breaker only.
 - Be personal and relevant to this specific contact.
 - End with a genuine question that invites a reply (e.g. "Would you be open to hearing it?" or "Think it could fit your lane?" or "Got a minute to check it out?").
 
@@ -78,8 +96,8 @@ Return ONLY the message text, nothing else.`,
       ],
     });
 
-    const ice_breaker =
-      message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "";
+    const ice_breaker = cleanIceBreaker(raw);
 
     console.error("[generate-dm] Success, length:", ice_breaker.length);
     return NextResponse.json({ ice_breaker });

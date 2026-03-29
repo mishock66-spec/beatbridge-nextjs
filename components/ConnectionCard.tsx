@@ -32,6 +32,15 @@ const TYPE_EMOJI: Record<string, string> = {
   Other: "💼",
 };
 
+// Strip stray [LINK] placeholders and URLs that occasionally leak into saved ice-breakers
+function cleanIceBreaker(text: string): string {
+  let t = text;
+  t = t.replace(/\[(?:YOUR\s+)?(?:LISTENING\s+)?LINK\]/gi, "");
+  t = t.replace(/https?:\/\/\S+/gi, "");
+  t = t.replace(/\s{2,}/g, " ").trim();
+  return t;
+}
+
 function openExternalUrl(url: string) {
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
   if (isMobile) {
@@ -240,7 +249,7 @@ export default function ConnectionCard({
             setStatus(data.status as ContactStatus);
           }
           if (data.ice_breaker) {
-            setCustomTemplate(data.ice_breaker);
+            setCustomTemplate(cleanIceBreaker(data.ice_breaker));
           }
         }
       })
@@ -489,8 +498,15 @@ export default function ConnectionCard({
             <button
               onClick={() => {
                 if (isSignedIn && resolvedTemplate) navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
-                if (isSignedIn && user && supabase && artistSlug) {
-                  supabase.from("dm_activity").insert({ user_id: user.id, contact_username: record.username.replace("@", ""), artist_slug: artistSlug, dm_sent_at: new Date().toISOString() }).catch(() => {});
+                if (isSignedIn && user && supabase) {
+                  // Record the send — artist_slug is nullable so this works even without it
+                  supabase.from("dm_activity").insert({
+                    user_id: user.id,
+                    contact_username: record.username.replace("@", ""),
+                    artist_slug: artistSlug ?? null,
+                    dm_sent_at: new Date().toISOString(),
+                  }).catch(() => {});
+                  // Immediately update the sticky DM bar counter
                   window.dispatchEvent(new CustomEvent("dm-sent"));
                 }
                 openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
@@ -502,14 +518,14 @@ export default function ConnectionCard({
         </div>
       )}
 
-      {/* STEP 2 — Follow-up (only visible when status = Replied) */}
-      {status === "Replied" && (record.followUp || customFollowUp) && (
+      {/* STEP 2 — Follow-up (visible whenever status is "Replied", any casing) */}
+      {status.toLowerCase() === "replied" && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-green-500/[0.06] rounded-xl p-3.5 border border-green-500/20">
           <p className="text-sm font-semibold text-green-400 mb-1">🎉 They replied! Now send your link:</p>
           <div className="flex items-center justify-between mb-1">
             <span className="text-xs font-bold text-green-400/70 uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
             {!isEditingFollowUp && isSignedIn && (
-              <button onClick={() => { setDraftFollowUp(activeFollowUp); setIsEditingFollowUp(true); }}
+              <button onClick={() => { setDraftFollowUp(activeFollowUp ?? ""); setIsEditingFollowUp(true); }}
                 className="text-xs text-gray-500 hover:text-green-400 transition-colors px-1.5 py-0.5 rounded hover:bg-green-400/10">Edit</button>
             )}
           </div>
@@ -527,8 +543,14 @@ export default function ConnectionCard({
             </div>
           ) : (
             <div className="relative mt-2 mb-3">
-              <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
-                dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
+              {activeFollowUp ? (
+                <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
+                  dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
+              ) : (
+                <p className="text-[#505050] text-xs italic">
+                  No follow-up template — click Edit to write yours.
+                </p>
+              )}
             </div>
           )}
 
