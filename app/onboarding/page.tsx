@@ -218,28 +218,32 @@ export default function OnboardingPage() {
             </span>
           </label>
           <div className="flex flex-col gap-2">
-            {ACCOUNT_AGE_OPTIONS.map(({ value, label, sublabel }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => setInstagramAccountAge(value)}
-                className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px] ${
-                  instagramAccountAge === value
-                    ? "bg-orange-500/20 border-orange-500/60 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
-                    : "bg-white/[0.03] border-white/[0.08] hover:border-white/20"
-                }`}
-              >
-                <div>
-                  <p className={`text-sm font-semibold ${instagramAccountAge === value ? "text-orange-400" : "text-white"}`}>
-                    {label}
-                  </p>
-                  <p className="text-xs text-[#606060] mt-0.5">{sublabel}</p>
-                </div>
-                <span className={`text-xs font-bold flex-shrink-0 ml-3 ${instagramAccountAge === value ? "text-orange-400" : "text-[#505050]"}`}>
-                  {ACCOUNT_AGE_LIMITS[value]}/day
-                </span>
-              </button>
-            ))}
+            {ACCOUNT_AGE_OPTIONS.map(({ value, label, sublabel }) => {
+              const isSelected = instagramAccountAge === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setInstagramAccountAge(value)}
+                  className="flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px]"
+                  style={
+                    isSelected
+                      ? { border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }
+                      : { border: "1px solid #2a2a2a", background: "rgba(255,255,255,0.025)" }
+                  }
+                >
+                  <div>
+                    <p className={`text-sm font-semibold ${isSelected ? "text-orange-400" : "text-white"}`}>
+                      {label}
+                    </p>
+                    <p className="text-xs text-[#606060] mt-0.5">{sublabel}</p>
+                  </div>
+                  <span className={`text-xs font-bold flex-shrink-0 ml-3 ${isSelected ? "text-orange-400" : "text-[#505050]"}`}>
+                    {ACCOUNT_AGE_LIMITS[value]}/day
+                  </span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

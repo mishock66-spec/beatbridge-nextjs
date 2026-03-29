@@ -346,7 +346,11 @@ function useDailyDMData(userId: string | undefined) {
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
-    if (!userId || !supabase) { setLoaded(true); return; }
+    // If supabase client is unavailable, nothing will ever load — mark done
+    if (!supabase) { setLoaded(true); return; }
+    // userId is still undefined while Clerk is initialising — wait for it
+    if (!userId) return;
+
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     Promise.all([
@@ -363,8 +367,10 @@ function useDailyDMData(userId: string | undefined) {
     ])
       .then(([activityRes, profileRes]) => {
         if (activityRes.count !== null) setCount(activityRes.count);
-        if (profileRes.data?.instagram_account_age) {
-          setAccountAge(profileRes.data.instagram_account_age as AccountAge);
+        const savedAge = profileRes.data?.instagram_account_age ?? null;
+        console.log("[DashboardClient] instagram_account_age from Supabase:", savedAge);
+        if (savedAge) {
+          setAccountAge(savedAge as AccountAge);
         }
       })
       .catch(() => {})
