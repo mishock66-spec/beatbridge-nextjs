@@ -63,6 +63,18 @@ export default function OnboardingPage() {
     checkProfile();
   }, [isLoaded, isSignedIn, user, router]);
 
+  async function selectAccountAge(age: AccountAge) {
+    setInstagramAccountAge(age);
+    if (!user || !supabase) return;
+    await supabase
+      .from("user_profiles")
+      .upsert(
+        { user_id: user.id, instagram_account_age: age, updated_at: new Date().toISOString() },
+        { onConflict: "user_id" }
+      )
+      .catch(() => {});
+  }
+
   function togglePill(arr: string[], setArr: (v: string[]) => void, val: string) {
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   }
@@ -224,7 +236,7 @@ export default function OnboardingPage() {
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setInstagramAccountAge(value)}
+                  onClick={() => selectAccountAge(value)}
                   className="flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px]"
                   style={
                     isSelected
