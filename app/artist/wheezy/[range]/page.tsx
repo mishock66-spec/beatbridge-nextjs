@@ -4,6 +4,7 @@ import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import ScoringDisclaimer from "@/components/ScoringDisclaimer";
 import DailyWarningBanner from "@/components/DailyWarningBanner";
+import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 
@@ -146,6 +147,7 @@ export default async function WheezyRangePage({
         </div>
 
         <DailyWarningBanner />
+        <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
         {/* Connection grid */}

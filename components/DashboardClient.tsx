@@ -11,6 +11,8 @@ import {
   statusStorageKey,
 } from "@/components/ConnectionCard";
 import { supabase } from "@/lib/supabase";
+import { getDmLimit, ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
+import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 
 interface ArtistData {
   slug: string;
@@ -335,59 +337,143 @@ function ArtistContactList({
   );
 }
 
-// ─── useDailyDMCount ──────────────────────────────────────────────────────────
+// ─── useDailyDMData ───────────────────────────────────────────────────────────
 
-function useDailyDMCount(userId: string | undefined) {
+function useDailyDMData(userId: string | undefined) {
   const [count, setCount] = useState<number>(0);
+  const [accountAge, setAccountAge] = useState<AccountAge | null>(null);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     if (!userId || !supabase) { setLoaded(true); return; }
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
-    supabase
-      .from("dm_activity")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", userId)
-      .gte("dm_sent_at", todayStart.toISOString())
-      .then(({ count: c }) => { if (c !== null) setCount(c); setLoaded(true); })
-      .catch(() => setLoaded(true));
+    Promise.all([
+      supabase
+        .from("dm_activity")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .gte("dm_sent_at", todayStart.toISOString()),
+      supabase
+        .from("user_preferences")
+        .select("account_age")
+        .eq("user_id", userId)
+        .single(),
+    ])
+      .then(([activityRes, prefRes]) => {
+        if (activityRes.count !== null) setCount(activityRes.count);
+        if (prefRes.data?.account_age) setAccountAge(prefRes.data.account_age as AccountAge);
+      })
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, [userId]);
 
-  return { count, loaded };
+  async function saveAccountAge(age: AccountAge) {
+    if (!userId || !supabase) return;
+    setAccountAge(age);
+    await supabase.from("user_preferences").upsert(
+      { user_id: userId, account_age: age, updated_at: new Date().toISOString() },
+      { onConflict: "user_id" }
+    ).catch(() => {});
+  }
+
+  return { count, accountAge, loaded, saveAccountAge };
+}
+
+// ─── AccountAgeModal ──────────────────────────────────────────────────────────
+
+const AGE_OPTIONS: { value: AccountAge; label: string; sublabel: string; limit: number }[] = [
+  { value: "new",         label: "New account",         sublabel: "Less than 1 month old",   limit: ACCOUNT_AGE_LIMITS.new },
+  { value: "growing",     label: "Growing account",     sublabel: "1 to 6 months old",        limit: ACCOUNT_AGE_LIMITS.growing },
+  { value: "established", label: "Established account", sublabel: "More than 6 months old",   limit: ACCOUNT_AGE_LIMITS.established },
+];
+
+function AccountAgeModal({ onSelect }: { onSelect: (age: AccountAge) => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/70 backdrop-blur-sm">
+      <div className="w-full max-w-md bg-[#111111] border border-white/[0.1] rounded-2xl p-6 shadow-2xl">
+        <p className="text-xs text-orange-400/70 font-semibold uppercase tracking-[0.1em] mb-2">One-time setup</p>
+        <h2 className="text-xl font-black mb-1">How old is your Instagram?</h2>
+        <p className="text-sm text-[#a0a0a0] mb-6 leading-relaxed">
+          This sets your daily DM limit. Older accounts can send more DMs without getting flagged.
+        </p>
+        <div className="space-y-3">
+          {AGE_OPTIONS.map(({ value, label, sublabel, limit }) => (
+            <button
+              key={value}
+              onClick={() => onSelect(value)}
+              className="w-full flex items-center justify-between px-4 py-3.5 rounded-xl border border-white/[0.08] bg-white/[0.025] hover:border-orange-500/40 hover:bg-orange-500/[0.05] transition-all duration-150 text-left group"
+            >
+              <div>
+                <p className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors">{label}</p>
+                <p className="text-xs text-[#606060] mt-0.5">{sublabel}</p>
+              </div>
+              <span className="text-xs font-bold text-orange-400 flex-shrink-0 ml-3">{limit}/day</span>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ─── DailyDMSafety ────────────────────────────────────────────────────────────
 
-function DailyDMSafety({ count, loaded }: { count: number; loaded: boolean }) {
-  const MAX = 15;
-  const pct = Math.min(Math.round((count / MAX) * 100), 100);
+function DailyDMSafety({
+  count,
+  loaded,
+  accountAge,
+  onChangeAge,
+}: {
+  count: number;
+  loaded: boolean;
+  accountAge: AccountAge | null;
+  onChangeAge: () => void;
+}) {
+  const limit = getDmLimit(accountAge);
+  const pct = Math.min(Math.round((count / limit) * 100), 100);
 
   let barColor = "bg-green-500";
   let statusText = "✅ Safe zone";
   let statusColor = "text-green-400";
 
-  if (count >= 15) {
+  if (pct > 100) {
     barColor = "bg-red-500";
-    statusText = "🚨 Limit reached — stop now";
+    statusText = "🚨 Stop for today";
     statusColor = "text-red-400";
-  } else if (count >= 11) {
+  } else if (pct >= 75) {
     barColor = "bg-red-500";
-    statusText = "⚠️ High — stop for today";
+    statusText = "⚠️ Almost at limit";
     statusColor = "text-red-400";
-  } else if (count >= 6) {
+  } else if (pct >= 50) {
     barColor = "bg-orange-500";
-    statusText = "⚡ Moderate — slow down";
+    statusText = "⚡ Slow down";
     statusColor = "text-orange-400";
   }
+
+  const ageLabelMap: Record<AccountAge, string> = {
+    new: "New account",
+    growing: "Growing account",
+    established: "Established account",
+  };
 
   return (
     <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 mb-4">
       <div className="flex items-center justify-between mb-3">
         <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Daily DM Safety</p>
-        {loaded && (
-          <span className={`text-xs font-semibold ${statusColor}`}>{statusText}</span>
-        )}
+        <div className="flex items-center gap-3">
+          {loaded && accountAge && (
+            <button
+              onClick={onChangeAge}
+              className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
+            >
+              {ageLabelMap[accountAge]}
+            </button>
+          )}
+          {loaded && (
+            <span className={`text-xs font-semibold ${statusColor}`}>{statusText}</span>
+          )}
+        </div>
       </div>
       <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden mb-2">
         <div
@@ -396,52 +482,8 @@ function DailyDMSafety({ count, loaded }: { count: number; loaded: boolean }) {
         />
       </div>
       <p className="text-xs text-gray-600">
-        {loaded ? `${count} DMs sent today` : "Loading…"} / {MAX} recommended max
+        {loaded ? `${count} DMs sent today` : "Loading…"} / {limit} recommended max
       </p>
-    </div>
-  );
-}
-
-// ─── SafetyTips ───────────────────────────────────────────────────────────────
-
-function SafetyTips() {
-  const [open, setOpen] = useState(false);
-  return (
-    <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] overflow-hidden mb-10">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.02] transition-colors min-h-[44px]"
-      >
-        <span className="text-sm text-orange-400 font-medium">🛡️ Instagram Safety Tips</span>
-        <svg
-          className={`w-4 h-4 text-orange-400/60 transition-transform duration-200 flex-shrink-0 ${open ? "rotate-180" : ""}`}
-          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-      {open && (
-        <div className="px-4 pb-4 border-t border-white/[0.06]">
-          <p className="text-xs text-orange-400/70 font-semibold uppercase tracking-[0.1em] pt-3 pb-2">
-            How to stay safe on Instagram:
-          </p>
-          <ul className="space-y-2 text-sm text-[#a0a0a0] leading-relaxed">
-            {[
-              "Send max 10–15 DMs per day",
-              "Space your DMs at least 30–60 minutes apart",
-              "Interact normally between DMs (like posts, watch stories)",
-              "Start slow if your account is new — 5 DMs/day max",
-              "Always personalize your message — never copy-paste the exact same text to everyone",
-              "Use a personal account, not a professional one — DMs from personal accounts land in Primary inbox. Professional account DMs often go to General where notifications are off by default.",
-            ].map((tip, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="text-orange-500/60 flex-shrink-0 mt-0.5">–</span>
-                <span>{tip}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
     </div>
   );
 }
@@ -451,7 +493,15 @@ function SafetyTips() {
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
-  const { count: dailyCount, loaded: dailyLoaded } = useDailyDMCount(user?.id);
+  const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
+  const [showAgeModal, setShowAgeModal] = useState(false);
+
+  // Show modal once data is loaded and no preference saved yet
+  useEffect(() => {
+    if (dailyLoaded && isSignedIn && accountAge === null) {
+      setShowAgeModal(true);
+    }
+  }, [dailyLoaded, isSignedIn, accountAge]);
 
   if (!isLoaded) {
     return (
@@ -513,6 +563,15 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
 
   return (
     <div className="min-h-screen">
+      {showAgeModal && (
+        <AccountAgeModal
+          onSelect={(age) => {
+            saveAccountAge(age);
+            setShowAgeModal(false);
+          }}
+        />
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-12">
         {/* Header */}
         <div className="mb-10">
@@ -522,10 +581,15 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         </div>
 
         {/* Daily DM Safety */}
-        <DailyDMSafety count={dailyCount} loaded={dailyLoaded} />
+        <DailyDMSafety
+          count={dailyCount}
+          loaded={dailyLoaded}
+          accountAge={accountAge}
+          onChangeAge={() => setShowAgeModal(true)}
+        />
 
-        {/* Safety Tips */}
-        <SafetyTips />
+        {/* Instagram Safety Guide */}
+        <div className="mb-6"><InstagramSafetyGuide /></div>
 
         {/* Stats row */}
         {mounted && (

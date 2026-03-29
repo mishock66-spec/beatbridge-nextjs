@@ -5,6 +5,7 @@ import ScoringDisclaimer from "@/components/ScoringDisclaimer";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 import DailyWarningBanner from "@/components/DailyWarningBanner";
+import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 
 export const revalidate = 0;
 
@@ -139,6 +140,7 @@ export default async function ArtistNetwork({
         </div>
 
         <DailyWarningBanner />
+        <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
         {/* Client component handles listening link, filter, search, and grid */}
