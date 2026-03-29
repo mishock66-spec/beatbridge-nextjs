@@ -356,14 +356,16 @@ function useDailyDMData(userId: string | undefined) {
         .eq("user_id", userId)
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
-        .from("user_preferences")
-        .select("account_age")
+        .from("user_profiles")
+        .select("instagram_account_age")
         .eq("user_id", userId)
         .single(),
     ])
-      .then(([activityRes, prefRes]) => {
+      .then(([activityRes, profileRes]) => {
         if (activityRes.count !== null) setCount(activityRes.count);
-        if (prefRes.data?.account_age) setAccountAge(prefRes.data.account_age as AccountAge);
+        if (profileRes.data?.instagram_account_age) {
+          setAccountAge(profileRes.data.instagram_account_age as AccountAge);
+        }
       })
       .catch(() => {})
       .finally(() => setLoaded(true));
@@ -372,8 +374,8 @@ function useDailyDMData(userId: string | undefined) {
   async function saveAccountAge(age: AccountAge) {
     if (!userId || !supabase) return;
     setAccountAge(age);
-    await supabase.from("user_preferences").upsert(
-      { user_id: userId, account_age: age, updated_at: new Date().toISOString() },
+    await supabase.from("user_profiles").upsert(
+      { user_id: userId, instagram_account_age: age, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     ).catch(() => {});
   }

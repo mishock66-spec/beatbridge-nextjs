@@ -4,9 +4,16 @@ import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabase";
+import { ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
 
 const BEAT_STYLES = ["Trap", "Boom-Bap", "Drill", "Lo-fi", "R&B", "Afrobeats", "Pop", "Other"];
 const GOALS = ["Beat placements", "Collabs", "Sync licensing", "Label deal", "Management"];
+
+const ACCOUNT_AGE_OPTIONS: { value: AccountAge; label: string; sublabel: string }[] = [
+  { value: "new",         label: "New account",         sublabel: "Less than 1 month old" },
+  { value: "growing",     label: "Growing account",     sublabel: "1 to 6 months old" },
+  { value: "established", label: "Established account", sublabel: "More than 6 months old" },
+];
 
 export default function OnboardingPage() {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -19,6 +26,7 @@ export default function OnboardingPage() {
   const [influences, setInfluences] = useState("");
   const [bio, setBio] = useState("");
   const [producerName, setProducerName] = useState("");
+  const [instagramAccountAge, setInstagramAccountAge] = useState<AccountAge | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -35,7 +43,7 @@ export default function OnboardingPage() {
       }
       const { data } = await supabase
         .from("user_profiles")
-        .select("id, producer_name, beat_styles, influences, goals, bio")
+        .select("id, producer_name, beat_styles, influences, goals, bio, instagram_account_age")
         .eq("user_id", user.id)
         .single();
       if (data) {
@@ -45,6 +53,9 @@ export default function OnboardingPage() {
         setInfluences(data.influences || "");
         setGoals(data.goals || []);
         setBio(data.bio || "");
+        if (data.instagram_account_age) {
+          setInstagramAccountAge(data.instagram_account_age as AccountAge);
+        }
         setIsEdit(true);
       }
       setChecking(false);
@@ -70,6 +81,7 @@ export default function OnboardingPage() {
           influences: influences.trim(),
           goals,
           bio: bio.trim(),
+          instagram_account_age: instagramAccountAge,
           updated_at: new Date().toISOString(),
         },
         { onConflict: "user_id" }
@@ -195,6 +207,40 @@ export default function OnboardingPage() {
             placeholder="Your background, journey, what you're working on..."
             className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm resize-none"
           />
+        </div>
+
+        {/* Instagram account age */}
+        <div className="flex flex-col gap-3">
+          <label className="text-xs uppercase tracking-[0.1em] text-[#606060]">
+            Instagram account age
+            <span className="ml-2 normal-case tracking-normal font-normal text-[#404040]">
+              sets your daily DM limit
+            </span>
+          </label>
+          <div className="flex flex-col gap-2">
+            {ACCOUNT_AGE_OPTIONS.map(({ value, label, sublabel }) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setInstagramAccountAge(value)}
+                className={`flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px] ${
+                  instagramAccountAge === value
+                    ? "bg-orange-500/20 border-orange-500/60 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
+                    : "bg-white/[0.03] border-white/[0.08] hover:border-white/20"
+                }`}
+              >
+                <div>
+                  <p className={`text-sm font-semibold ${instagramAccountAge === value ? "text-orange-400" : "text-white"}`}>
+                    {label}
+                  </p>
+                  <p className="text-xs text-[#606060] mt-0.5">{sublabel}</p>
+                </div>
+                <span className={`text-xs font-bold flex-shrink-0 ml-3 ${instagramAccountAge === value ? "text-orange-400" : "text-[#505050]"}`}>
+                  {ACCOUNT_AGE_LIMITS[value]}/day
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
