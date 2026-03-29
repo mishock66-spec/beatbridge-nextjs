@@ -86,7 +86,7 @@ function SafetyContent() {
           {[
             {
               title: "Space your DMs",
-              body: "Wait at least 30–60 minutes between each message. Sending 20 DMs in 5 minutes is the fastest way to get flagged.",
+              body: "Wait at least 5–10 minutes between each message. Never send more than 10–15 DMs per hour. Sending 20 DMs in 5 minutes is the fastest way to get flagged.",
             },
             {
               title: "Always personalize",
