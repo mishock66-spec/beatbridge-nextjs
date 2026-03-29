@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
-import ConnectionCard from "@/components/ConnectionCard";
+import ConnectionCard, { type ContactStatus } from "@/components/ConnectionCard";
+import { supabase } from "@/lib/supabase";
 
 const CURRENSY_DM_PRIORITY_ORDER = [
   "themixed_hippie",
@@ -72,9 +74,40 @@ export default function ArtistNetworkClient({
   artistSlug?: string;
   artistName?: string;
 }) {
+  const { isLoaded, isSignedIn, user } = useUser();
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [listeningLink, setListeningLink] = useState("");
+
+  // Bulk fetch all dm_status rows for this user+artist — one query instead of N per card
+  type StatusEntry = { status: ContactStatus; ice_breaker?: string };
+  const [statusMap, setStatusMap] = useState<Record<string, StatusEntry> | null>(null);
+
+  useEffect(() => {
+    if (!artistSlug || !supabase) { setStatusMap({}); return; }
+    if (!isLoaded) return; // Wait for Clerk to finish loading
+    if (!isSignedIn || !user) { setStatusMap({}); return; }
+    supabase
+      .from("dm_status")
+      .select("contact_id, status, ice_breaker")
+      .eq("user_id", user.id)
+      .eq("artist_slug", artistSlug)
+      .then(({ data }) => {
+        const map: Record<string, StatusEntry> = {};
+        if (data) {
+          data.forEach((row) => {
+            if (row.contact_id) {
+              map[row.contact_id] = {
+                status: row.status as ContactStatus,
+                ice_breaker: row.ice_breaker ?? undefined,
+              };
+            }
+          });
+        }
+        setStatusMap(map);
+      })
+      .catch(() => setStatusMap({}));
+  }, [isLoaded, isSignedIn, user, artistSlug]);
 
   const priorityList = dmPriorityOrder ?? CURRENSY_DM_PRIORITY_ORDER;
 
@@ -215,25 +248,33 @@ export default function ArtistNetworkClient({
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {loading
+        {loading || (isSignedIn && statusMap === null)
           ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
-          : filtered.map((record, index) => (
-              <div
-                key={record.id}
-                style={{
-                  animation: "fadeInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
-                  animationDelay: `${Math.min(index * 50, 400)}ms`,
-                }}
-              >
-                <ConnectionCard
-                  record={record}
-                  listeningLink={listeningLink}
-                  dmPriority={priorityMap.get(normHandle(record.username))}
-                  artistSlug={artistSlug}
-                  artistName={artistName}
-                />
-              </div>
-            ))}
+          : filtered.map((record, index) => {
+              const contactId = artistSlug
+                ? `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`
+                : undefined;
+              const statusEntry = contactId ? statusMap?.[contactId] : undefined;
+              return (
+                <div
+                  key={record.id}
+                  style={{
+                    animation: "fadeInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+                    animationDelay: `${Math.min(index * 50, 400)}ms`,
+                  }}
+                >
+                  <ConnectionCard
+                    record={record}
+                    listeningLink={listeningLink}
+                    dmPriority={priorityMap.get(normHandle(record.username))}
+                    artistSlug={artistSlug}
+                    artistName={artistName}
+                    initialStatus={statusEntry?.status}
+                    initialIceBreaker={statusEntry?.ice_breaker}
+                  />
+                </div>
+              );
+            })}
       </div>
 
       {!loading && filtered.length === 0 && (

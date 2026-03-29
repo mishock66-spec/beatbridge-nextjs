@@ -87,6 +87,14 @@ This file gets smarter with every session.
 - Correct pattern: `if (!supabase) { setLoaded(true); return; }` then `if (!userId) return;` (separate guards).
 - Reason: Clerk loads asynchronously. If you set loaded=true before userId resolves, modal/conditional logic downstream fires against stale null state and can never be undone by the real fetch completing.
 
+## CONTACT STATUS — Supabase Only, Bulk Fetch, contact_id Key
+- Contact statuses are ALWAYS stored in Supabase dm_status table. Never use localStorage for status.
+- `contact_id` = `${artistSlug}_${username}` (no @ prefix, lowercase). This is the canonical unique key for a contact.
+- On status change: upsert to dm_status with `onConflict: "user_id,contact_id"`. Always set both `contact_id` and legacy `artist_slug`/`username` fields.
+- Bulk fetch on page load: ArtistNetworkClient fetches all dm_status rows for the user+artist in one query and passes `initialStatus`/`initialIceBreaker` down as props to each ConnectionCard. Never do per-card individual Supabase fetches for status.
+- ConnectionCard initialises status from `initialStatus` prop (default "To contact"). No per-card useEffect fetch.
+- DM counter: inserting/deleting dm_activity rows uses `contact_id` (not contact_username+artist_slug).
+
 ## SELECTED STATE — Use Inline Styles for Critical Visual Indicators
 - When a selected state must be clearly visible (e.g. account age options, onboarding choices), use inline styles with explicit values, NOT Tailwind opacity modifiers.
 - Correct: `style={{ border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }}`

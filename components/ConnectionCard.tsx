@@ -215,46 +215,30 @@ export default function ConnectionCard({
   dmPriority,
   artistSlug,
   artistName,
+  initialStatus,
+  initialIceBreaker,
 }: {
   record: AirtableRecord;
   listeningLink: string;
   dmPriority?: number;
   artistSlug?: string;
   artistName?: string;
+  initialStatus?: ContactStatus;
+  initialIceBreaker?: string;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
-  const [customTemplate, setCustomTemplate] = useState<string | null>(null);
+  const [customTemplate, setCustomTemplate] = useState<string | null>(() =>
+    initialIceBreaker ? cleanIceBreaker(initialIceBreaker) : null
+  );
   const [draftTemplate, setDraftTemplate] = useState("");
   const [isEditingFollowUp, setIsEditingFollowUp] = useState(false);
   const [customFollowUp, setCustomFollowUp] = useState<string | null>(null);
   const [draftFollowUp, setDraftFollowUp] = useState("");
   const [copiedFollowUp, setCopiedFollowUp] = useState(false);
-  const [status, setStatus] = useState<ContactStatus>("To contact");
+  const [status, setStatus] = useState<ContactStatus>(initialStatus ?? "To contact");
   const [isGenerating, setIsGenerating] = useState(false);
-
-  useEffect(() => {
-    if (!artistSlug || !isSignedIn || !user || !supabase) return;
-    supabase
-      .from("dm_status")
-      .select("status, ice_breaker")
-      .eq("user_id", user.id)
-      .eq("artist_slug", artistSlug)
-      .eq("username", record.username.replace("@", ""))
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          if (CONTACT_STATUSES.includes(data.status as ContactStatus)) {
-            setStatus(data.status as ContactStatus);
-          }
-          if (data.ice_breaker) {
-            setCustomTemplate(cleanIceBreaker(data.ice_breaker));
-          }
-        }
-      })
-      .catch(() => {});
-  }, [artistSlug, record.username, isSignedIn, user]);
 
   async function handleStatusChange(next: ContactStatus) {
     if (!artistSlug || !isSignedIn || !user) return;
@@ -262,36 +246,40 @@ export default function ConnectionCard({
     setStatus(next);
     if (!supabase) return;
 
-    // Persist status change
+    const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
+
+    // Persist status to dm_status
     supabase.from("dm_status").upsert(
       {
         user_id: user.id,
         artist_slug: artistSlug,
         username: record.username.replace("@", ""),
+        contact_id: contactId,
         status: next,
         updated_at: new Date().toISOString(),
       },
-      { onConflict: "user_id,artist_slug,username" }
+      { onConflict: "user_id,contact_id" }
     ).catch(() => {});
 
     if (next === "DM sent" && prev !== "DM sent") {
       // Insert activity row and bump counter
       await supabase.from("dm_activity").insert({
         user_id: user.id,
-        contact_username: record.username.replace("@", ""),
-        artist_slug: artistSlug ?? null,
-        dm_sent_at: new Date().toISOString(),
+        contact_id: contactId,
         action: "sent",
+        dm_sent_at: new Date().toISOString(),
       }).catch(() => {});
       window.dispatchEvent(new CustomEvent("dm-sent"));
     } else if (prev === "DM sent" && next !== "DM sent") {
-      // Remove activity row and decrement counter
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      // Remove today's activity row and decrement counter
       await supabase.from("dm_activity")
         .delete()
         .eq("user_id", user.id)
-        .eq("contact_username", record.username.replace("@", ""))
-        .eq("artist_slug", artistSlug)
+        .eq("contact_id", contactId)
         .eq("action", "sent")
+        .gte("dm_sent_at", todayStart.toISOString())
         .catch(() => {});
       window.dispatchEvent(new CustomEvent("dm-decremented"));
     }
