@@ -75,19 +75,22 @@ export async function fetchAirtableCount(
       : `OR(${values.map((v) => `{Suivi par}="${v}"`).join(",")})`;
 
   do {
-    const params = new URLSearchParams({
-      pageSize: "100",
-      filterByFormula: suivi,
-    });
-    params.append("fields[]", "Pseudo Instagram");
-    if (offset) params.set("offset", offset);
+    const parts: string[] = [
+      "pageSize=100",
+      "filterByFormula=" + encodeURIComponent(suivi),
+      "fields[]=" + encodeURIComponent("Pseudo Instagram"),
+    ];
+    if (offset) parts.push("offset=" + encodeURIComponent(offset));
 
-    const res = await fetch(`${url}?${params}`, {
+    const res = await fetch(`${url}?${parts.join("&")}`, {
       headers: { Authorization: `Bearer ${API_KEY}` },
       cache: "no-store",
     });
 
-    if (!res.ok) throw new Error(`Airtable error: ${res.status} ${res.statusText}`);
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Airtable error: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
 
     const data = await res.json();
     count += (data.records as { fields: Record<string, unknown> }[]).filter(
@@ -116,11 +119,13 @@ export async function fetchAirtableRecords(
   let offset: string | null = null;
 
   do {
-    const params = new URLSearchParams({
-      pageSize: "100",
-      "sort[0][field]": "Nombre de followers",
-      "sort[0][direction]": "asc",
-    });
+    // Build query string manually — URLSearchParams encodes brackets as %5B%5D
+    // which Airtable rejects with 422. Literal brackets are required.
+    const parts: string[] = [
+      "pageSize=100",
+      "sort[0][field]=" + encodeURIComponent("Nombre de followers"),
+      "sort[0][direction]=asc",
+    ];
 
     const conditions: string[] = [];
     if (suiviPar) {
@@ -136,21 +141,21 @@ export async function fetchAirtableRecords(
       conditions.push(`{Nombre de followers}<=${followerRange.max}`);
     }
     if (conditions.length > 0) {
-      params.set(
-        "filterByFormula",
-        conditions.length === 1 ? conditions[0] : `AND(${conditions.join(",")})`
-      );
+      const formula =
+        conditions.length === 1 ? conditions[0] : `AND(${conditions.join(",")})`;
+      parts.push("filterByFormula=" + encodeURIComponent(formula));
     }
 
-    if (offset) params.set("offset", offset);
+    if (offset) parts.push("offset=" + encodeURIComponent(offset));
 
-    const res = await fetch(`${url}?${params}`, {
+    const res = await fetch(`${url}?${parts.join("&")}`, {
       headers: { Authorization: `Bearer ${API_KEY}` },
-      next: { revalidate: 3600 }, // revalidate every hour
+      cache: "no-store",
     });
 
     if (!res.ok) {
-      throw new Error(`Airtable error: ${res.status} ${res.statusText}`);
+      const body = await res.text().catch(() => "");
+      throw new Error(`Airtable error: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
     }
 
     const data = await res.json();
