@@ -331,9 +331,8 @@ export default function ConnectionCard({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Generation failed");
       }
-      const { ice_breaker, follow_up } = await res.json();
+      const { ice_breaker } = await res.json();
       if (ice_breaker) { setCustomTemplate(ice_breaker); setIsEditing(false); }
-      if (follow_up) { setCustomFollowUp(follow_up); setIsEditingFollowUp(false); }
     } catch (err) {
       console.error("[generate-dm] client error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to generate DM");
@@ -478,44 +477,33 @@ export default function ConnectionCard({
         </div>
       )}
 
-      {/* STEP 2 — Follow-up */}
-      {(record.followUp || customFollowUp) && (
-        <div className="bg-white/[0.015] rounded-xl p-3.5 border border-white/[0.04] opacity-70 hover:opacity-100 transition-opacity">
+      {/* STEP 2 — Follow-up (only visible when status = Replied) */}
+      {status === "Replied" && (record.followUp || customFollowUp) && (
+        <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-green-500/[0.06] rounded-xl p-3.5 border border-green-500/20">
+          <p className="text-sm font-semibold text-green-400 mb-1">🎉 They replied! Now send your link:</p>
           <div className="flex items-center justify-between mb-1">
-            <div>
-              <span className="text-xs font-bold text-[#808080] uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
-              {customFollowUp !== null && isSignedIn && (
-                <span className="ml-2 text-orange-400/50 text-xs">(edited)</span>
-              )}
-            </div>
+            <span className="text-xs font-bold text-green-400/70 uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
             {!isEditingFollowUp && isSignedIn && (
               <button onClick={() => { setDraftFollowUp(activeFollowUp); setIsEditingFollowUp(true); }}
-                className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10">Edit</button>
+                className="text-xs text-gray-500 hover:text-green-400 transition-colors px-1.5 py-0.5 rounded hover:bg-green-400/10">Edit</button>
             )}
           </div>
-          <p className="text-[#505050] text-[11px] mb-2">Send this only AFTER they reply</p>
 
           {isSignedIn && isEditingFollowUp ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-2 mt-2">
               <textarea value={draftFollowUp} onChange={(e) => setDraftFollowUp(e.target.value)} rows={3}
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y" />
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-green-500/50 resize-y" />
               <div className="flex gap-2">
                 <button onClick={() => { setCustomFollowUp(draftFollowUp); setIsEditingFollowUp(false); }}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity">Save</button>
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-green-600 text-white hover:opacity-90 transition-opacity">Save</button>
                 <button onClick={() => { setCustomFollowUp(null); setDraftFollowUp(""); setIsEditingFollowUp(false); }}
                   className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
               </div>
             </div>
           ) : (
-            <div className="relative mb-3">
-              <p className="text-gray-400 text-xs leading-relaxed whitespace-pre-wrap"
-                style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
+            <div className="relative mt-2 mb-3">
+              <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
                 dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
-              {!isSignedIn && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Link href="/sign-in" className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors">Sign in to view</Link>
-                </div>
-              )}
             </div>
           )}
 
@@ -526,12 +514,12 @@ export default function ConnectionCard({
                 if (!resolvedFollowUp) return;
                 navigator.clipboard.writeText(resolvedFollowUp).then(() => { setCopiedFollowUp(true); setTimeout(() => setCopiedFollowUp(false), 2000); toast.success("Follow-up copied ✓"); });
               }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-green-600/80 text-white hover:bg-green-600 hover:scale-[1.02] transition-all duration-200 active:scale-95">
               {copiedFollowUp ? "✓ Copied!" : "Copy Follow-up"}
             </button>
             <button
               onClick={() => { openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`); }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.06] text-[#707070] hover:border-orange-500/30 hover:text-orange-400/80 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
               Send DM →
             </button>
           </div>

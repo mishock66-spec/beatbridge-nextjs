@@ -59,47 +59,30 @@ export async function POST(req: NextRequest) {
     console.error("[generate-dm] Calling Anthropic API...");
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
-      max_tokens: 1024,
+      max_tokens: 512,
       messages: [
         {
           role: "user",
-          content: `You are a DM writing assistant for beatmakers using a 2-step outreach strategy on Instagram.
+          content: `You are a DM writing assistant for beatmakers using Instagram cold outreach.
 
-Write TWO messages for ${producerName}, a ${beatStyles} producer influenced by ${influences}, reaching out to ${contactName} (@${username}), a ${contactType} with ${formattedFollowers} followers in ${artistName}'s network. Contact bio: ${contactBio || "N/A"}.
+Write a short ice-breaker DM from ${producerName}, a ${beatStyles} producer influenced by ${influences}, reaching out to ${contactName} (@${username}), a ${contactType} with ${formattedFollowers} followers in ${artistName}'s network. Contact bio: ${contactBio || "N/A"}.
 
-MESSAGE 1 — Ice Breaker (CRITICAL RULES):
-- Max 2-3 sentences. Sound human, not corporate.
-- ABSOLUTELY NO links, URLs, or [LINK] placeholders.
+CRITICAL RULES:
+- Max 2-3 sentences. Sound human, not corporate. No emoji overload.
+- ABSOLUTELY NO links, URLs, or placeholders of any kind.
 - Be personal and relevant to this specific contact.
 - End with a genuine question that invites a reply (e.g. "Would you be open to hearing it?" or "Think it could fit your lane?" or "Got a minute to check it out?").
 
-MESSAGE 2 — Follow-up (sent ONLY after they reply):
-- 1 short sentence acknowledging their reply + share the link.
-- Use [LINK] as placeholder for the music link.
-- Example format: "Appreciate the reply — here it is: [LINK]"
-
-Return ONLY valid JSON in this exact format, no other text:
-{"ice_breaker": "...", "follow_up": "..."}`,
+Return ONLY the message text, nothing else.`,
         },
       ],
     });
 
-    const raw = message.content[0].type === "text" ? message.content[0].text.trim() : "{}";
-    let ice_breaker = "";
-    let follow_up = "";
-    try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
-      ice_breaker = parsed.ice_breaker?.trim() || "";
-      follow_up = parsed.follow_up?.trim() || "";
-    } catch {
-      // fallback: treat whole response as ice_breaker
-      ice_breaker = raw;
-      follow_up = "Appreciate the reply — here it is: [LINK]";
-    }
+    const ice_breaker =
+      message.content[0].type === "text" ? message.content[0].text.trim() : "";
 
-    console.error("[generate-dm] Success — ice_breaker:", ice_breaker.length, "follow_up:", follow_up.length);
-    return NextResponse.json({ ice_breaker, follow_up });
+    console.error("[generate-dm] Success, length:", ice_breaker.length);
+    return NextResponse.json({ ice_breaker });
   } catch (err) {
     console.error("[generate-dm] Full error:", err);
     const message = err instanceof Error ? err.message : String(err);

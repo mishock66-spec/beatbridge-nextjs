@@ -78,4 +78,6 @@ This file gets smarter with every session.
 - The follow_up field = short reply message with [LINK] placeholder (sent only after contact replies).
 - The 2-step DM strategy is a core product feature. Never regress to single-message templates with links.
 - AirtableRecord type includes followUp field (mapped from "follow_up" Airtable column).
-- app/api/generate-dm returns { ice_breaker, follow_up } — never { dm }.
+- app/api/generate-dm returns { ice_breaker } only — never { dm } or { follow_up }.
+- Step 2 follow-up DM only appears on a ConnectionCard when contact status is set to "Replied".
+- AI generation only generates Step 1 (ice-breaker). Step 2 is always the fixed template from Airtable follow_up field.
