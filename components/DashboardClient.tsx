@@ -14,6 +14,7 @@ import { supabase } from "@/lib/supabase";
 import { getDmLimit, ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import ProfileChecklist from "@/components/ProfileChecklist";
+import StickyDMBar from "@/components/StickyDMBar";
 
 interface ArtistData {
   slug: string;
@@ -795,6 +796,12 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           );
         })}
       </div>
+
+      <StickyDMBar
+        dmSentCount={dailyCount}
+        accountAge={accountAge}
+        loaded={dailyLoaded}
+      />
     </div>
   );
 }

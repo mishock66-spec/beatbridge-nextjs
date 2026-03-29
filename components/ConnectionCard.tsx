@@ -217,6 +217,7 @@ export default function ConnectionCard({
   artistName,
   initialStatus,
   initialIceBreaker,
+  onStatusChange,
 }: {
   record: AirtableRecord;
   listeningLink: string;
@@ -225,6 +226,7 @@ export default function ConnectionCard({
   artistName?: string;
   initialStatus?: ContactStatus;
   initialIceBreaker?: string;
+  onStatusChange?: (contactId: string, next: ContactStatus, prev: ContactStatus) => void;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
@@ -262,18 +264,17 @@ export default function ConnectionCard({
     ).catch(() => {});
 
     if (next === "DM sent" && prev !== "DM sent") {
-      // Insert activity row and bump counter
+      // Insert activity row
       await supabase.from("dm_activity").insert({
         user_id: user.id,
         contact_id: contactId,
         action: "sent",
         dm_sent_at: new Date().toISOString(),
       }).catch(() => {});
-      window.dispatchEvent(new CustomEvent("dm-sent"));
     } else if (prev === "DM sent" && next !== "DM sent") {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      // Remove today's activity row and decrement counter
+      // Remove today's activity row
       await supabase.from("dm_activity")
         .delete()
         .eq("user_id", user.id)
@@ -281,8 +282,10 @@ export default function ConnectionCard({
         .eq("action", "sent")
         .gte("dm_sent_at", todayStart.toISOString())
         .catch(() => {});
-      window.dispatchEvent(new CustomEvent("dm-decremented"));
     }
+
+    // Notify parent so it can update the DM counter
+    onStatusChange?.(contactId, next, prev);
   }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;

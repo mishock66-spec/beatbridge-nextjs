@@ -4,7 +4,6 @@ import Navbar from "@/components/Navbar";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ToastProvider from "@/components/ToastProvider";
-import StickyDMBar from "@/components/StickyDMBar";
 import { ClerkProvider } from "@clerk/nextjs";
 
 export const metadata: Metadata = {
@@ -111,7 +110,6 @@ export default function RootLayout({
           <Navbar />
           <ScrollAnimations />
           {children}
-          <StickyDMBar />
         </body>
       </html>
     </ClerkProvider>

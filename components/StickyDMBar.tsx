@@ -1,66 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useUser } from "@clerk/nextjs";
-import { usePathname } from "next/navigation";
-import { supabase } from "@/lib/supabase";
 import { getDmLimit, type AccountAge } from "@/lib/dmLimits";
 
-export default function StickyDMBar() {
-  const { isSignedIn, user } = useUser();
-  const pathname = usePathname();
-  const [count, setCount] = useState(0);
-  const [accountAge, setAccountAge] = useState<AccountAge | null>(null);
-  const [loaded, setLoaded] = useState(false);
-
-  const shouldShow =
-    isSignedIn &&
-    (pathname === "/dashboard" || pathname.startsWith("/artist/"));
-
-  useEffect(() => {
-    if (!shouldShow || !user || !supabase) return;
-    setLoaded(false);
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-    Promise.all([
-      supabase
-        .from("dm_activity")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id)
-        .eq("action", "sent")
-        .gte("dm_sent_at", todayStart.toISOString()),
-      supabase
-        .from("user_profiles")
-        .select("instagram_account_age")
-        .eq("user_id", user.id)
-        .single(),
-    ])
-      .then(([activityRes, profileRes]) => {
-        if (activityRes.count !== null) setCount(activityRes.count);
-        if (profileRes.data?.instagram_account_age) {
-          setAccountAge(profileRes.data.instagram_account_age as AccountAge);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoaded(true));
-  }, [shouldShow, user]);
-
-  // Real-time: update count when status dropdown changes
-  useEffect(() => {
-    function onDmSent() { setCount((c) => c + 1); }
-    function onDmDecremented() { setCount((c) => Math.max(0, c - 1)); }
-    window.addEventListener("dm-sent", onDmSent);
-    window.addEventListener("dm-decremented", onDmDecremented);
-    return () => {
-      window.removeEventListener("dm-sent", onDmSent);
-      window.removeEventListener("dm-decremented", onDmDecremented);
-    };
-  }, []);
-
-  if (!shouldShow || !loaded) return null;
+export default function StickyDMBar({
+  dmSentCount,
+  accountAge,
+  loaded,
+}: {
+  dmSentCount: number;
+  accountAge: AccountAge | null;
+  loaded: boolean;
+}) {
+  if (!loaded) return null;
 
   const limit = getDmLimit(accountAge);
-  const pct = Math.min(Math.round((count / limit) * 100), 100);
+  const pct = Math.min(Math.round((dmSentCount / limit) * 100), 100);
 
   let barColor: string;
   let statusText: string;
@@ -88,7 +42,7 @@ export default function StickyDMBar() {
           className="text-xs font-bold tabular-nums flex-shrink-0"
           style={{ color: accentColor }}
         >
-          {count}/{limit}
+          {dmSentCount}/{limit}
         </span>
 
         {/* Progress bar */}

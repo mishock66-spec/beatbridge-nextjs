@@ -1,10 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard, { type ContactStatus } from "@/components/ConnectionCard";
+import StickyDMBar from "@/components/StickyDMBar";
 import { supabase } from "@/lib/supabase";
+import type { AccountAge } from "@/lib/dmLimits";
 
 const CURRENSY_DM_PRIORITY_ORDER = [
   "themixed_hippie",
@@ -79,23 +81,43 @@ export default function ArtistNetworkClient({
   const [search, setSearch] = useState("");
   const [listeningLink, setListeningLink] = useState("");
 
-  // Bulk fetch all dm_status rows for this user+artist — one query instead of N per card
+  // Bulk fetch: dm_status map + today's DM count + account age — one round-trip
   type StatusEntry = { status: ContactStatus; ice_breaker?: string };
   const [statusMap, setStatusMap] = useState<Record<string, StatusEntry> | null>(null);
+  const [dmSentCount, setDmSentCount] = useState(0);
+  const [accountAge, setAccountAge] = useState<AccountAge | null>(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
-    if (!artistSlug || !supabase) { setStatusMap({}); return; }
+    if (!artistSlug || !supabase) { setStatusMap({}); setDataLoaded(true); return; }
     if (!isLoaded) return; // Wait for Clerk to finish loading
-    if (!isSignedIn || !user) { setStatusMap({}); return; }
-    supabase
-      .from("dm_status")
-      .select("contact_id, status, ice_breaker")
-      .eq("user_id", user.id)
-      .eq("artist_slug", artistSlug)
-      .then(({ data }) => {
+    if (!isSignedIn || !user) { setStatusMap({}); setDataLoaded(true); return; }
+
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    Promise.all([
+      supabase
+        .from("dm_status")
+        .select("contact_id, status, ice_breaker")
+        .eq("user_id", user.id)
+        .eq("artist_slug", artistSlug),
+      supabase
+        .from("dm_activity")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id)
+        .eq("action", "sent")
+        .gte("dm_sent_at", todayStart.toISOString()),
+      supabase
+        .from("user_profiles")
+        .select("instagram_account_age")
+        .eq("user_id", user.id)
+        .single(),
+    ])
+      .then(([statusRes, countRes, profileRes]) => {
         const map: Record<string, StatusEntry> = {};
-        if (data) {
-          data.forEach((row) => {
+        if (statusRes.data) {
+          statusRes.data.forEach((row) => {
             if (row.contact_id) {
               map[row.contact_id] = {
                 status: row.status as ContactStatus,
@@ -105,9 +127,26 @@ export default function ArtistNetworkClient({
           });
         }
         setStatusMap(map);
+        if (countRes.count !== null) setDmSentCount(countRes.count);
+        if (profileRes.data?.instagram_account_age) {
+          setAccountAge(profileRes.data.instagram_account_age as AccountAge);
+        }
       })
-      .catch(() => setStatusMap({}));
+      .catch(() => { setStatusMap({}); })
+      .finally(() => setDataLoaded(true));
   }, [isLoaded, isSignedIn, user, artistSlug]);
+
+  // Prop-based callback — no window events needed
+  const handleCardStatusChange = useCallback(
+    (contactId: string, next: ContactStatus, prev: ContactStatus) => {
+      if (next === "DM sent" && prev !== "DM sent") {
+        setDmSentCount((c) => c + 1);
+      } else if (prev === "DM sent" && next !== "DM sent") {
+        setDmSentCount((c) => Math.max(0, c - 1));
+      }
+    },
+    []
+  );
 
   const priorityList = dmPriorityOrder ?? CURRENSY_DM_PRIORITY_ORDER;
 
@@ -248,7 +287,7 @@ export default function ArtistNetworkClient({
 
       {/* Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
-        {loading || (isSignedIn && statusMap === null)
+        {loading || (isSignedIn && !dataLoaded)
           ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
           : filtered.map((record, index) => {
               const contactId = artistSlug
@@ -271,6 +310,7 @@ export default function ArtistNetworkClient({
                     artistName={artistName}
                     initialStatus={statusEntry?.status}
                     initialIceBreaker={statusEntry?.ice_breaker}
+                    onStatusChange={handleCardStatusChange}
                   />
                 </div>
               );
@@ -285,6 +325,15 @@ export default function ArtistNetworkClient({
           </p>
           <p className="text-sm mt-2">Try a different filter or search term</p>
         </div>
+      )}
+
+      {/* Sticky DM safety bar — only for signed-in users */}
+      {isSignedIn && (
+        <StickyDMBar
+          dmSentCount={dmSentCount}
+          accountAge={accountAge}
+          loaded={dataLoaded}
+        />
       )}
     </>
   );
