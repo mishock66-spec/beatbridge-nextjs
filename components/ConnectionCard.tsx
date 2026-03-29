@@ -258,21 +258,42 @@ export default function ConnectionCard({
 
   async function handleStatusChange(next: ContactStatus) {
     if (!artistSlug || !isSignedIn || !user) return;
+    const prev = status;
     setStatus(next);
     if (!supabase) return;
-    try {
-      await supabase.from("dm_status").upsert(
-        {
-          user_id: user.id,
-          artist_slug: artistSlug,
-          username: record.username.replace("@", ""),
-          status: next,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,artist_slug,username" }
-      );
-    } catch {
-      // silent — status is already updated in UI
+
+    // Persist status change
+    supabase.from("dm_status").upsert(
+      {
+        user_id: user.id,
+        artist_slug: artistSlug,
+        username: record.username.replace("@", ""),
+        status: next,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "user_id,artist_slug,username" }
+    ).catch(() => {});
+
+    if (next === "DM sent" && prev !== "DM sent") {
+      // Insert activity row and bump counter
+      await supabase.from("dm_activity").insert({
+        user_id: user.id,
+        contact_username: record.username.replace("@", ""),
+        artist_slug: artistSlug ?? null,
+        dm_sent_at: new Date().toISOString(),
+        action: "sent",
+      }).catch(() => {});
+      window.dispatchEvent(new CustomEvent("dm-sent"));
+    } else if (prev === "DM sent" && next !== "DM sent") {
+      // Remove activity row and decrement counter
+      await supabase.from("dm_activity")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("contact_username", record.username.replace("@", ""))
+        .eq("artist_slug", artistSlug)
+        .eq("action", "sent")
+        .catch(() => {});
+      window.dispatchEvent(new CustomEvent("dm-decremented"));
     }
   }
 
@@ -496,21 +517,8 @@ export default function ConnectionCard({
               {copied ? "✓ Copied!" : "Copy DM"}
             </button>
             <button
-              onClick={async () => {
-                if (isSignedIn && resolvedTemplate) navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
-                // Fire event immediately so the bar increments without waiting for DB
-                window.dispatchEvent(new CustomEvent("dm-sent"));
-                if (isSignedIn && user && supabase) {
-                  // Await insert BEFORE navigating — mobile navigation cancels in-flight requests
-                  await supabase.from("dm_activity").insert({
-                    user_id: user.id,
-                    contact_username: record.username.replace("@", ""),
-                    artist_slug: artistSlug ?? null,
-                    dm_sent_at: new Date().toISOString(),
-                    action: "sent",
-                  }).catch(() => {});
-                }
-                openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
+              onClick={() => {
+                window.location.href = `https://ig.me/m/${record.username.replace("@", "")}`;
               }}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
               Send DM →

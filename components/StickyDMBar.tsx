@@ -45,13 +45,16 @@ export default function StickyDMBar() {
       .finally(() => setLoaded(true));
   }, [shouldShow, user]);
 
-  // Real-time: increment count when ConnectionCard fires "dm-sent"
+  // Real-time: update count when status dropdown changes
   useEffect(() => {
-    function onDmSent() {
-      setCount((c) => c + 1);
-    }
+    function onDmSent() { setCount((c) => c + 1); }
+    function onDmDecremented() { setCount((c) => Math.max(0, c - 1)); }
     window.addEventListener("dm-sent", onDmSent);
-    return () => window.removeEventListener("dm-sent", onDmSent);
+    window.addEventListener("dm-decremented", onDmDecremented);
+    return () => {
+      window.removeEventListener("dm-sent", onDmSent);
+      window.removeEventListener("dm-decremented", onDmDecremented);
+    };
   }, []);
 
   if (!shouldShow || !loaded) return null;
