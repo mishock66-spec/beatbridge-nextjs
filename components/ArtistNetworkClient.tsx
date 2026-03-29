@@ -93,8 +93,8 @@ export default function ArtistNetworkClient({
     if (!isLoaded) return; // Wait for Clerk to finish loading
     if (!isSignedIn || !user) { setStatusMap({}); setDataLoaded(true); return; }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     Promise.all([
       supabase

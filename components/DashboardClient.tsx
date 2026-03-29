@@ -352,8 +352,8 @@ function useDailyDMData(userId: string | undefined) {
     // userId is still undefined while Clerk is initialising — wait for it
     if (!userId) return;
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
     Promise.all([
       supabase
         .from("dm_activity")

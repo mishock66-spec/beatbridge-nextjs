@@ -272,8 +272,8 @@ export default function ConnectionCard({
         dm_sent_at: new Date().toISOString(),
       });
     } else if (prev === "DM sent" && next !== "DM sent") {
-      const todayStart = new Date();
-      todayStart.setHours(0, 0, 0, 0);
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
       // Remove today's activity row
       await supabase.from("dm_activity")
         .delete()

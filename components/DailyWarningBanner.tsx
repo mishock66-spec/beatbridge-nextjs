@@ -15,8 +15,8 @@ export default function DailyWarningBanner() {
   useEffect(() => {
     if (!isSignedIn || !user || !supabase) { setReady(true); return; }
 
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
 
     Promise.all([
       supabase
