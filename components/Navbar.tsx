@@ -45,6 +45,17 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/leaderboard"
+            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
+              pathname === "/leaderboard"
+                ? "text-orange-500"
+                : "text-[#a0a0a0] hover:text-white"
+            }`}
+          >
+            Leaderboard
+          </Link>
+
+          <Link
             href="/why-beatbridge"
             className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
               pathname === "/why-beatbridge"

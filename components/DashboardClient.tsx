@@ -489,6 +489,111 @@ function DailyDMSafety({
   );
 }
 
+// ─── LeaderboardWidget ───────────────────────────────────────────────────────
+
+const WIDGET_MEDALS = ["🥇", "🥈", "🥉"];
+
+interface LeaderboardEntry {
+  rank: number;
+  user_id: string;
+  username: string;
+  dms_sent: number;
+  replies_received: number;
+}
+
+function LeaderboardWidget({ userId }: { userId: string | undefined }) {
+  const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const url = userId
+      ? `/api/leaderboard?userId=${encodeURIComponent(userId)}`
+      : "/api/leaderboard";
+    fetch(url)
+      .then((r) => r.json())
+      .then((d) => setEntries(d.leaderboard ?? []))
+      .catch(() => setEntries([]))
+      .finally(() => setLoaded(true));
+  }, [userId]);
+
+  const top3 = entries.slice(0, 3);
+
+  return (
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 mb-10">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Community</p>
+          <h2 className="text-base font-black mt-0.5">Leaderboard</h2>
+        </div>
+        <Link
+          href="/leaderboard"
+          className="text-xs text-orange-400 hover:text-orange-300 transition-colors font-medium"
+        >
+          See full leaderboard →
+        </Link>
+      </div>
+
+      {!loaded && (
+        <div className="space-y-2">
+          {[1, 2, 3].map((n) => (
+            <div key={n} className="h-12 bg-white/[0.03] rounded-xl animate-pulse" />
+          ))}
+        </div>
+      )}
+
+      {loaded && top3.length === 0 && (
+        <p className="text-sm text-gray-600 text-center py-4">
+          Be the first to climb the ranks. Start sending DMs.
+        </p>
+      )}
+
+      {loaded && top3.length > 0 && (
+        <div className="space-y-2">
+          {top3.map((entry) => {
+            const isMe = entry.user_id === userId;
+            return (
+              <div
+                key={entry.user_id}
+                className={`flex items-center gap-3 px-4 py-3 rounded-xl border transition-all ${
+                  isMe
+                    ? "border-orange-500/40 bg-orange-500/[0.07]"
+                    : "border-white/[0.04] bg-white/[0.015]"
+                }`}
+              >
+                <span className="text-base w-6 text-center flex-shrink-0">
+                  {WIDGET_MEDALS[entry.rank - 1]}
+                </span>
+                <p
+                  className={`flex-1 text-sm font-semibold truncate ${
+                    isMe ? "text-orange-400" : "text-white"
+                  }`}
+                >
+                  {entry.username}
+                  {isMe && (
+                    <span className="ml-1.5 text-xs font-normal text-orange-500/60">you</span>
+                  )}
+                </p>
+                <span
+                  className={`text-sm font-bold flex-shrink-0 ${
+                    isMe ? "text-orange-400" : "text-white"
+                  }`}
+                >
+                  {entry.dms_sent}
+                  <span className="text-xs font-normal text-gray-600 ml-1">DMs</span>
+                </span>
+                <span className="text-sm font-bold text-green-400 flex-shrink-0 hidden sm:block">
+                  {entry.replies_received}
+                  <span className="text-xs font-normal text-gray-600 ml-1">replies</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── DashboardClient ──────────────────────────────────────────────────────────
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
@@ -618,6 +723,9 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
             />
           </div>
         )}
+
+        {/* Community Leaderboard */}
+        <LeaderboardWidget userId={user?.id} />
 
         {/* Artist sections */}
         {artists.map((artist) => {
