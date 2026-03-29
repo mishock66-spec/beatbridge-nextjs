@@ -21,11 +21,21 @@ const ACCOUNT_AGE_OPTIONS: { value: AccountAge; label: string; sublabel: string 
   { value: "established", label: "Established account", sublabel: "More than 6 months old" },
 ];
 
+type GeneratedResult = {
+  username: string;
+  fullName: string;
+  profileType: string;
+  followers: number;
+  artistSlug: string;
+  artistName: string;
+  preview: string;
+};
+
 type GenState =
   | { status: "fetching" }
   | { status: "upsell" }
   | { status: "generating"; current: number; total: number }
-  | { status: "done"; total: number };
+  | { status: "done"; total: number; results: GeneratedResult[] };
 
 type Contact = {
   username: string;
@@ -36,6 +46,121 @@ type Contact = {
   artistSlug: string;
   artistName: string;
 };
+
+function fmtFollowers(n: number) {
+  if (!n) return null;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return String(n);
+}
+
+// ─── GenerationReport ─────────────────────────────────────────────────────────
+
+function GenerationReport({ results }: { results: GeneratedResult[] }) {
+  const [openSlugs, setOpenSlugs] = useState<Set<string>>(new Set());
+
+  function toggle(slug: string) {
+    setOpenSlugs((prev) => {
+      const next = new Set(prev);
+      next.has(slug) ? next.delete(slug) : next.add(slug);
+      return next;
+    });
+  }
+
+  // Group by artist
+  const byArtist = results.reduce<Record<string, { name: string; contacts: GeneratedResult[] }>>(
+    (acc, r) => {
+      if (!acc[r.artistSlug]) acc[r.artistSlug] = { name: r.artistName, contacts: [] };
+      acc[r.artistSlug].contacts.push(r);
+      return acc;
+    },
+    {}
+  );
+
+  if (results.length === 0) {
+    return (
+      <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-5">
+        <p className="text-sm font-semibold text-white mb-1">✓ All contacts already have DMs.</p>
+        <Link href="/dashboard" className="text-sm text-orange-400 hover:text-orange-300 transition-colors">
+          Go to Dashboard →
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] overflow-hidden">
+      {/* Header */}
+      <div className="px-5 py-4 border-b border-white/[0.06]">
+        <p className="text-base font-black text-white">✓ {results.length} DMs generated successfully</p>
+        <p className="text-xs text-[#606060] mt-0.5">Grouped by artist — click to expand</p>
+      </div>
+
+      {/* Artist sections */}
+      <div className="divide-y divide-white/[0.04] max-h-[60vh] overflow-y-auto">
+        {Object.entries(byArtist).map(([slug, { name, contacts }]) => {
+          const isOpen = openSlugs.has(slug);
+          return (
+            <div key={slug}>
+              {/* Collapsible header */}
+              <button
+                type="button"
+                onClick={() => toggle(slug)}
+                className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-white/[0.03] transition-colors text-left min-h-[44px]"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-semibold text-orange-400">{name}</span>
+                  <span className="text-xs text-[#505050]">{contacts.length} contacts</span>
+                </div>
+                <svg
+                  className={`w-4 h-4 text-[#505050] transition-transform duration-200 flex-shrink-0 ${isOpen ? "rotate-180" : ""}`}
+                  fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Contact rows */}
+              {isOpen && (
+                <div className="border-t border-white/[0.04] divide-y divide-white/[0.03]">
+                  {contacts.map((c) => (
+                    <div key={c.username} className="px-5 py-3 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3">
+                      <div className="flex items-center gap-2 flex-shrink-0 sm:w-36">
+                        <span className="text-xs font-semibold text-white truncate">@{c.username}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-[#606060] flex-shrink-0">
+                        <span>{c.profileType}</span>
+                        {fmtFollowers(c.followers) && (
+                          <>
+                            <span className="text-[#333]">·</span>
+                            <span>{fmtFollowers(c.followers)}</span>
+                          </>
+                        )}
+                      </div>
+                      <p className="text-xs text-[#808080] italic leading-relaxed sm:flex-1 truncate sm:truncate-none sm:whitespace-normal">
+                        &ldquo;{c.preview}&rdquo;
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Footer */}
+      <div className="px-5 py-4 border-t border-white/[0.06]">
+        <Link
+          href="/dashboard"
+          className="text-sm font-semibold text-orange-400 hover:text-orange-300 transition-colors"
+        >
+          Go to Dashboard →
+        </Link>
+      </div>
+    </div>
+  );
+}
 
 export default function OnboardingPage() {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -121,11 +246,13 @@ export default function OnboardingPage() {
     const toGenerate = contacts.slice(0, limit);
 
     if (toGenerate.length === 0) {
-      setGenState({ status: "done", total: 0 });
+      setGenState({ status: "done", total: 0, results: [] });
       return;
     }
 
     setGenState({ status: "generating", current: 0, total: toGenerate.length });
+
+    const results: GeneratedResult[] = [];
 
     for (let i = 0; i < toGenerate.length; i++) {
       const contact = toGenerate[i];
@@ -159,6 +286,17 @@ export default function OnboardingPage() {
                 { onConflict: "user_id,artist_slug,username" }
               )
               .catch(() => {});
+            results.push({
+              username:    contact.username,
+              fullName:    contact.fullName,
+              profileType: contact.profileType,
+              followers:   contact.followers,
+              artistSlug:  contact.artistSlug,
+              artistName:  contact.artistName,
+              preview:     ice_breaker.length > 60
+                ? ice_breaker.slice(0, 60) + "..."
+                : ice_breaker,
+            });
           }
         }
       } catch {
@@ -172,8 +310,8 @@ export default function OnboardingPage() {
       }
     }
 
-    setGenState({ status: "done", total: toGenerate.length });
-    toast.success(`Your DMs are ready! ${toGenerate.length} contacts generated.`, {
+    setGenState({ status: "done", total: results.length, results });
+    toast.success(`Your DMs are ready! ${results.length} contacts generated.`, {
       duration: 4000,
       position: "bottom-right",
     });
@@ -423,44 +561,31 @@ export default function OnboardingPage() {
         )}
 
         {/* Generation progress */}
-        {(genState?.status === "generating" || genState?.status === "done") && (
+        {genState?.status === "generating" && (
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-5">
-            {genState.status === "generating" ? (
-              <>
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-sm font-semibold text-white">
-                    Generating your DMs... {genState.current}/{genState.total}
-                  </p>
-                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                </div>
-                <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-orange-500 rounded-full transition-all duration-300"
-                    style={{
-                      width: `${genState.total > 0 ? Math.round((genState.current / genState.total) * 100) : 0}%`,
-                    }}
-                  />
-                </div>
-                <p className="text-xs text-[#505050] mt-2">
-                  Do not close this page — generation is running.
-                </p>
-              </>
-            ) : (
-              <>
-                <p className="text-sm font-semibold text-white mb-1">
-                  {genState.total > 0
-                    ? `✓ ${genState.total} DMs ready.`
-                    : "✓ All contacts already have DMs."}
-                </p>
-                <Link
-                  href="/dashboard"
-                  className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
-                >
-                  Go to Dashboard →
-                </Link>
-              </>
-            )}
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-sm font-semibold text-white">
+                Generating your DMs... {genState.current}/{genState.total}
+              </p>
+              <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            </div>
+            <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                style={{
+                  width: `${genState.total > 0 ? Math.round((genState.current / genState.total) * 100) : 0}%`,
+                }}
+              />
+            </div>
+            <p className="text-xs text-[#505050] mt-2">
+              Do not close this page — generation is running.
+            </p>
           </div>
+        )}
+
+        {/* Generation report */}
+        {genState?.status === "done" && (
+          <GenerationReport results={genState.results} />
         )}
       </form>
     </main>

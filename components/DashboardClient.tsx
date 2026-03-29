@@ -686,7 +686,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         />
       )}
 
-      <div className="max-w-4xl mx-auto px-4 py-12">
+      <div className="max-w-4xl mx-auto px-4 py-12 pb-20">
         {/* Header */}
         <div className="mb-10">
           <p className="text-gray-500 text-sm mb-1">Welcome back,</p>

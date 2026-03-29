@@ -491,6 +491,7 @@ export default function ConnectionCard({
                 if (isSignedIn && resolvedTemplate) navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
                 if (isSignedIn && user && supabase && artistSlug) {
                   supabase.from("dm_activity").insert({ user_id: user.id, contact_username: record.username.replace("@", ""), artist_slug: artistSlug, dm_sent_at: new Date().toISOString() }).catch(() => {});
+                  window.dispatchEvent(new CustomEvent("dm-sent"));
                 }
                 openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
               }}
