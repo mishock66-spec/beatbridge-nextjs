@@ -251,7 +251,7 @@ export default function ConnectionCard({
     const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
 
     // Persist status to dm_status
-    supabase.from("dm_status").upsert(
+    await supabase.from("dm_status").upsert(
       {
         user_id: user.id,
         artist_slug: artistSlug,
@@ -261,7 +261,7 @@ export default function ConnectionCard({
         updated_at: new Date().toISOString(),
       },
       { onConflict: "user_id,contact_id" }
-    ).catch(() => {});
+    );
 
     if (next === "DM sent" && prev !== "DM sent") {
       // Insert activity row
@@ -270,7 +270,7 @@ export default function ConnectionCard({
         contact_id: contactId,
         action: "sent",
         dm_sent_at: new Date().toISOString(),
-      }).catch(() => {});
+      });
     } else if (prev === "DM sent" && next !== "DM sent") {
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
@@ -280,8 +280,7 @@ export default function ConnectionCard({
         .eq("user_id", user.id)
         .eq("contact_id", contactId)
         .eq("action", "sent")
-        .gte("dm_sent_at", todayStart.toISOString())
-        .catch(() => {});
+        .gte("dm_sent_at", todayStart.toISOString());
     }
 
     // Notify parent so it can update the DM counter
@@ -364,19 +363,16 @@ export default function ConnectionCard({
         setIsEditing(false);
         // Persist to Supabase so it survives page navigation
         if (artistSlug && supabase && user) {
-          supabase
-            .from("dm_status")
-            .upsert(
-              {
-                user_id:     user.id,
-                artist_slug: artistSlug,
-                username:    record.username.replace("@", ""),
-                ice_breaker,
-                updated_at:  new Date().toISOString(),
-              },
-              { onConflict: "user_id,artist_slug,username" }
-            )
-            .catch(() => {});
+          await supabase.from("dm_status").upsert(
+            {
+              user_id:     user.id,
+              artist_slug: artistSlug,
+              username:    record.username.replace("@", ""),
+              ice_breaker,
+              updated_at:  new Date().toISOString(),
+            },
+            { onConflict: "user_id,artist_slug,username" }
+          );
         }
       }
     } catch (err) {

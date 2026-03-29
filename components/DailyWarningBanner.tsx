@@ -25,15 +25,15 @@ export default function DailyWarningBanner() {
         .eq("user_id", user.id)
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
-        .from("user_preferences")
-        .select("account_age")
+        .from("user_profiles")
+        .select("instagram_account_age")
         .eq("user_id", user.id)
         .single(),
     ])
       .then(([activityRes, prefRes]) => {
         if (activityRes.count !== null) setCount(activityRes.count);
-        if (prefRes.data?.account_age) {
-          setLimit(getDmLimit(prefRes.data.account_age as AccountAge));
+        if (prefRes.data?.instagram_account_age) {
+          setLimit(getDmLimit(prefRes.data.instagram_account_age as AccountAge));
         }
       })
       .catch(() => {})
