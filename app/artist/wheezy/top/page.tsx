@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
+import ScoringDisclaimer from "@/components/ScoringDisclaimer";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 
@@ -86,6 +87,8 @@ export default async function WheezyTopContactsPage() {
             Each one has a curated DM template written specifically for them.
           </p>
         </div>
+
+        <ScoringDisclaimer />
 
         {/* Connection grid */}
         <ArtistNetworkClient
