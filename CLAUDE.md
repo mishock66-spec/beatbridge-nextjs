@@ -81,3 +81,13 @@ This file gets smarter with every session.
 - app/api/generate-dm returns { ice_breaker } only — never { dm } or { follow_up }.
 - Step 2 follow-up DM only appears on a ConnectionCard when contact status is set to "Replied".
 - AI generation only generates Step 1 (ice-breaker). Step 2 is always the fixed template from Airtable follow_up field.
+
+## CLERK + SUPABASE LOADING ORDER — useEffect Guard Rule
+- In any hook that fetches from Supabase using userId, NEVER call setLoaded(true) when userId is undefined. That fires prematurely while Clerk is still initialising.
+- Correct pattern: `if (!supabase) { setLoaded(true); return; }` then `if (!userId) return;` (separate guards).
+- Reason: Clerk loads asynchronously. If you set loaded=true before userId resolves, modal/conditional logic downstream fires against stale null state and can never be undone by the real fetch completing.
+
+## SELECTED STATE — Use Inline Styles for Critical Visual Indicators
+- When a selected state must be clearly visible (e.g. account age options, onboarding choices), use inline styles with explicit values, NOT Tailwind opacity modifiers.
+- Correct: `style={{ border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }}`
+- Wrong: `className="border-orange-500/60 bg-orange-500/20"` — too subtle, visually indistinguishable at a glance.
