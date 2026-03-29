@@ -2,6 +2,7 @@ import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import ScoringDisclaimer from "@/components/ScoringDisclaimer";
+import DailyWarningBanner from "@/components/DailyWarningBanner";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 
@@ -88,6 +89,7 @@ export default async function WheezyTopContactsPage() {
           </p>
         </div>
 
+        <DailyWarningBanner />
         <ScoringDisclaimer />
 
         {/* Connection grid */}

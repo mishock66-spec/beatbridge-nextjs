@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
+import DailyWarningBanner from "@/components/DailyWarningBanner";
 
 export const revalidate = 0;
 
@@ -62,6 +63,8 @@ export default async function WheezyArtistPage() {
             <p className="text-gray-500 text-xs mt-1">Connections mapped</p>
           </div>
         </div>
+
+        <DailyWarningBanner />
 
         {/* Banner */}
         <div className="bg-orange-500/[0.08] border border-orange-500/20 rounded-xl px-4 py-3 mb-8 flex items-start gap-3">

@@ -515,6 +515,14 @@ export default function ConnectionCard({
                 if (isSignedIn && resolvedTemplate) {
                   navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
                 }
+                if (isSignedIn && user && supabase && artistSlug) {
+                  supabase.from("dm_activity").insert({
+                    user_id: user.id,
+                    contact_username: record.username.replace("@", ""),
+                    artist_slug: artistSlug,
+                    dm_sent_at: new Date().toISOString(),
+                  }).catch(() => {});
+                }
                 openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
               }}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95"

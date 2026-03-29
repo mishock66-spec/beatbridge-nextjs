@@ -335,11 +335,123 @@ function ArtistContactList({
   );
 }
 
+// ─── useDailyDMCount ──────────────────────────────────────────────────────────
+
+function useDailyDMCount(userId: string | undefined) {
+  const [count, setCount] = useState<number>(0);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!userId || !supabase) { setLoaded(true); return; }
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    supabase
+      .from("dm_activity")
+      .select("id", { count: "exact", head: true })
+      .eq("user_id", userId)
+      .gte("dm_sent_at", todayStart.toISOString())
+      .then(({ count: c }) => { if (c !== null) setCount(c); setLoaded(true); })
+      .catch(() => setLoaded(true));
+  }, [userId]);
+
+  return { count, loaded };
+}
+
+// ─── DailyDMSafety ────────────────────────────────────────────────────────────
+
+function DailyDMSafety({ count, loaded }: { count: number; loaded: boolean }) {
+  const MAX = 15;
+  const pct = Math.min(Math.round((count / MAX) * 100), 100);
+
+  let barColor = "bg-green-500";
+  let statusText = "✅ Safe zone";
+  let statusColor = "text-green-400";
+
+  if (count >= 15) {
+    barColor = "bg-red-500";
+    statusText = "🚨 Limit reached — stop now";
+    statusColor = "text-red-400";
+  } else if (count >= 11) {
+    barColor = "bg-red-500";
+    statusText = "⚠️ High — stop for today";
+    statusColor = "text-red-400";
+  } else if (count >= 6) {
+    barColor = "bg-orange-500";
+    statusText = "⚡ Moderate — slow down";
+    statusColor = "text-orange-400";
+  }
+
+  return (
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">Daily DM Safety</p>
+        {loaded && (
+          <span className={`text-xs font-semibold ${statusColor}`}>{statusText}</span>
+        )}
+      </div>
+      <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden mb-2">
+        <div
+          className={`h-full rounded-full transition-all duration-500 ${barColor}`}
+          style={{ width: loaded ? `${pct}%` : "0%" }}
+        />
+      </div>
+      <p className="text-xs text-gray-600">
+        {loaded ? `${count} DMs sent today` : "Loading…"} / {MAX} recommended max
+      </p>
+    </div>
+  );
+}
+
+// ─── SafetyTips ───────────────────────────────────────────────────────────────
+
+function SafetyTips() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] overflow-hidden mb-10">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 text-left hover:bg-white/[0.02] transition-colors min-h-[44px]"
+      >
+        <span className="text-sm text-orange-400 font-medium">🛡️ Instagram Safety Tips</span>
+        <svg
+          className={`w-4 h-4 text-orange-400/60 transition-transform duration-200 flex-shrink-0 ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+      {open && (
+        <div className="px-4 pb-4 border-t border-white/[0.06]">
+          <p className="text-xs text-orange-400/70 font-semibold uppercase tracking-[0.1em] pt-3 pb-2">
+            How to stay safe on Instagram:
+          </p>
+          <ul className="space-y-2 text-sm text-[#a0a0a0] leading-relaxed">
+            {[
+              "Send max 10–15 DMs per day",
+              "Space your DMs at least 30–60 minutes apart",
+              "Interact normally between DMs (like posts, watch stories)",
+              "Start slow if your account is new — 5 DMs/day max",
+              "Always personalize your message — never copy-paste the exact same text to everyone",
+              "Use a personal account, not a professional one — DMs from personal accounts land in Primary inbox. Professional account DMs often go to General where notifications are off by default.",
+            ].map((tip, i) => (
+              <li key={i} className="flex items-start gap-2">
+                <span className="text-orange-500/60 flex-shrink-0 mt-0.5">–</span>
+                <span>{tip}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── DashboardClient ──────────────────────────────────────────────────────────
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
+  const { count: dailyCount, loaded: dailyLoaded } = useDailyDMCount(user?.id);
 
   if (!isLoaded) {
     return (
@@ -408,6 +520,12 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           <h1 className="text-3xl font-black">{displayName}</h1>
           <p className="text-gray-500 text-sm mt-2">Your outreach dashboard</p>
         </div>
+
+        {/* Daily DM Safety */}
+        <DailyDMSafety count={dailyCount} loaded={dailyLoaded} />
+
+        {/* Safety Tips */}
+        <SafetyTips />
 
         {/* Stats row */}
         {mounted && (
