@@ -32,13 +32,13 @@ const TYPE_EMOJI: Record<string, string> = {
   Other: "💼",
 };
 
-// Strip stray [LINK] placeholders and URLs that occasionally leak into saved ice-breakers
+// Strip [LINK] placeholders and "here it is" phrases from ice-breakers (Step 1 only)
 function cleanIceBreaker(text: string): string {
-  let t = text;
-  t = t.replace(/\[(?:YOUR\s+)?(?:LISTENING\s+)?LINK\]/gi, "");
-  t = t.replace(/https?:\/\/\S+/gi, "");
-  t = t.replace(/\s{2,}/g, " ").trim();
-  return t;
+  return text
+    .replace(/\[LINK\]/gi, "")
+    .replace(/here it is:?\s*$/gi, "")
+    .replace(/:\s*$/, "")
+    .trim();
 }
 
 function openExternalUrl(url: string) {
@@ -280,7 +280,7 @@ export default function ConnectionCard({
   const reply = replyProbability(record);
   const priority = contactPriority(record);
 
-  const activeTemplate = customTemplate ?? record.template;
+  const activeTemplate = customTemplate ?? (record.template ? cleanIceBreaker(record.template) : record.template);
   const activeFollowUp = customFollowUp ?? record.followUp;
 
   const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
@@ -491,23 +491,24 @@ export default function ConnectionCard({
           )}
 
           <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={handleCopyDM} disabled={!record.template}
+            <button onClick={handleCopyDM} disabled={!activeTemplate}
               className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95">
               {copied ? "✓ Copied!" : "Copy DM"}
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (isSignedIn && resolvedTemplate) navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
+                // Fire event immediately so the bar increments without waiting for DB
+                window.dispatchEvent(new CustomEvent("dm-sent"));
                 if (isSignedIn && user && supabase) {
-                  // Record the send — artist_slug is nullable so this works even without it
-                  supabase.from("dm_activity").insert({
+                  // Await insert BEFORE navigating — mobile navigation cancels in-flight requests
+                  await supabase.from("dm_activity").insert({
                     user_id: user.id,
                     contact_username: record.username.replace("@", ""),
                     artist_slug: artistSlug ?? null,
                     dm_sent_at: new Date().toISOString(),
+                    action: "sent",
                   }).catch(() => {});
-                  // Immediately update the sticky DM bar counter
-                  window.dispatchEvent(new CustomEvent("dm-sent"));
                 }
                 openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
               }}

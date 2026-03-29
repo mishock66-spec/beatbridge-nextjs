@@ -358,6 +358,7 @@ function useDailyDMData(userId: string | undefined) {
         .from("dm_activity")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
+        .eq("action", "sent")
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")

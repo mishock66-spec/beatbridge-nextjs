@@ -27,6 +27,7 @@ export default function StickyDMBar() {
         .from("dm_activity")
         .select("id", { count: "exact", head: true })
         .eq("user_id", user.id)
+        .eq("action", "sent")
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
