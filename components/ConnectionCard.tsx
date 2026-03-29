@@ -218,6 +218,10 @@ export default function ConnectionCard({
   const [isEditing, setIsEditing] = useState(false);
   const [customTemplate, setCustomTemplate] = useState<string | null>(null);
   const [draftTemplate, setDraftTemplate] = useState("");
+  const [isEditingFollowUp, setIsEditingFollowUp] = useState(false);
+  const [customFollowUp, setCustomFollowUp] = useState<string | null>(null);
+  const [draftFollowUp, setDraftFollowUp] = useState("");
+  const [copiedFollowUp, setCopiedFollowUp] = useState(false);
   const [status, setStatus] = useState<ContactStatus>("To contact");
   const [isGenerating, setIsGenerating] = useState(false);
 
@@ -263,6 +267,7 @@ export default function ConnectionCard({
   const priority = contactPriority(record);
 
   const activeTemplate = customTemplate ?? record.template;
+  const activeFollowUp = customFollowUp ?? record.followUp;
 
   const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
 
@@ -270,6 +275,11 @@ export default function ConnectionCard({
     listeningLink && activeTemplate
       ? activeTemplate.replace(LINK_PLACEHOLDER_RE, listeningLink)
       : activeTemplate;
+
+  const resolvedFollowUp =
+    listeningLink && activeFollowUp
+      ? activeFollowUp.replace(LINK_PLACEHOLDER_RE, listeningLink)
+      : activeFollowUp;
 
   function handleCopyDM() {
     if (!isSignedIn) {
@@ -321,11 +331,9 @@ export default function ConnectionCard({
         const data = await res.json().catch(() => ({}));
         throw new Error(data.error || "Generation failed");
       }
-      const { dm } = await res.json();
-      if (dm) {
-        setCustomTemplate(dm);
-        setIsEditing(false);
-      }
+      const { ice_breaker, follow_up } = await res.json();
+      if (ice_breaker) { setCustomTemplate(ice_breaker); setIsEditing(false); }
+      if (follow_up) { setCustomFollowUp(follow_up); setIsEditingFollowUp(false); }
     } catch (err) {
       console.error("[generate-dm] client error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to generate DM");
@@ -334,21 +342,25 @@ export default function ConnectionCard({
     }
   }
 
-  const highlightedTemplate = resolvedTemplate
-    ? listeningLink
-      ? resolvedTemplate.replace(
-          new RegExp(
-            listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
-            "g"
-          ),
-          `<mark style="background-color:rgba(249,115,22,0.15);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">${listeningLink}</mark>`
-        )
-      : resolvedTemplate.replace(
-          LINK_PLACEHOLDER_RE,
-          (match) =>
-            `<mark style="background-color:rgba(249,115,22,0.3);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">${match}</mark>`
-        )
-    : "";
+  const MARK_LINK = `<mark style="background-color:rgba(249,115,22,0.15);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
+  const MARK_PLACEHOLDER = `<mark style="background-color:rgba(249,115,22,0.3);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
+
+  function highlight(resolved: string) {
+    if (!resolved) return "";
+    if (listeningLink) {
+      return resolved.replace(
+        new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+        `${MARK_LINK}${listeningLink}</mark>`
+      );
+    }
+    return resolved.replace(
+      LINK_PLACEHOLDER_RE,
+      (match) => `${MARK_PLACEHOLDER}${match}</mark>`
+    );
+  }
+
+  const highlightedTemplate = highlight(resolvedTemplate);
+  const highlightedFollowUp = highlight(resolvedFollowUp);
 
   return (
     <div className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative" style={{ willChange: "transform" }}>
@@ -408,146 +420,149 @@ export default function ConnectionCard({
         <p className="text-[#a0a0a0] text-sm leading-relaxed">{record.description}</p>
       )}
 
-      {/* DM Template */}
+      {/* STEP 1 — Ice Breaker */}
       {record.template && (
-        <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06] relative">
-          {/* Label row */}
-          <div className="flex items-center justify-between mb-1.5">
-            <p className="text-xs text-[#606060] font-medium uppercase tracking-[0.1em]">
-              DM Template
+        <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <span className="text-xs font-bold text-orange-400 uppercase tracking-[0.08em]">Step 1 — Ice Breaker</span>
               {customTemplate !== null && isSignedIn && (
-                <span className="ml-2 text-orange-400/60 normal-case tracking-normal font-normal">
-                  (edited)
-                </span>
+                <span className="ml-2 text-orange-400/50 text-xs">(edited)</span>
               )}
-            </p>
+            </div>
             {!isEditing && isSignedIn && (
-              <button
-                onClick={handleEditClick}
-                className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10"
-              >
-                Edit
-              </button>
+              <button onClick={handleEditClick} className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10">Edit</button>
             )}
           </div>
+          <p className="text-[#505050] text-[11px] mb-2">Send this first — no link</p>
 
-          {/* Edit mode (signed in only) */}
           {isSignedIn && isEditing ? (
             <div className="flex flex-col gap-2">
-              <textarea
-                value={draftTemplate}
-                onChange={(e) => setDraftTemplate(e.target.value)}
-                rows={6}
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y"
-              />
+              <textarea value={draftTemplate} onChange={(e) => setDraftTemplate(e.target.value)} rows={5}
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y" />
               <div className="flex gap-2">
-                <button
-                  onClick={handleSave}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity"
-                >
-                  Save
-                </button>
-                <button
-                  onClick={handleReset}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors"
-                >
-                  Reset to default
-                </button>
+                <button onClick={handleSave} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity">Save</button>
+                <button onClick={handleReset} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
               </div>
             </div>
           ) : (
-            <div className="relative">
-              <p
-                className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
-                style={
-                  !isSignedIn
-                    ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" }
-                    : undefined
-                }
-                dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
-              />
+            <div className="relative mb-3">
+              <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
+                style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
+                dangerouslySetInnerHTML={{ __html: highlightedTemplate }} />
               {!isSignedIn && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Link
-                    href="/sign-in"
-                    className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors"
-                  >
-                    Sign in to view
-                  </Link>
+                  <Link href="/sign-in" className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors">Sign in to view</Link>
                 </div>
               )}
             </div>
           )}
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button onClick={handleCopyDM} disabled={!record.template}
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95">
+              {copied ? "✓ Copied!" : "Copy DM"}
+            </button>
+            <button
+              onClick={() => {
+                if (isSignedIn && resolvedTemplate) navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
+                if (isSignedIn && user && supabase && artistSlug) {
+                  supabase.from("dm_activity").insert({ user_id: user.id, contact_username: record.username.replace("@", ""), artist_slug: artistSlug, dm_sent_at: new Date().toISOString() }).catch(() => {});
+                }
+                openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
+              }}
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+              Send DM →
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* STEP 2 — Follow-up */}
+      {(record.followUp || customFollowUp) && (
+        <div className="bg-white/[0.015] rounded-xl p-3.5 border border-white/[0.04] opacity-70 hover:opacity-100 transition-opacity">
+          <div className="flex items-center justify-between mb-1">
+            <div>
+              <span className="text-xs font-bold text-[#808080] uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
+              {customFollowUp !== null && isSignedIn && (
+                <span className="ml-2 text-orange-400/50 text-xs">(edited)</span>
+              )}
+            </div>
+            {!isEditingFollowUp && isSignedIn && (
+              <button onClick={() => { setDraftFollowUp(activeFollowUp); setIsEditingFollowUp(true); }}
+                className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10">Edit</button>
+            )}
+          </div>
+          <p className="text-[#505050] text-[11px] mb-2">Send this only AFTER they reply</p>
+
+          {isSignedIn && isEditingFollowUp ? (
+            <div className="flex flex-col gap-2">
+              <textarea value={draftFollowUp} onChange={(e) => setDraftFollowUp(e.target.value)} rows={3}
+                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y" />
+              <div className="flex gap-2">
+                <button onClick={() => { setCustomFollowUp(draftFollowUp); setIsEditingFollowUp(false); }}
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity">Save</button>
+                <button onClick={() => { setCustomFollowUp(null); setDraftFollowUp(""); setIsEditingFollowUp(false); }}
+                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
+              </div>
+            </div>
+          ) : (
+            <div className="relative mb-3">
+              <p className="text-gray-400 text-xs leading-relaxed whitespace-pre-wrap"
+                style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
+                dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
+              {!isSignedIn && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <Link href="/sign-in" className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors">Sign in to view</Link>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => {
+                if (!isSignedIn) { toast("Sign in to copy DM templates", { icon: "🔒" }); return; }
+                if (!resolvedFollowUp) return;
+                navigator.clipboard.writeText(resolvedFollowUp).then(() => { setCopiedFollowUp(true); setTimeout(() => setCopiedFollowUp(false), 2000); toast.success("Follow-up copied ✓"); });
+              }}
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+              {copiedFollowUp ? "✓ Copied!" : "Copy Follow-up"}
+            </button>
+            <button
+              onClick={() => { openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`); }}
+              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.06] text-[#707070] hover:border-orange-500/30 hover:text-orange-400/80 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+              Send DM →
+            </button>
+          </div>
         </div>
       )}
 
       {/* AI DM Generation — signed in only */}
       {isSignedIn && record.template && (
-        <button
-          onClick={handleGenerateDM}
-          disabled={isGenerating}
-          className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
-        >
+        <button onClick={handleGenerateDM} disabled={isGenerating}
+          className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
           {isGenerating ? (
-            <>
-              <span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-              Generating...
-            </>
-          ) : (
-            "✨ Generate my DM"
-          )}
+            <><span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />Generating...</>
+          ) : "✨ Generate my DM"}
         </button>
       )}
 
-      {/* Actions */}
-      <div className="flex flex-col gap-2 mt-auto pt-1">
-        <div className="flex flex-col sm:flex-row gap-2">
-          <button
-            onClick={handleCopyDM}
-            disabled={!record.template}
-            className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95"
-          >
-            {copied ? "✓ Copied!" : "Copy DM"}
-          </button>
-          {record.template && (
-            <button
-              onClick={() => {
-                if (isSignedIn && resolvedTemplate) {
-                  navigator.clipboard.writeText(resolvedTemplate).catch(() => {});
-                }
-                if (isSignedIn && user && supabase && artistSlug) {
-                  supabase.from("dm_activity").insert({
-                    user_id: user.id,
-                    contact_username: record.username.replace("@", ""),
-                    artist_slug: artistSlug,
-                    dm_sent_at: new Date().toISOString(),
-                  }).catch(() => {});
-                }
-                openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
-              }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95"
-            >
-              Send DM →
-            </button>
-          )}
-          {record.profileUrl && !record.template && (
-            <button
-              onClick={() => { openExternalUrl(record.profileUrl); }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center"
-            >
-              Open Instagram
-            </button>
-          )}
-        </div>
+      {/* No template fallback */}
+      {record.profileUrl && !record.template && (
+        <button onClick={() => { openExternalUrl(record.profileUrl); }}
+          className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center">
+          Open Instagram
+        </button>
+      )}
 
-        {/* Status selector — signed in only */}
-        {artistSlug && isSignedIn && (
-          <div className="flex items-center gap-2 mt-1 pt-3 border-t border-white/[0.06]">
-            <span className="text-xs text-[#505050] uppercase tracking-[0.08em]">Status:</span>
-            <StatusPill status={status} onChange={handleStatusChange} />
-          </div>
-        )}
-      </div>
+      {/* Status selector — signed in only */}
+      {artistSlug && isSignedIn && (
+        <div className="flex items-center gap-2 mt-auto pt-3 border-t border-white/[0.06]">
+          <span className="text-xs text-[#505050] uppercase tracking-[0.08em]">Status:</span>
+          <StatusPill status={status} onChange={handleStatusChange} />
+        </div>
+      )}
     </div>
   );
 }

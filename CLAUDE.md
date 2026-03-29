@@ -71,3 +71,11 @@ This file gets smarter with every session.
 - revalidate = 0 always. No middleware.ts. All text in English.
 - Contact cards have two badges: reply probability (based on followers + email) and contact priority (based on profile type). Logic in lib/scoreContact.ts. Always include the ScoringDisclaimer component on every artist page explaining these are estimates only.
 - NEVER use auth() from @clerk/nextjs/server in API routes — it requires clerkMiddleware() which is not used. Pass userId from the client via useUser() in the request body instead.
+
+## 2-STEP DM STRATEGY — CORE FEATURE
+- CRITICAL: DM templates must NEVER contain links or URLs in the first message (template field). Links only go in the follow_up field.
+- The template field = ice-breaker (no link, ends with a question).
+- The follow_up field = short reply message with [LINK] placeholder (sent only after contact replies).
+- The 2-step DM strategy is a core product feature. Never regress to single-message templates with links.
+- AirtableRecord type includes followUp field (mapped from "follow_up" Airtable column).
+- app/api/generate-dm returns { ice_breaker, follow_up } — never { dm }.

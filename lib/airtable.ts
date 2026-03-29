@@ -6,6 +6,7 @@ export type AirtableRecord = {
   followers: number;
   profileType: string;
   template: string;
+  followUp: string;
   description: string;
   instagramDmId: string;
 };
@@ -48,6 +49,7 @@ function mapRecord(record: {
     followers: (f["Nombre de followers"] as number) || 0,
     profileType: normalizeType((f["Type de profil"] as string) || "Other"),
     template: (f["template"] as string) || "",
+    followUp: (f["follow_up"] as string) || "",
     description: (f["Notes"] as string) || "",
     instagramDmId: (f["Instagram DM ID"] as string) || "",
   };

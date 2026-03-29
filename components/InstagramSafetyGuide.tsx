@@ -60,6 +60,29 @@ function SafetyContent() {
     <div className="px-4 pb-5 text-sm text-[#a0a0a0] leading-relaxed">
       <p className="pt-4 pb-3 text-white/70 italic">Before you start reaching out, read this.</p>
 
+      {/* 2-step strategy — most important rule */}
+      <div className="mb-4 rounded-lg border border-orange-500/20 bg-orange-500/[0.05] p-3.5">
+        <p className="text-xs text-orange-400 font-bold uppercase tracking-[0.1em] mb-2">
+          THE 2-STEP DM STRATEGY (most important rule)
+        </p>
+        <p className="text-[#a0a0a0] text-xs leading-relaxed mb-2">
+          <span className="text-white/70 font-medium">Never send a link in your first message.</span> Instagram flags links in cold DMs as spam — your message goes to Requests with no notification.
+        </p>
+        <ul className="space-y-1.5 text-xs">
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] flex items-center justify-center font-bold mt-0.5">1</span>
+            <span><span className="text-white/70 font-medium">Send the ice-breaker (no link).</span> Wait for a reply.</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="flex-shrink-0 w-5 h-5 rounded-full bg-orange-500/10 border border-orange-500/20 text-orange-400 text-[10px] flex items-center justify-center font-bold mt-0.5">2</span>
+            <span><span className="text-white/70 font-medium">Once they reply, send your link.</span></span>
+          </li>
+        </ul>
+        <p className="text-[#606060] text-xs mt-2 italic">
+          This simple change dramatically increases your chances of being seen and getting a response.
+        </p>
+      </div>
+
       <Section title="YOUR DAILY LIMITS (based on account age)">
         <ul className="space-y-1">
           {[
