@@ -115,6 +115,8 @@ export default function ArtistNetworkClient({
         .single(),
     ])
       .then(([statusRes, countRes, profileRes]) => {
+        console.log("dm_status fetch result:", statusRes.data, "error:", statusRes.error);
+        console.log("DM activity fetch result:", { count: countRes.count, error: countRes.error });
         const map: Record<string, StatusEntry> = {};
         if (statusRes.data) {
           statusRes.data.forEach((row) => {
@@ -139,6 +141,7 @@ export default function ArtistNetworkClient({
   // Prop-based callback — no window events needed
   const handleCardStatusChange = useCallback(
     (contactId: string, next: ContactStatus, prev: ContactStatus) => {
+      console.log("Status change:", contactId, prev, "->", next);
       if (next === "DM sent" && prev !== "DM sent") {
         setDmSentCount((c) => c + 1);
       } else if (prev === "DM sent" && next !== "DM sent") {

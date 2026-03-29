@@ -285,6 +285,7 @@ export default function ConnectionCard({
     }
 
     // Notify parent so it can update the DM counter
+    console.log("onStatusChange called:", contactId, next);
     onStatusChange?.(contactId, next, prev);
   }
 
