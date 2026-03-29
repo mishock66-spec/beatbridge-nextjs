@@ -3,8 +3,14 @@
 import { useState, useEffect } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 import { ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
+
+// Hardcoded for testing — will be wired to Stripe later
+const USER_PLAN: "free" | "pro" | "premium" = "pro";
+const PLAN_LIMIT: Record<"pro" | "premium", number> = { pro: 50, premium: Infinity };
 
 const BEAT_STYLES = ["Trap", "Boom-Bap", "Drill", "Lo-fi", "R&B", "Afrobeats", "Pop", "Other"];
 const GOALS = ["Beat placements", "Collabs", "Sync licensing", "Label deal", "Management"];
@@ -14,6 +20,22 @@ const ACCOUNT_AGE_OPTIONS: { value: AccountAge; label: string; sublabel: string 
   { value: "growing",     label: "Growing account",     sublabel: "1 to 6 months old" },
   { value: "established", label: "Established account", sublabel: "More than 6 months old" },
 ];
+
+type GenState =
+  | { status: "fetching" }
+  | { status: "upsell" }
+  | { status: "generating"; current: number; total: number }
+  | { status: "done"; total: number };
+
+type Contact = {
+  username: string;
+  fullName: string;
+  profileType: string;
+  followers: number;
+  description: string;
+  artistSlug: string;
+  artistName: string;
+};
 
 export default function OnboardingPage() {
   const { isSignedIn, isLoaded, user } = useUser();
@@ -29,6 +51,7 @@ export default function OnboardingPage() {
   const [instagramAccountAge, setInstagramAccountAge] = useState<AccountAge | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [genState, setGenState] = useState<GenState | null>(null);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -37,17 +60,13 @@ export default function OnboardingPage() {
       return;
     }
     async function checkProfile() {
-      if (!supabase || !user) {
-        setChecking(false);
-        return;
-      }
+      if (!supabase || !user) { setChecking(false); return; }
       const { data } = await supabase
         .from("user_profiles")
         .select("id, producer_name, beat_styles, influences, goals, bio, instagram_account_age")
         .eq("user_id", user.id)
         .single();
       if (data) {
-        // Profile exists — pre-fill for editing
         setProducerName(data.producer_name || "");
         setBeatStyles(data.beat_styles || []);
         setInfluences(data.influences || "");
@@ -79,6 +98,87 @@ export default function OnboardingPage() {
     setArr(arr.includes(val) ? arr.filter((v) => v !== val) : [...arr, val]);
   }
 
+  async function runAutoGeneration(userId: string) {
+    setGenState({ status: "fetching" });
+
+    let contacts: Contact[] = [];
+    try {
+      const res = await fetch("/api/get-contacts-for-generation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId }),
+      });
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const data = await res.json();
+      contacts = data.contacts ?? [];
+    } catch {
+      // If fetching contacts fails, fall back to normal redirect
+      router.push(isEdit ? "/dashboard" : "/artists");
+      return;
+    }
+
+    const limit = USER_PLAN === "premium" ? contacts.length : (PLAN_LIMIT[USER_PLAN] ?? 50);
+    const toGenerate = contacts.slice(0, limit);
+
+    if (toGenerate.length === 0) {
+      setGenState({ status: "done", total: 0 });
+      return;
+    }
+
+    setGenState({ status: "generating", current: 0, total: toGenerate.length });
+
+    for (let i = 0; i < toGenerate.length; i++) {
+      const contact = toGenerate[i];
+      try {
+        const dmRes = await fetch("/api/generate-dm", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contactName: contact.fullName,
+            username:    contact.username,
+            contactType: contact.profileType,
+            followers:   contact.followers,
+            contactBio:  contact.description,
+            artistName:  contact.artistName,
+            userId,
+          }),
+        });
+        if (dmRes.ok) {
+          const { ice_breaker } = await dmRes.json();
+          if (ice_breaker && supabase) {
+            await supabase
+              .from("dm_status")
+              .upsert(
+                {
+                  user_id:     userId,
+                  artist_slug: contact.artistSlug,
+                  username:    contact.username,
+                  ice_breaker,
+                  updated_at:  new Date().toISOString(),
+                },
+                { onConflict: "user_id,artist_slug,username" }
+              )
+              .catch(() => {});
+          }
+        }
+      } catch {
+        // Skip this contact silently
+      }
+
+      setGenState({ status: "generating", current: i + 1, total: toGenerate.length });
+
+      if (i < toGenerate.length - 1) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 300));
+      }
+    }
+
+    setGenState({ status: "done", total: toGenerate.length });
+    toast.success(`Your DMs are ready! ${toGenerate.length} contacts generated.`, {
+      duration: 4000,
+      position: "bottom-right",
+    });
+  }
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!user || !supabase) return;
@@ -87,19 +187,26 @@ export default function OnboardingPage() {
     try {
       const { error: err } = await supabase.from("user_profiles").upsert(
         {
-          user_id: user.id,
-          producer_name: producerName.trim(),
-          beat_styles: beatStyles,
-          influences: influences.trim(),
+          user_id:               user.id,
+          producer_name:         producerName.trim(),
+          beat_styles:           beatStyles,
+          influences:            influences.trim(),
           goals,
-          bio: bio.trim(),
+          bio:                   bio.trim(),
           instagram_account_age: instagramAccountAge,
-          updated_at: new Date().toISOString(),
+          updated_at:            new Date().toISOString(),
         },
         { onConflict: "user_id" }
       );
       if (err) throw err;
-      router.push(isEdit ? "/dashboard" : "/artists");
+      setSaving(false);
+
+      if (USER_PLAN === "free") {
+        setGenState({ status: "upsell" });
+        return;
+      }
+
+      await runAutoGeneration(user.id);
     } catch {
       setError("Failed to save. Please try again.");
       setSaving(false);
@@ -113,6 +220,10 @@ export default function OnboardingPage() {
       </div>
     );
   }
+
+  const isGenerating =
+    genState?.status === "fetching" ||
+    genState?.status === "generating";
 
   return (
     <main className="min-h-screen px-4 py-12 max-w-xl mx-auto">
@@ -140,7 +251,8 @@ export default function OnboardingPage() {
             onChange={(e) => setProducerName(e.target.value)}
             placeholder="e.g. Metro Boomin"
             required
-            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm min-h-[44px]"
+            disabled={isGenerating}
+            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm min-h-[44px] disabled:opacity-50"
           />
         </div>
 
@@ -154,8 +266,9 @@ export default function OnboardingPage() {
               <button
                 key={style}
                 type="button"
+                disabled={isGenerating}
                 onClick={() => togglePill(beatStyles, setBeatStyles, style)}
-                className={`text-sm px-4 py-2 rounded-lg border transition-all duration-200 min-h-[44px] ${
+                className={`text-sm px-4 py-2 rounded-lg border transition-all duration-200 min-h-[44px] disabled:opacity-50 ${
                   beatStyles.includes(style)
                     ? "bg-orange-500/20 border-orange-500/60 text-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
                     : "bg-white/[0.03] border-white/[0.08] text-[#a0a0a0] hover:border-white/20 hover:text-white"
@@ -177,7 +290,8 @@ export default function OnboardingPage() {
             value={influences}
             onChange={(e) => setInfluences(e.target.value)}
             placeholder="e.g. Metro Boomin, Alchemist, Wheezy"
-            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm min-h-[44px]"
+            disabled={isGenerating}
+            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm min-h-[44px] disabled:opacity-50"
           />
         </div>
 
@@ -191,8 +305,9 @@ export default function OnboardingPage() {
               <button
                 key={goal}
                 type="button"
+                disabled={isGenerating}
                 onClick={() => togglePill(goals, setGoals, goal)}
-                className={`text-sm px-4 py-2 rounded-lg border transition-all duration-200 min-h-[44px] ${
+                className={`text-sm px-4 py-2 rounded-lg border transition-all duration-200 min-h-[44px] disabled:opacity-50 ${
                   goals.includes(goal)
                     ? "bg-orange-500/20 border-orange-500/60 text-orange-400 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
                     : "bg-white/[0.03] border-white/[0.08] text-[#a0a0a0] hover:border-white/20 hover:text-white"
@@ -216,8 +331,9 @@ export default function OnboardingPage() {
             value={bio}
             onChange={(e) => setBio(e.target.value.slice(0, 300))}
             rows={4}
+            disabled={isGenerating}
             placeholder="Your background, journey, what you're working on..."
-            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm resize-none"
+            className="bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm resize-none disabled:opacity-50"
           />
         </div>
 
@@ -236,8 +352,9 @@ export default function OnboardingPage() {
                 <button
                   key={value}
                   type="button"
+                  disabled={isGenerating}
                   onClick={() => selectAccountAge(value)}
-                  className="flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px]"
+                  className="flex items-center justify-between px-4 py-3.5 rounded-xl border transition-all duration-200 text-left min-h-[44px] disabled:opacity-50"
                   style={
                     isSelected
                       ? { border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }
@@ -261,13 +378,90 @@ export default function OnboardingPage() {
 
         {error && <p className="text-red-400 text-sm">{error}</p>}
 
-        <button
-          type="submit"
-          disabled={saving || !producerName.trim()}
-          className="w-full py-3 rounded-lg font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 min-h-[44px]"
-        >
-          {saving ? "Saving..." : isEdit ? "Update my profile →" : "Save my profile →"}
-        </button>
+        {/* Submit button — hidden once generation starts */}
+        {genState === null && (
+          <button
+            type="submit"
+            disabled={saving || !producerName.trim()}
+            className="w-full py-3 rounded-lg font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed active:scale-95 min-h-[44px]"
+          >
+            {saving ? "Saving..." : isEdit ? "Update my profile →" : "Save my profile →"}
+          </button>
+        )}
+
+        {/* Upsell — free plan */}
+        {genState?.status === "upsell" && (
+          <div className="rounded-xl border border-orange-500/20 bg-orange-500/[0.04] p-5">
+            <p className="text-xs text-orange-400/70 font-semibold uppercase tracking-[0.1em] mb-2">Pro feature</p>
+            <p className="text-sm font-semibold text-white mb-1">✦ AI DM Generation</p>
+            <p className="text-sm text-[#a0a0a0] mb-4 leading-relaxed">
+              Upgrade to Pro to automatically generate personalized DMs for your top contacts.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Link
+                href="/pricing"
+                className="flex-1 text-center text-sm font-semibold py-2.5 px-4 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity"
+              >
+                Upgrade to Pro →
+              </Link>
+              <Link
+                href={isEdit ? "/dashboard" : "/artists"}
+                className="flex-1 text-center text-sm font-semibold py-2.5 px-4 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/20 hover:text-white transition-colors"
+              >
+                Continue without →
+              </Link>
+            </div>
+          </div>
+        )}
+
+        {/* Fetching contacts */}
+        {genState?.status === "fetching" && (
+          <div className="flex items-center gap-3 py-3">
+            <div className="w-5 h-5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+            <span className="text-sm text-[#a0a0a0]">Profile saved. Preparing your contacts...</span>
+          </div>
+        )}
+
+        {/* Generation progress */}
+        {(genState?.status === "generating" || genState?.status === "done") && (
+          <div className="rounded-xl border border-white/[0.08] bg-white/[0.025] p-5">
+            {genState.status === "generating" ? (
+              <>
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-white">
+                    Generating your DMs... {genState.current}/{genState.total}
+                  </p>
+                  <div className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                </div>
+                <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                    style={{
+                      width: `${genState.total > 0 ? Math.round((genState.current / genState.total) * 100) : 0}%`,
+                    }}
+                  />
+                </div>
+                <p className="text-xs text-[#505050] mt-2">
+                  Do not close this page — generation is running.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-semibold text-white mb-1">
+                  {genState.total > 0
+                    ? `✓ ${genState.total} DMs ready.`
+                    : "✓ All contacts already have DMs."}
+                </p>
+                <Link
+                  href="/dashboard"
+                  className="text-sm text-orange-400 hover:text-orange-300 transition-colors"
+                >
+                  Go to Dashboard →
+                </Link>
+              </>
+            )}
+          </div>
+        )}
       </form>
     </main>
   );

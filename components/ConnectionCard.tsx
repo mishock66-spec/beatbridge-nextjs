@@ -229,14 +229,19 @@ export default function ConnectionCard({
     if (!artistSlug || !isSignedIn || !user || !supabase) return;
     supabase
       .from("dm_status")
-      .select("status")
+      .select("status, ice_breaker")
       .eq("user_id", user.id)
       .eq("artist_slug", artistSlug)
       .eq("username", record.username.replace("@", ""))
       .single()
       .then(({ data }) => {
-        if (data && CONTACT_STATUSES.includes(data.status as ContactStatus)) {
-          setStatus(data.status as ContactStatus);
+        if (data) {
+          if (CONTACT_STATUSES.includes(data.status as ContactStatus)) {
+            setStatus(data.status as ContactStatus);
+          }
+          if (data.ice_breaker) {
+            setCustomTemplate(data.ice_breaker);
+          }
         }
       })
       .catch(() => {});
@@ -332,7 +337,26 @@ export default function ConnectionCard({
         throw new Error(data.error || "Generation failed");
       }
       const { ice_breaker } = await res.json();
-      if (ice_breaker) { setCustomTemplate(ice_breaker); setIsEditing(false); }
+      if (ice_breaker) {
+        setCustomTemplate(ice_breaker);
+        setIsEditing(false);
+        // Persist to Supabase so it survives page navigation
+        if (artistSlug && supabase && user) {
+          supabase
+            .from("dm_status")
+            .upsert(
+              {
+                user_id:     user.id,
+                artist_slug: artistSlug,
+                username:    record.username.replace("@", ""),
+                ice_breaker,
+                updated_at:  new Date().toISOString(),
+              },
+              { onConflict: "user_id,artist_slug,username" }
+            )
+            .catch(() => {});
+        }
+      }
     } catch (err) {
       console.error("[generate-dm] client error:", err);
       toast.error(err instanceof Error ? err.message : "Failed to generate DM");
@@ -420,7 +444,7 @@ export default function ConnectionCard({
       )}
 
       {/* STEP 1 — Ice Breaker */}
-      {record.template && (
+      {(record.template || customTemplate) && (
         <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
           <div className="flex items-center justify-between mb-1">
             <div>
@@ -527,7 +551,7 @@ export default function ConnectionCard({
       )}
 
       {/* AI DM Generation — signed in only */}
-      {isSignedIn && record.template && (
+      {isSignedIn && (
         <button onClick={handleGenerateDM} disabled={isGenerating}
           className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
           {isGenerating ? (
@@ -536,8 +560,8 @@ export default function ConnectionCard({
         </button>
       )}
 
-      {/* No template fallback */}
-      {record.profileUrl && !record.template && (
+      {/* No template fallback — only when no Airtable template AND no AI-generated DM */}
+      {record.profileUrl && !record.template && !customTemplate && (
         <button onClick={() => { openExternalUrl(record.profileUrl); }}
           className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center">
           Open Instagram

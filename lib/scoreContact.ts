@@ -36,3 +36,12 @@ export function contactPriority(record: AirtableRecord): Badge {
     return { symbol: "★", label: "High priority", classes: "bg-orange-500/15 text-orange-300/80 border-orange-500/25", tooltip: "Directly connected to the artist's creative process" };
   return { symbol: "◆", label: "Medium priority", classes: "bg-white/[0.04] text-[#606060] border-white/[0.08]", tooltip: "Part of the network — worth reaching out to" };
 }
+
+// Numeric score for sorting — higher = more valuable to DM first
+export function contactScore(record: AirtableRecord): number {
+  const r = replyProbability(record).label;
+  const p = contactPriority(record).label;
+  const rs = r === "Very likely" ? 4 : r === "Likely" ? 3 : r === "Moderate" ? 2 : 1;
+  const ps = p === "High priority" ? 2 : 1;
+  return rs * 2 + ps;
+}
