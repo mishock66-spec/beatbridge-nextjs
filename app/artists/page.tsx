@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { fetchAirtableCount } from "@/lib/airtable";
+import { ComingSoonCard } from "@/components/ComingSoonCard";
 
 export const revalidate = 0;
 
@@ -261,40 +262,7 @@ export default async function Artists() {
               { name: "Trauma Tone", role: "Producer", igHandle: "traumatone" },
               { name: "Ski Beatz", role: "Producer", igHandle: "skibeatz" },
             ].map((artist) => (
-              <div
-                key={artist.igHandle}
-                className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5 flex flex-col items-center text-center hover:border-white/[0.15] transition-all duration-200"
-              >
-                <div className="relative w-16 h-16 rounded-xl overflow-hidden mb-3 flex-shrink-0 border border-white/[0.08]">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={`https://unavatar.io/instagram/${artist.igHandle}`}
-                    alt={artist.name}
-                    className="w-full h-full object-cover opacity-60"
-                    loading="lazy"
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).style.display = "none";
-                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                      if (fallback) fallback.style.display = "flex";
-                    }}
-                  />
-                  <div className="absolute inset-0 backdrop-blur-[1px] bg-black/20" />
-                  <div
-                    className="absolute inset-0 items-center justify-center text-orange-500 font-semibold bg-white/[0.04]"
-                    style={{ display: "none" }}
-                  >
-                    {artist.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
-                  </div>
-                </div>
-                <h3 className="font-medium text-xs tracking-[0.01em] mb-0.5 leading-snug">
-                  {artist.name}
-                </h3>
-                <p className="text-[#606060] text-[11px] mb-2.5">{artist.role}</p>
-                <span className="inline-flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 text-orange-500 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-[0.06em] uppercase">
-                  <span className="w-1 h-1 rounded-full bg-orange-500 animate-pulse" />
-                  Soon
-                </span>
-              </div>
+              <ComingSoonCard key={artist.igHandle} {...artist} />
             ))}
           </div>
 
