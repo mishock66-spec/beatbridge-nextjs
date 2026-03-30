@@ -33,27 +33,50 @@ export default function Navbar() {
         </Link>
 
         <div className="flex items-center gap-3 sm:gap-6">
-          <Link
-            href="/artists"
-            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
-              pathname.startsWith("/artist")
-                ? "text-orange-500"
-                : "text-[#a0a0a0] hover:text-white"
-            }`}
-          >
-            Artists
-          </Link>
-
-          <Link
-            href="/coming-soon"
-            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
-              pathname === "/coming-soon"
-                ? "text-orange-500"
-                : "text-[#a0a0a0] hover:text-white"
-            }`}
-          >
-            Coming Soon
-          </Link>
+          {/* Artists dropdown */}
+          <div className="hidden sm:block relative group">
+            <button
+              className={`text-sm font-medium tracking-wide transition-colors flex items-center gap-1 ${
+                pathname.startsWith("/artist") || pathname === "/coming-soon"
+                  ? "text-orange-500"
+                  : "text-[#a0a0a0] hover:text-white"
+              }`}
+            >
+              Artists
+              <svg
+                className="w-3 h-3 opacity-60 group-hover:opacity-100 transition-opacity mt-px"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+            <div className="absolute top-full left-0 pt-2 opacity-0 group-hover:opacity-100 pointer-events-none group-hover:pointer-events-auto transition-opacity duration-150">
+              <div className="bg-[rgba(18,18,18,0.97)] backdrop-blur-[20px] border border-white/[0.08] rounded-xl overflow-hidden min-w-[160px] shadow-xl shadow-black/40">
+                <Link
+                  href="/artists"
+                  className={`block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/[0.05] ${
+                    pathname.startsWith("/artist") && pathname !== "/coming-soon"
+                      ? "text-orange-500"
+                      : "text-[#a0a0a0] hover:text-white"
+                  }`}
+                >
+                  Browse Networks
+                </Link>
+                <Link
+                  href="/coming-soon"
+                  className={`block px-4 py-2.5 text-sm font-medium transition-colors hover:bg-white/[0.05] border-t border-white/[0.06] ${
+                    pathname === "/coming-soon"
+                      ? "text-orange-500"
+                      : "text-[#a0a0a0] hover:text-white"
+                  }`}
+                >
+                  Coming Soon
+                </Link>
+              </div>
+            </div>
+          </div>
 
           <Link
             href="/leaderboard"
