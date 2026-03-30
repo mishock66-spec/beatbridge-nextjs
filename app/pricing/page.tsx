@@ -6,7 +6,6 @@ import { useState } from "react";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 type Period = "monthly" | "annual";
 
@@ -17,7 +16,7 @@ const PLANS = [
     badge: null,
     monthlyPrice: "$0",
     annualPrice: "$0",
-    priceSuffix: (p: Period) => "/month",
+    lifetimeSuffix: false,
     annualNote: null,
     description: "Start building your network today.",
     features: [
@@ -38,7 +37,7 @@ const PLANS = [
     badge: "MOST POPULAR",
     monthlyPrice: "$17",
     annualPrice: "$163",
-    priceSuffix: (p: Period) => (p === "monthly" ? "/month" : "/year"),
+    lifetimeSuffix: false,
     annualNote: "$13.58/mo",
     description: "For beatmakers serious about placement.",
     features: [
@@ -59,7 +58,7 @@ const PLANS = [
     badge: null,
     monthlyPrice: "$32",
     annualPrice: "$307",
-    priceSuffix: (p: Period) => (p === "monthly" ? "/month" : "/year"),
+    lifetimeSuffix: false,
     annualNote: "$25.58/mo",
     description: "Full access to every tool on BeatBridge.",
     features: [
@@ -79,7 +78,7 @@ const PLANS = [
     badge: "BEST VALUE",
     monthlyPrice: "$330",
     annualPrice: "$330",
-    priceSuffix: () => " one-time",
+    lifetimeSuffix: true,
     annualNote: null,
     description: "Pay once, own it forever.",
     features: [
@@ -93,6 +92,11 @@ const PLANS = [
     highlighted: false,
   },
 ] as const;
+
+function getPriceSuffix(lifetimeSuffix: boolean, period: Period): string {
+  if (lifetimeSuffix) return " one-time";
+  return period === "annual" ? "/year" : "/month";
+}
 
 function Check() {
   return (
@@ -163,7 +167,7 @@ export default function PricingPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-5 items-start">
           {PLANS.map((plan) => {
             const price = period === "monthly" ? plan.monthlyPrice : plan.annualPrice;
-            const suffix = plan.priceSuffix(period);
+            const suffix = getPriceSuffix(plan.lifetimeSuffix, period);
             const note = period === "annual" ? plan.annualNote : null;
 
             return (
