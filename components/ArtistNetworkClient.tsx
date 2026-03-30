@@ -86,6 +86,7 @@ export default function ArtistNetworkClient({
   const [statusMap, setStatusMap] = useState<Record<string, StatusEntry> | null>(null);
   const [dmSentCount, setDmSentCount] = useState(0);
   const [accountAge, setAccountAge] = useState<AccountAge | null>(null);
+  const [userPlan, setUserPlan] = useState<string>("free");
   const [dataLoaded, setDataLoaded] = useState(false);
 
   useEffect(() => {
@@ -110,7 +111,7 @@ export default function ArtistNetworkClient({
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
-        .select("instagram_account_age")
+        .select("instagram_account_age, plan")
         .eq("user_id", user.id)
         .single(),
     ])
@@ -132,6 +133,9 @@ export default function ArtistNetworkClient({
         if (countRes.count !== null) setDmSentCount(countRes.count);
         if (profileRes.data?.instagram_account_age) {
           setAccountAge(profileRes.data.instagram_account_age as AccountAge);
+        }
+        if (profileRes.data?.plan) {
+          setUserPlan(profileRes.data.plan as string);
         }
       })
       .catch(() => { setStatusMap({}); })
@@ -190,6 +194,13 @@ export default function ArtistNetworkClient({
     records.forEach((r) => {
       map[r.profileType] = (map[r.profileType] || 0) + 1;
     });
+    return map;
+  }, [records]);
+
+  // Map record id → original index in Airtable order (used for Pro AI generation limit)
+  const originalIndexMap = useMemo(() => {
+    const map = new Map<string, number>();
+    records.forEach((r, i) => map.set(r.id, i));
     return map;
   }, [records]);
 
@@ -314,6 +325,8 @@ export default function ArtistNetworkClient({
                     initialStatus={statusEntry?.status}
                     initialIceBreaker={statusEntry?.ice_breaker}
                     onStatusChange={handleCardStatusChange}
+                    userPlan={userPlan}
+                    originalIndex={originalIndexMap.get(record.id) ?? 0}
                   />
                 </div>
               );

@@ -1,5 +1,7 @@
+import { Suspense } from "react";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import DashboardClient from "@/components/DashboardClient";
+import SuccessToast from "@/components/SuccessToast";
 
 export const revalidate = 0;
 
@@ -30,5 +32,12 @@ export default async function DashboardPage() {
     })
   );
 
-  return <DashboardClient artists={artists} />;
+  return (
+    <>
+      <Suspense fallback={null}>
+        <SuccessToast />
+      </Suspense>
+      <DashboardClient artists={artists} />
+    </>
+  );
 }

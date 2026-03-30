@@ -218,6 +218,8 @@ export default function ConnectionCard({
   initialStatus,
   initialIceBreaker,
   onStatusChange,
+  userPlan = "free",
+  originalIndex = 0,
 }: {
   record: AirtableRecord;
   listeningLink: string;
@@ -227,6 +229,8 @@ export default function ConnectionCard({
   initialStatus?: ContactStatus;
   initialIceBreaker?: string;
   onStatusChange?: (contactId: string, next: ContactStatus, prev: ContactStatus) => void;
+  userPlan?: string;
+  originalIndex?: number;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
@@ -570,15 +574,37 @@ export default function ConnectionCard({
         </div>
       )}
 
-      {/* AI DM Generation — signed in only */}
-      {isSignedIn && (
-        <button onClick={handleGenerateDM} disabled={isGenerating}
-          className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-          {isGenerating ? (
-            <><span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />Generating...</>
-          ) : "✨ Generate my DM"}
-        </button>
-      )}
+      {/* AI DM Generation — gated by plan */}
+      {isSignedIn && (() => {
+        const canGenerate =
+          userPlan === "premium" ||
+          userPlan === "lifetime" ||
+          (userPlan === "pro" && originalIndex < 50);
+
+        if (!canGenerate) {
+          const msg =
+            userPlan === "pro"
+              ? "✨ Upgrade to Premium for all contacts"
+              : "✨ Upgrade to Pro for AI generation";
+          return (
+            <Link
+              href="/pricing"
+              className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/60 hover:border-orange-500/40 hover:text-orange-400/80 transition-all duration-200 flex items-center justify-center gap-2"
+            >
+              {msg}
+            </Link>
+          );
+        }
+
+        return (
+          <button onClick={handleGenerateDM} disabled={isGenerating}
+            className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+            {isGenerating ? (
+              <><span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />Generating...</>
+            ) : "✨ Generate my DM"}
+          </button>
+        );
+      })()}
 
       {/* No template fallback — only when no Airtable template AND no AI-generated DM */}
       {record.profileUrl && !record.template && !customTemplate && (

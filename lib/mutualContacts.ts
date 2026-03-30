@@ -149,14 +149,14 @@ export async function fetchMutualContacts(): Promise<MutualContact[]> {
   const byUsername = groupRows(rows);
 
   const mutual: MutualContact[] = [];
-  for (const [username, data] of byUsername.entries()) {
+  for (const [username, data] of Array.from(byUsername.entries())) {
     if (data.artists.size >= 2) {
       mutual.push({
         username,
         fullName: data.fullName,
         profileType: data.profileType,
         followers: data.followers,
-        artists: Array.from(data.artists).sort(),
+        artists: Array.from(data.artists as Set<string>).sort(),
         artistCount: data.artists.size,
       });
     }
@@ -174,7 +174,7 @@ export async function fetchNetworkData(): Promise<{
   const byUsername = groupRows(rows);
 
   const contacts: NetworkContact[] = [];
-  for (const [username, data] of byUsername.entries()) {
+  for (const [username, data] of Array.from(byUsername.entries())) {
     contacts.push({
       username,
       fullName: data.fullName,

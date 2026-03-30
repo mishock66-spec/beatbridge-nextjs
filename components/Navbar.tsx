@@ -89,6 +89,17 @@ export default function Navbar() {
           </Link>
 
           <Link
+            href="/pricing"
+            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
+              pathname === "/pricing"
+                ? "text-orange-500"
+                : "text-[#a0a0a0] hover:text-white"
+            }`}
+          >
+            Pricing
+          </Link>
+
+          <Link
             href="/community"
             className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
               pathname === "/community"
