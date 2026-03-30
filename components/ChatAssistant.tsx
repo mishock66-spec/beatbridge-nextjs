@@ -18,11 +18,13 @@ interface UserStats {
   accountAge: string;
 }
 
-const WELCOME_MESSAGE: Message = {
-  role: "assistant",
-  content:
-    "Hey! I'm your BeatBridge assistant. Ask me anything about the platform, drop a DM for me to rewrite, or say 'analyze my results' and I'll break down your stats. 🎛️",
-};
+function buildWelcomeMessage(name?: string | null): Message {
+  const greeting = name ? `Hey ${name}!` : "Hey!";
+  return {
+    role: "assistant",
+    content: `${greeting} I'm your BeatBridge assistant. Ask me anything about the platform, drop a DM for me to rewrite, or say 'analyze my results' and I'll break down your stats. 🎛️`,
+  };
+}
 
 const QUICK_ACTIONS = [
   "✍️ Rewrite my DM",
@@ -59,7 +61,9 @@ function TypingIndicator() {
 export default function ChatAssistant() {
   const { isSignedIn, user } = useUser();
   const [open, setOpen] = useState(false);
-  const [messages, setMessages] = useState<Message[]>([WELCOME_MESSAGE]);
+  const [messages, setMessages] = useState<Message[]>(() => [
+    buildWelcomeMessage(null),
+  ]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [userStats, setUserStats] = useState<UserStats | null>(null);
@@ -113,6 +117,15 @@ export default function ChatAssistant() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
+
+  // Personalize welcome message when panel opens with signed-in user
+  useEffect(() => {
+    if (!open) return;
+    const name = user?.firstName ?? user?.username ?? null;
+    setMessages([buildWelcomeMessage(name)]);
+    setShowQuickActions(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
 
   // Focus input when panel opens
   useEffect(() => {
@@ -209,10 +222,7 @@ export default function ChatAssistant() {
               <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#f97316] to-[#f85c00] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
                 ✦
               </div>
-              <div>
-                <p className="text-sm font-semibold text-white leading-tight">BeatBridge Assistant</p>
-                <p className="text-[10px] text-[#505050] leading-tight">AI-powered</p>
-              </div>
+              <p className="text-sm font-semibold text-white leading-tight">BeatBridge Assistant</p>
             </div>
             <button
               onClick={() => setOpen(false)}
