@@ -7,6 +7,17 @@ export type MutualContact = {
   artistCount: number;
 };
 
+export type NetworkContact = {
+  username: string;
+  fullName: string;
+  profileType: string;
+  followers: number;
+  artists: string[];
+  isMutual: boolean;
+};
+
+export const ARTIST_NAMES = ["Wheezy", "Curren$y", "Harry Fraud"];
+
 const ARTIST_ALIAS: Record<string, string> = {
   "CurrenSy": "Curren$y",
   "Curren$y": "Curren$y",
@@ -46,7 +57,7 @@ type RawRow = {
   suiviPar: string;
 };
 
-export async function fetchMutualContacts(): Promise<MutualContact[]> {
+async function fetchRawRows(): Promise<RawRow[]> {
   const API_KEY = process.env.AIRTABLE_API_KEY;
   if (!API_KEY) throw new Error("Missing AIRTABLE_API_KEY");
 
@@ -107,7 +118,12 @@ export async function fetchMutualContacts(): Promise<MutualContact[]> {
     offset = data.offset || null;
   } while (offset);
 
-  // Group by username, collecting unique artist names
+  return rows;
+}
+
+function groupRows(
+  rows: RawRow[]
+): Map<string, { fullName: string; profileType: string; followers: number; artists: Set<string> }> {
   const byUsername = new Map<
     string,
     { fullName: string; profileType: string; followers: number; artists: Set<string> }
@@ -125,7 +141,13 @@ export async function fetchMutualContacts(): Promise<MutualContact[]> {
     byUsername.get(row.username)!.artists.add(row.suiviPar);
   }
 
-  // Keep only contacts in 2+ networks
+  return byUsername;
+}
+
+export async function fetchMutualContacts(): Promise<MutualContact[]> {
+  const rows = await fetchRawRows();
+  const byUsername = groupRows(rows);
+
   const mutual: MutualContact[] = [];
   for (const [username, data] of byUsername.entries()) {
     if (data.artists.size >= 2) {
@@ -140,8 +162,29 @@ export async function fetchMutualContacts(): Promise<MutualContact[]> {
     }
   }
 
-  // Sort: more networks first, then by followers desc
   mutual.sort((a, b) => b.artistCount - a.artistCount || b.followers - a.followers);
-
   return mutual;
+}
+
+export async function fetchNetworkData(): Promise<{
+  artistNames: string[];
+  contacts: NetworkContact[];
+}> {
+  const rows = await fetchRawRows();
+  const byUsername = groupRows(rows);
+
+  const contacts: NetworkContact[] = [];
+  for (const [username, data] of byUsername.entries()) {
+    contacts.push({
+      username,
+      fullName: data.fullName,
+      profileType: data.profileType,
+      followers: data.followers,
+      artists: Array.from(data.artists).sort(),
+      isMutual: data.artists.size >= 2,
+    });
+  }
+
+  contacts.sort((a, b) => b.followers - a.followers);
+  return { artistNames: ARTIST_NAMES, contacts };
 }
