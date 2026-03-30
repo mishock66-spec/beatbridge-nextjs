@@ -32,6 +32,40 @@ const TYPE_EMOJI: Record<string, string> = {
   Other: "💼",
 };
 
+const CONTACT_EMAIL_RE = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/g;
+
+function DescriptionWithEmailGate({
+  description,
+  isSignedIn,
+}: {
+  description: string;
+  isSignedIn: boolean;
+}) {
+  const emails = description.match(CONTACT_EMAIL_RE);
+  if (!emails || isSignedIn) {
+    return <p className="text-[#a0a0a0] text-sm leading-relaxed">{description}</p>;
+  }
+
+  const parts = description.split(CONTACT_EMAIL_RE);
+  return (
+    <p className="text-[#a0a0a0] text-sm leading-relaxed">
+      {parts.map((part, i) => (
+        <span key={i}>
+          {part}
+          {i < emails.length && (
+            <Link
+              href="/sign-in"
+              className="text-orange-400 hover:underline font-medium"
+            >
+              🔒 Sign in to reveal email
+            </Link>
+          )}
+        </span>
+      ))}
+    </p>
+  );
+}
+
 // Strip [LINK] placeholders and "here it is" phrases from ice-breakers (Step 1 only)
 function cleanIceBreaker(text: string): string {
   return text
@@ -462,7 +496,7 @@ export default function ConnectionCard({
 
       {/* Description */}
       {record.description && (
-        <p className="text-[#a0a0a0] text-sm leading-relaxed">{record.description}</p>
+        <DescriptionWithEmailGate description={record.description} isSignedIn={!!isSignedIn} />
       )}
 
       {/* STEP 1 — Ice Breaker */}
