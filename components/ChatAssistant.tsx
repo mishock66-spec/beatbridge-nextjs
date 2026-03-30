@@ -211,7 +211,7 @@ export default function ChatAssistant() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white leading-tight">BeatBridge Assistant</p>
-                <p className="text-[10px] text-[#505050] leading-tight">Powered by Claude AI</p>
+                <p className="text-[10px] text-[#505050] leading-tight">AI-powered</p>
               </div>
             </div>
             <button
