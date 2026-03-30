@@ -15,6 +15,7 @@ import { getDmLimit, ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits"
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import ProfileChecklist from "@/components/ProfileChecklist";
 import StickyDMBar from "@/components/StickyDMBar";
+import MutualContactsWidget from "@/components/MutualContactsWidget";
 
 interface ArtistData {
   slug: string;
@@ -733,6 +734,9 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
             />
           </div>
         )}
+
+        {/* Mutual Contacts */}
+        <MutualContactsWidget />
 
         {/* Community Leaderboard */}
         <LeaderboardWidget userId={user?.id} />
