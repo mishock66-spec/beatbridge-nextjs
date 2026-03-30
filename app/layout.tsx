@@ -5,6 +5,7 @@ import ScrollAnimations from "@/components/ScrollAnimations";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ToastProvider from "@/components/ToastProvider";
 import { ClerkProvider } from "@clerk/nextjs";
+import ChatAssistant from "@/components/ChatAssistant";
 
 export const metadata: Metadata = {
   title: "BeatBridge — Hip-Hop Networking",
@@ -110,6 +111,7 @@ export default function RootLayout({
           <Navbar />
           <ScrollAnimations />
           {children}
+          <ChatAssistant />
         </body>
       </html>
     </ClerkProvider>
