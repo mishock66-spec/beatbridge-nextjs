@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import type { MutualContact } from "@/app/api/mutual-contacts/route";
+import type { MutualContact } from "@/lib/mutualContacts";
 
 function formatFollowers(n: number) {
   if (!n) return "";

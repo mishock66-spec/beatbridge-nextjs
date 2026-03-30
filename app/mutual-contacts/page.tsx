@@ -1,4 +1,4 @@
-import type { MutualContact } from "@/app/api/mutual-contacts/route";
+import { fetchMutualContacts, type MutualContact } from "@/lib/mutualContacts";
 
 export const revalidate = 0;
 
@@ -9,22 +9,14 @@ function formatFollowers(n: number) {
   return String(n);
 }
 
-async function getMutualContacts(): Promise<MutualContact[]> {
-  try {
-    const baseUrl =
-      process.env.NEXT_PUBLIC_SITE_URL ||
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
-    const res = await fetch(`${baseUrl}/api/mutual-contacts`, { cache: "no-store" });
-    if (!res.ok) return [];
-    const data = await res.json();
-    return data.contacts ?? [];
-  } catch {
-    return [];
-  }
-}
-
 export default async function MutualContactsPage() {
-  const contacts = await getMutualContacts();
+  let contacts: MutualContact[] = [];
+  try {
+    contacts = await fetchMutualContacts();
+  } catch {
+    // show empty state
+  }
+
   const in3Plus = contacts.filter((c) => c.artistCount >= 3).length;
 
   return (
