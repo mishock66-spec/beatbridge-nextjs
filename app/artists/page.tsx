@@ -219,8 +219,97 @@ export default async function Artists() {
           ))}
         </div>
 
+        {/* Coming Soon Section */}
+        <div className="mt-24 scroll-animate">
+          <div className="mb-10">
+            <h2 className="text-2xl sm:text-3xl font-light tracking-[0.02em] mb-3">
+              More networks{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-[#f85c00]">
+                dropping soon
+              </span>
+            </h2>
+            <p className="text-[#a0a0a0] max-w-xl">
+              We&apos;re mapping the inner circles of hip-hop&apos;s most
+              influential producers. Stay tuned.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {[
+              { name: "Metro Boomin", role: "Producer", igHandle: "metrothicc" },
+              { name: "The Alchemist", role: "Producer", igHandle: "alchemist" },
+              { name: "WondaGurl", role: "Producer", igHandle: "wondagurl" },
+              { name: "Hit-Boy", role: "Producer", igHandle: "hitboy" },
+              { name: "Pi'erre Bourne", role: "Producer / Artist", igHandle: "pierrebourne" },
+              { name: "Kenny Beats", role: "Producer", igHandle: "kennybeats" },
+              { name: "Madlib", role: "Producer", igHandle: "madlib" },
+              { name: "Murda Beatz", role: "Producer", igHandle: "murdabeatz_" },
+              { name: "Southside", role: "Producer", igHandle: "southside" },
+              { name: "TM88", role: "Producer", igHandle: "tm88" },
+              { name: "Zaytoven", role: "Producer", igHandle: "zaytoven" },
+              { name: "DJ Mustard", role: "Producer / DJ", igHandle: "djmustard" },
+              { name: "Boi-1da", role: "Producer", igHandle: "boi1da" },
+              { name: "Jake One", role: "Producer", igHandle: "jakeone206" },
+              { name: "Cardo", role: "Producer", igHandle: "cardogotwinggs" },
+              { name: "Roper Jones", role: "Producer", igHandle: "roperjones" },
+              { name: "Conductor Williams", role: "Producer", igHandle: "conductorwilliams" },
+              { name: "AzaeL", role: "Producer", igHandle: "azael" },
+              { name: "ATL Jacob", role: "Producer", igHandle: "atljacob" },
+              { name: "Cash Cobain", role: "Producer / Artist", igHandle: "cashcobain" },
+              { name: "Ojivolta", role: "Producer", igHandle: "ojivolta" },
+              { name: "Oz", role: "Producer", igHandle: "ozthewizard" },
+              { name: "Trauma Tone", role: "Producer", igHandle: "traumatone" },
+              { name: "Ski Beatz", role: "Producer", igHandle: "skibeatz" },
+            ].map((artist) => (
+              <div
+                key={artist.igHandle}
+                className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-5 flex flex-col items-center text-center hover:border-white/[0.15] transition-all duration-200"
+              >
+                <div className="relative w-16 h-16 rounded-xl overflow-hidden mb-3 flex-shrink-0 border border-white/[0.08]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`https://unavatar.io/instagram/${artist.igHandle}`}
+                    alt={artist.name}
+                    className="w-full h-full object-cover opacity-60"
+                    loading="lazy"
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).style.display = "none";
+                      const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                      if (fallback) fallback.style.display = "flex";
+                    }}
+                  />
+                  <div className="absolute inset-0 backdrop-blur-[1px] bg-black/20" />
+                  <div
+                    className="absolute inset-0 items-center justify-center text-orange-500 font-semibold bg-white/[0.04]"
+                    style={{ display: "none" }}
+                  >
+                    {artist.name.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase()}
+                  </div>
+                </div>
+                <h3 className="font-medium text-xs tracking-[0.01em] mb-0.5 leading-snug">
+                  {artist.name}
+                </h3>
+                <p className="text-[#606060] text-[11px] mb-2.5">{artist.role}</p>
+                <span className="inline-flex items-center gap-1 bg-orange-500/10 border border-orange-500/20 text-orange-500 text-[10px] font-bold px-2 py-0.5 rounded-full tracking-[0.06em] uppercase">
+                  <span className="w-1 h-1 rounded-full bg-orange-500 animate-pulse" />
+                  Soon
+                </span>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              href="/coming-soon"
+              className="inline-block text-sm font-medium text-orange-500 hover:text-orange-400 transition-colors"
+            >
+              See full list →
+            </Link>
+          </div>
+        </div>
+
         {/* Pro CTA */}
-        <div className="mt-24 bg-white/[0.025] backdrop-blur-md border border-orange-500/15 rounded-2xl p-10 text-center scroll-animate">
+        <div className="mt-16 bg-white/[0.025] backdrop-blur-md border border-orange-500/15 rounded-2xl p-10 text-center scroll-animate">
           <h2 className="text-2xl font-light tracking-[0.02em] mb-3">
             Want the full roster?{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-[#f85c00]">
