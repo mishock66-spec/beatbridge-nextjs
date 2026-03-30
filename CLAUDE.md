@@ -95,6 +95,12 @@ This file gets smarter with every session.
 - ConnectionCard initialises status from `initialStatus` prop (default "To contact"). No per-card useEffect fetch.
 - DM counter: inserting/deleting dm_activity rows uses `contact_id` (not contact_username+artist_slug).
 
+## ABSOLUTE RULE — No Event Handlers in Server Components
+- Never add React event handlers (onError, onClick, onChange, etc.) inline inside server components (async page functions without "use client").
+- If a component needs an event handler, it MUST be extracted into a separate file with "use client" at the top.
+- Reason: event handlers in server components cause "Application error: a server-side exception" and take down the entire site.
+- Pattern: create components/MyClientComponent.tsx with "use client", import and use it in the server component.
+
 ## SELECTED STATE — Use Inline Styles for Critical Visual Indicators
 - When a selected state must be clearly visible (e.g. account age options, onboarding choices), use inline styles with explicit values, NOT Tailwind opacity modifiers.
 - Correct: `style={{ border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }}`
