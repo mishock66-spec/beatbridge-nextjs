@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
-import { stripe, PRICE_TO_PLAN } from "@/lib/stripe";
 import { createClient } from "@supabase/supabase-js";
 
-// Use service-role client for webhook — bypasses RLS
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+export const dynamic = "force-dynamic";
 
 export async function POST(req: Request) {
+  // Lazy initialization — env vars available at request time, not build time
+  const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, {
+    apiVersion: "2026-03-25.dahlia",
+  });
+
+  const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+  );
+
+  const priceToPlan: Record<string, string> = {
+    [process.env.STRIPE_PRICE_PRO_MONTHLY ?? ""]: "pro",
+    [process.env.STRIPE_PRICE_PRO_ANNUAL ?? ""]: "pro",
+    [process.env.STRIPE_PRICE_PREMIUM_MONTHLY ?? ""]: "premium",
+    [process.env.STRIPE_PRICE_PREMIUM_ANNUAL ?? ""]: "premium",
+    [process.env.STRIPE_PRICE_LIFETIME ?? ""]: "lifetime",
+  };
+
   const body = await req.text();
   const sig = req.headers.get("stripe-signature") ?? "";
   const secret = process.env.STRIPE_WEBHOOK_SECRET;
@@ -38,7 +51,7 @@ export async function POST(req: Request) {
 
         if (!userId || !priceId) break;
 
-        const plan = PRICE_TO_PLAN[priceId] ?? "free";
+        const plan = priceToPlan[priceId] ?? "free";
         const subscriptionStatus =
           session.mode === "payment" ? "active" : "trialing";
 
@@ -59,7 +72,7 @@ export async function POST(req: Request) {
       case "customer.subscription.updated": {
         const sub = event.data.object as Stripe.Subscription;
         const customerId = sub.customer as string;
-        const status = sub.status; // "active", "trialing", "canceled", etc.
+        const status = sub.status;
 
         await supabaseAdmin
           .from("user_profiles")
