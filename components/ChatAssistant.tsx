@@ -34,6 +34,21 @@ const QUICK_ACTIONS = [
 
 const GUEST_LIMIT = 3;
 
+const FEEDBACK_BUG_WORDS = [
+  "bug", "error", "broken", "doesn't work", "not working",
+  "problem", "issue", "wrong information", "incorrect",
+];
+const FEEDBACK_SUGGESTION_WORDS = ["suggestion", "idea", "feedback", "report"];
+
+function detectFeedback(text: string): { triggered: boolean; type: string } {
+  const lower = text.toLowerCase();
+  if (FEEDBACK_BUG_WORDS.some((w) => lower.includes(w)))
+    return { triggered: true, type: "Bug Report" };
+  if (FEEDBACK_SUGGESTION_WORDS.some((w) => lower.includes(w)))
+    return { triggered: true, type: "Suggestion" };
+  return { triggered: false, type: "" };
+}
+
 function TypingIndicator() {
   return (
     <div className="flex items-end gap-2 mb-3">
@@ -69,6 +84,8 @@ export default function ChatAssistant() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [showQuickActions, setShowQuickActions] = useState(true);
+  const [feedbackMode, setFeedbackMode] = useState<"idle" | "awaiting_description" | "sent">("idle");
+  const [feedbackType, setFeedbackType] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -124,6 +141,8 @@ export default function ChatAssistant() {
     const name = user?.firstName ?? user?.username ?? null;
     setMessages([buildWelcomeMessage(name)]);
     setShowQuickActions(true);
+    setFeedbackMode("idle");
+    setFeedbackType("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -142,12 +161,63 @@ export default function ChatAssistant() {
     if (!isSignedIn && guestMessageCount >= GUEST_LIMIT) return;
 
     const newUserMsg: Message = { role: "user", content: trimmed };
-    const updatedMessages = [...messages, newUserMsg];
-    setMessages(updatedMessages);
+    setMessages((prev) => [...prev, newUserMsg]);
     setInput("");
     setShowQuickActions(false);
-    setLoading(true);
     if (!isSignedIn) setGuestMessageCount((c) => c + 1);
+
+    // — Feedback flow: user just described the issue → submit and confirm —
+    if (feedbackMode === "awaiting_description") {
+      setLoading(true);
+      const username = user?.firstName ?? user?.username ?? "User";
+      const userEmail = user?.emailAddresses?.[0]?.emailAddress ?? "";
+
+      try {
+        await fetch("/api/feedback", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            username,
+            userEmail,
+            description: trimmed,
+            type: feedbackType,
+          }),
+        });
+      } catch {
+        // silently fail — still confirm to user
+      }
+
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: `Thanks ${username}. I've logged this and sent it to the team. They'll look into it. 🙏`,
+        },
+      ]);
+      setFeedbackMode("sent");
+      setLoading(false);
+      return;
+    }
+
+    // — Detect feedback trigger in a fresh message —
+    const { triggered, type } = detectFeedback(trimmed);
+    if (triggered) {
+      setFeedbackType(type);
+      setFeedbackMode("awaiting_description");
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content:
+            "Got it — I'll make sure this reaches the BeatBridge team. Can you describe the issue in a bit more detail? Which page were you on, and what happened exactly?",
+        },
+      ]);
+      return;
+    }
+
+    // — Normal AI flow —
+    setLoading(true);
+    const updatedMessages = [...messages, newUserMsg];
 
     try {
       const res = await fetch("/api/chat", {
