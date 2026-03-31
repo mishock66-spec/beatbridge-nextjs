@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
 import {
@@ -340,6 +340,147 @@ function ArtistContactList({
   );
 }
 
+// ─── useWelcomeStats ──────────────────────────────────────────────────────────
+
+function useWelcomeStats(userId: string | undefined) {
+  const [stats, setStats] = useState<{ dmsSentTotal: number; repliesTotal: number } | null>(null);
+
+  useEffect(() => {
+    if (!supabase) { setStats({ dmsSentTotal: 0, repliesTotal: 0 }); return; }
+    if (!userId) return;
+
+    Promise.all([
+      supabase
+        .from("dm_activity")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("action", "sent"),
+      supabase
+        .from("dm_status")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", userId)
+        .eq("status", "Replied"),
+    ])
+      .then(([activityRes, statusRes]) => {
+        setStats({
+          dmsSentTotal: activityRes.count ?? 0,
+          repliesTotal: statusRes.count ?? 0,
+        });
+      })
+      .catch(() => setStats({ dmsSentTotal: 0, repliesTotal: 0 }));
+  }, [userId]);
+
+  return stats;
+}
+
+// ─── WelcomeBanner ────────────────────────────────────────────────────────────
+
+function WelcomeBanner({
+  username,
+  dmsSentToday,
+  dailyLimit,
+  dmsSentTotal,
+  repliesTotal,
+  totalContacts,
+}: {
+  username: string;
+  dmsSentToday: number;
+  dailyLimit: number;
+  dmsSentTotal: number;
+  repliesTotal: number;
+  totalContacts: number;
+}) {
+  const [visible, setVisible] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    const key = "beatbridge_welcome_shown";
+    if (sessionStorage.getItem(key)) return;
+    sessionStorage.setItem(key, "1");
+    setVisible(true);
+    timerRef.current = setTimeout(() => setVisible(false), 8000);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  if (!visible) return null;
+
+  const contactsRemaining = Math.max(totalContacts - dmsSentTotal, 0);
+  const dmsRemaining = Math.max(dailyLimit - dmsSentToday, 0);
+
+  let lines: ReactNode[];
+
+  if (dmsSentTotal === 0) {
+    lines = [
+      <><span className="text-orange-400 font-bold">Yo {username}</span>, welcome to BeatBridge. 👋</>,
+      "This is your networking HQ.",
+      "Start by exploring the artist networks and sending your first DM. The game starts now.",
+    ];
+  } else if (dmsSentToday >= dailyLimit) {
+    lines = [
+      <><span className="text-orange-400 font-bold">Yo {username}</span>, you maxed out today. 🏆</>,
+      `${dmsSentToday}/${dailyLimit} DMs sent — that's the move.`,
+      "Come back tomorrow and keep building.",
+      "And remember: if you're not sending DMs, you must be making beats.",
+    ];
+  } else if (dmsSentToday > 0) {
+    lines = [
+      <><span className="text-orange-400 font-bold">Yo {username}</span>, you&apos;re warmed up. 💪</>,
+      `${dmsSentToday} DMs sent today — keep the momentum.`,
+      `${dmsRemaining} more before you hit your daily limit. Stay consistent.`,
+    ];
+  } else {
+    lines = [
+      <><span className="text-orange-400 font-bold">Yo {username}</span>, welcome back. 🔥</>,
+      "You haven't sent any DMs today — let's change that.",
+      `You've got ${contactsRemaining} contacts waiting.`,
+      "Go get it.",
+    ];
+  }
+
+  return (
+    <div className="mb-6">
+      {/* Banner */}
+      <div className="relative bg-[#111111] border border-[#1f1f1f] border-l-4 border-l-orange-500 rounded-2xl p-5">
+        <button
+          onClick={() => setVisible(false)}
+          aria-label="Dismiss"
+          className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-[#505050] hover:text-white hover:bg-white/[0.06] transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+        <div className="pr-8 space-y-1">
+          {lines.map((line, i) => (
+            <p key={i} className={`text-sm leading-relaxed ${i === 0 ? "font-semibold text-white" : "text-[#a0a0a0]"}`}>
+              {line}
+            </p>
+          ))}
+        </div>
+      </div>
+
+      {/* Today's mission */}
+      <div className="mt-3 grid grid-cols-3 gap-2">
+        <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl px-3 py-2.5 text-center">
+          <p className="text-base">📬</p>
+          <p className="text-sm font-bold text-white mt-0.5">{dmsRemaining}</p>
+          <p className="text-[10px] text-[#505050] mt-0.5 leading-tight">DMs left today</p>
+        </div>
+        <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl px-3 py-2.5 text-center">
+          <p className="text-base">🎯</p>
+          <p className="text-sm font-bold text-green-400 mt-0.5">{repliesTotal}</p>
+          <p className="text-[10px] text-[#505050] mt-0.5 leading-tight">total replies</p>
+        </div>
+        <div className="bg-[#0d0d0d] border border-[#1a1a1a] rounded-xl px-3 py-2.5 text-center">
+          <p className="text-base">⚡</p>
+          <p className="text-sm font-bold text-orange-400 mt-0.5">{contactsRemaining}</p>
+          <p className="text-[10px] text-[#505050] mt-0.5 leading-tight">contacts to reach</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── useDailyDMData ───────────────────────────────────────────────────────────
 
 function useDailyDMData(userId: string | undefined) {
@@ -611,6 +752,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
   const { isLoaded, isSignedIn, user } = useUser();
   const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
   const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
+  const welcomeStats = useWelcomeStats(user?.id);
   const [showAgeModal, setShowAgeModal] = useState(false);
 
   // Show modal once data is loaded and no preference saved yet
@@ -690,6 +832,18 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-12 pb-20">
+        {/* Welcome banner — shown once per session after stats load */}
+        {dailyLoaded && welcomeStats !== null && (
+          <WelcomeBanner
+            username={displayName}
+            dmsSentToday={dailyCount}
+            dailyLimit={getDmLimit(accountAge)}
+            dmsSentTotal={welcomeStats.dmsSentTotal}
+            repliesTotal={welcomeStats.repliesTotal}
+            totalContacts={totalAll}
+          />
+        )}
+
         {/* Header */}
         <div className="mb-10">
           <p className="text-gray-500 text-sm mb-1">Welcome back,</p>
