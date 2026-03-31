@@ -176,7 +176,8 @@ export default function ChatAssistant() {
       const userEmail = user?.emailAddresses?.[0]?.emailAddress ?? "";
 
       try {
-        await fetch("/api/feedback", {
+        console.log("[feedback] Calling API with:", { username, description: trimmed, type: feedbackType });
+        const res = await fetch("/api/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -186,8 +187,10 @@ export default function ChatAssistant() {
             type: feedbackType,
           }),
         });
-      } catch {
-        // silently fail — still confirm to user
+        const data = await res.json();
+        console.log("[feedback] API response:", data);
+      } catch (err) {
+        console.error("[feedback] fetch error:", err);
       }
 
       setMessages((prev) => [
