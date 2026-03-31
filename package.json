@@ -12,6 +12,7 @@
     "@anthropic-ai/sdk": "^0.80.0",
     "@clerk/nextjs": "^5.7.5",
     "@supabase/supabase-js": "^2.100.0",
+    "canvas-confetti": "^1.9.4",
     "d3": "^7.9.0",
     "next": "14.2.35",
     "react": "^18",
@@ -22,6 +23,7 @@
     "svix": "^1.89.0"
   },
   "devDependencies": {
+    "@types/canvas-confetti": "^1.9.0",
     "@types/d3": "^7.4.3",
     "@types/node": "^20",
     "@types/react": "^18",

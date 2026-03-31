@@ -279,11 +279,41 @@ export default function ConnectionCard({
   const [copiedFollowUp, setCopiedFollowUp] = useState(false);
   const [status, setStatus] = useState<ContactStatus>(initialStatus ?? "To contact");
   const [isGenerating, setIsGenerating] = useState(false);
+  const [cardGlow, setCardGlow] = useState<"orange" | "green" | null>(null);
+  const [showFire, setShowFire] = useState(false);
 
   async function handleStatusChange(next: ContactStatus) {
     if (!artistSlug || !isSignedIn || !user) return;
     const prev = status;
     setStatus(next);
+
+    // — Celebrations —
+    if (next === "DM sent" && prev !== "DM sent") {
+      setShowFire(true);
+      setTimeout(() => setShowFire(false), 1000);
+      setCardGlow("orange");
+      setTimeout(() => setCardGlow(null), 1000);
+      toast("DM sent! 🔥 Keep the momentum going.", {
+        duration: 3000,
+        style: { border: "1px solid rgba(249,115,22,0.5)" },
+      });
+    } else if (next === "Replied" && prev !== "Replied") {
+      import("canvas-confetti").then(({ default: confetti }) => {
+        confetti({
+          particleCount: 150,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ["#f97316", "#ffffff", "#111111"],
+        });
+      });
+      setCardGlow("green");
+      setTimeout(() => setCardGlow(null), 2000);
+      toast("🎆 They replied! You're in. Now send your link.", {
+        duration: 5000,
+        style: { border: "1px solid rgba(34,197,94,0.5)" },
+      });
+    }
+
     if (!supabase) return;
 
     const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
@@ -442,7 +472,30 @@ export default function ConnectionCard({
   const highlightedFollowUp = highlight(resolvedFollowUp);
 
   return (
-    <div className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative" style={{ willChange: "transform" }}>
+    <div
+      className={`bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative${cardGlow === "orange" ? " card-glow-orange" : cardGlow === "green" ? " card-glow-green" : ""}`}
+      style={{ willChange: "transform" }}
+    >
+      {/* Fire burst particles */}
+      {showFire && (
+        <>
+          {[
+            { left: "20%", delay: "0ms" },
+            { left: "35%", delay: "80ms" },
+            { left: "50%", delay: "30ms" },
+            { left: "65%", delay: "120ms" },
+            { left: "78%", delay: "60ms" },
+          ].map((p, i) => (
+            <span
+              key={i}
+              className="fire-particle"
+              style={{ left: p.left, bottom: "50%", animationDelay: p.delay }}
+            >
+              🔥
+            </span>
+          ))}
+        </>
+      )}
       {/* DM priority badge — top left */}
       {dmPriority !== undefined && (
         <span className="absolute top-4 left-4 z-10 group">
