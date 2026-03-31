@@ -35,10 +35,13 @@ const QUICK_ACTIONS = [
 const GUEST_LIMIT = 3;
 
 const FEEDBACK_BUG_WORDS = [
-  "bug", "error", "broken", "doesn't work", "not working",
-  "problem", "issue", "wrong information", "incorrect",
+  "bug", "error", "broken", "doesn't work", "doesnt work", "not working",
+  "problem", "issue", "wrong information", "incorrect", "wrong", "fix",
 ];
-const FEEDBACK_SUGGESTION_WORDS = ["suggestion", "idea", "feedback", "report"];
+const FEEDBACK_SUGGESTION_WORDS = [
+  "suggestion", "idea", "feedback", "report",
+  "send an email", "contact", "tell the team", "let them know",
+];
 
 function detectFeedback(text: string): { triggered: boolean; type: string } {
   const lower = text.toLowerCase();
@@ -194,12 +197,12 @@ export default function ChatAssistant() {
           content: `Thanks ${username}. I've logged this and sent it to the team. They'll look into it. 🙏`,
         },
       ]);
-      setFeedbackMode("sent");
+      setFeedbackMode("idle");
       setLoading(false);
       return;
     }
 
-    // — Detect feedback trigger in a fresh message —
+    // — Detect feedback trigger in a fresh message (also re-triggers after "sent") —
     const { triggered, type } = detectFeedback(trimmed);
     if (triggered) {
       setFeedbackType(type);
