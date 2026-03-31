@@ -384,28 +384,26 @@ function WelcomeBanner({
   totalContacts,
 }: {
   username: string;
-  dmsSentToday: number;
+  dmsSentToday: number | null;
   dailyLimit: number;
-  dmsSentTotal: number;
-  repliesTotal: number;
+  dmsSentTotal: number | null;
+  repliesTotal: number | null;
   totalContacts: number;
 }) {
-  const [visible, setVisible] = useState(false);
+  const [visible, setVisible] = useState(true);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    const key = "beatbridge_welcome_shown";
-    if (sessionStorage.getItem(key)) return;
-    sessionStorage.setItem(key, "1");
-    setVisible(true);
+    console.log("[WelcomeBanner] mounted ✓");
     timerRef.current = setTimeout(() => setVisible(false), 8000);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
   if (!visible) return null;
 
-  const contactsRemaining = Math.max(totalContacts - dmsSentTotal, 0);
-  const dmsRemaining = Math.max(dailyLimit - dmsSentToday, 0);
+  const d = (v: number | null) => v !== null ? String(v) : "...";
+  const contactsRemaining = dmsSentTotal !== null ? Math.max(totalContacts - dmsSentTotal, 0) : null;
+  const dmsRemaining = dmsSentToday !== null ? Math.max(dailyLimit - dmsSentToday, 0) : null;
 
   let lines: ReactNode[];
 
@@ -415,24 +413,24 @@ function WelcomeBanner({
       "This is your networking HQ.",
       "Start by exploring the artist networks and sending your first DM. The game starts now.",
     ];
-  } else if (dmsSentToday >= dailyLimit) {
+  } else if (dmsSentToday !== null && dmsSentToday >= dailyLimit) {
     lines = [
       <><span className="text-orange-400 font-bold">Yo {username}</span>, you maxed out today. 🏆</>,
-      `${dmsSentToday}/${dailyLimit} DMs sent — that's the move.`,
+      `${d(dmsSentToday)}/${dailyLimit} DMs sent — that's the move.`,
       "Come back tomorrow and keep building.",
       "And remember: if you're not sending DMs, you must be making beats.",
     ];
-  } else if (dmsSentToday > 0) {
+  } else if (dmsSentToday !== null && dmsSentToday > 0) {
     lines = [
       <><span className="text-orange-400 font-bold">Yo {username}</span>, you&apos;re warmed up. 💪</>,
-      `${dmsSentToday} DMs sent today — keep the momentum.`,
-      `${dmsRemaining} more before you hit your daily limit. Stay consistent.`,
+      `${d(dmsSentToday)} DMs sent today — keep the momentum.`,
+      `${d(dmsRemaining)} more before you hit your daily limit. Stay consistent.`,
     ];
   } else {
     lines = [
       <><span className="text-orange-400 font-bold">Yo {username}</span>, welcome back. 🔥</>,
       "You haven't sent any DMs today — let's change that.",
-      `You've got ${contactsRemaining} contacts waiting.`,
+      `You've got ${d(contactsRemaining)} contacts waiting.`,
       "Go get it.",
     ];
   }
@@ -832,17 +830,20 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-12 pb-20">
-        {/* Welcome banner — shown once per session after stats load */}
-        {dailyLoaded && welcomeStats !== null && (
-          <WelcomeBanner
-            username={displayName}
-            dmsSentToday={dailyCount}
-            dailyLimit={getDmLimit(accountAge)}
-            dmsSentTotal={welcomeStats.dmsSentTotal}
-            repliesTotal={welcomeStats.repliesTotal}
-            totalContacts={totalAll}
-          />
-        )}
+        {/* Welcome banner — shown immediately, stats fill in as they load */}
+        {console.log("[Dashboard] WelcomeBanner render check:", {
+          dailyLoaded,
+          welcomeStats,
+          sessionFlag: typeof window !== "undefined" ? sessionStorage.getItem("beatbridge_welcome_shown") : "ssr",
+        }) as never}
+        <WelcomeBanner
+          username={displayName}
+          dmsSentToday={dailyLoaded ? dailyCount : null}
+          dailyLimit={getDmLimit(accountAge)}
+          dmsSentTotal={welcomeStats?.dmsSentTotal ?? null}
+          repliesTotal={welcomeStats?.repliesTotal ?? null}
+          totalContacts={totalAll}
+        />
 
         {/* Header */}
         <div className="mb-10">
