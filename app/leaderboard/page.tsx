@@ -3,6 +3,9 @@
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Avatar from "@/components/Avatar";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
 interface LeaderboardEntry {
   rank: number;
@@ -56,6 +59,13 @@ function RankRow({
       <span className="text-sm font-bold w-6 text-center flex-shrink-0">
         {medal ?? <span className="text-gray-500">#{entry.rank}</span>}
       </span>
+
+      <Avatar
+        url={`${SUPABASE_URL}/storage/v1/object/public/avatars/${entry.user_id}.jpg`}
+        username={entry.username}
+        size={32}
+        className="flex-shrink-0"
+      />
 
       <div className="flex-1 min-w-0">
         <p

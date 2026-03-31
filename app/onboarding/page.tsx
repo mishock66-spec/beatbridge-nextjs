@@ -7,6 +7,7 @@ import Link from "next/link";
 import toast from "react-hot-toast";
 import { supabase } from "@/lib/supabase";
 import { ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
+import AvatarUpload from "@/components/AvatarUpload";
 
 // Hardcoded for testing — will be wired to Stripe later
 const USER_PLAN: "free" | "pro" | "premium" = "pro";
@@ -378,6 +379,11 @@ export default function OnboardingPage() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-8">
+        {/* Profile picture */}
+        <div className="flex justify-center">
+          <AvatarUpload />
+        </div>
+
         {/* Producer name */}
         <div className="flex flex-col gap-2">
           <label className="text-xs uppercase tracking-[0.1em] text-[#606060]">

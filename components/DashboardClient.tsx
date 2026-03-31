@@ -2,6 +2,7 @@
 
 import { useUser } from "@clerk/nextjs";
 import { type ReactNode, useEffect, useRef, useState } from "react";
+import Avatar from "@/components/Avatar";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
 import {
@@ -842,10 +843,18 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         />
 
         {/* Header */}
-        <div className="mb-10">
-          <p className="text-gray-500 text-sm mb-1">Welcome back,</p>
-          <h1 className="text-3xl font-black">{displayName}</h1>
-          <p className="text-gray-500 text-sm mt-2">Your outreach dashboard</p>
+        <div className="mb-10 flex items-center gap-4">
+          <Avatar
+            url={`${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/public/avatars/${user.id}.jpg`}
+            username={displayName}
+            size={64}
+            className="flex-shrink-0"
+          />
+          <div>
+            <p className="text-gray-500 text-sm mb-1">Welcome back,</p>
+            <h1 className="text-3xl font-black">{displayName}</h1>
+            <p className="text-gray-500 text-sm mt-1">Your outreach dashboard</p>
+          </div>
         </div>
 
         {/* Daily DM Safety */}

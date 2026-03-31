@@ -2,12 +2,67 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useUser, UserButton, SignInButton } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { useUser, useClerk, SignInButton } from "@clerk/nextjs";
+import { useState, useEffect, useRef } from "react";
+import Avatar from "@/components/Avatar";
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+
+function NavAvatar({ userId, username }: { userId: string; username: string }) {
+  const { signOut } = useClerk();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const avatarUrl = `${SUPABASE_URL}/storage/v1/object/public/avatars/${userId}.jpg`;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="rounded-full ring-2 ring-transparent hover:ring-orange-500/40 transition-all duration-150"
+        aria-label="Account menu"
+      >
+        <Avatar url={avatarUrl} username={username} size={32} />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-full mt-2 w-44 bg-[#111111] border border-white/[0.1] rounded-xl overflow-hidden shadow-xl shadow-black/40 z-50">
+          <Link
+            href="/onboarding"
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#a0a0a0] hover:text-white hover:bg-white/[0.04] transition-colors"
+          >
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+            </svg>
+            My Profile
+          </Link>
+          <button
+            onClick={() => signOut()}
+            className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#a0a0a0] hover:text-white hover:bg-white/[0.04] transition-colors border-t border-white/[0.06]"
+          >
+            <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
+            Sign out
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Navbar() {
   const pathname = usePathname();
-  const { isSignedIn, isLoaded } = useUser();
+  const { isSignedIn, isLoaded, user } = useUser();
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -156,17 +211,10 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
-              <Link
-                href="/onboarding"
-                className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
-                  pathname === "/onboarding"
-                    ? "text-orange-500"
-                    : "text-[#a0a0a0] hover:text-white"
-                }`}
-              >
-                My Profile
-              </Link>
-              <UserButton />
+              <NavAvatar
+                userId={user!.id}
+                username={user!.firstName ?? user!.username ?? user!.emailAddresses[0]?.emailAddress?.split("@")[0] ?? "U"}
+              />
             </>
           ) : (
             <>
