@@ -390,14 +390,10 @@ function WelcomeBanner({
   repliesTotal: number | null;
   totalContacts: number;
 }) {
-  const [visible, setVisible] = useState(true);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    console.log("[WelcomeBanner] mounted ✓");
-    timerRef.current = setTimeout(() => setVisible(false), 8000);
-    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
-  }, []);
+  const [visible, setVisible] = useState(() => {
+    if (typeof window === "undefined") return true;
+    return !sessionStorage.getItem("beatbridge_welcome_shown");
+  });
 
   if (!visible) return null;
 
@@ -440,7 +436,7 @@ function WelcomeBanner({
       {/* Banner */}
       <div className="relative bg-[#111111] border border-[#1f1f1f] border-l-4 border-l-orange-500 rounded-2xl p-5">
         <button
-          onClick={() => setVisible(false)}
+          onClick={() => { sessionStorage.setItem("beatbridge_welcome_shown", "1"); setVisible(false); }}
           aria-label="Dismiss"
           className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-[#505050] hover:text-white hover:bg-white/[0.06] transition-colors"
         >
