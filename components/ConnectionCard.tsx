@@ -288,7 +288,46 @@ export default function ConnectionCard({
     const prev = status;
     setStatus(next);
 
-    // — Celebrations —
+    if (!supabase) return;
+
+    const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
+
+    // 1. Persist status to Supabase FIRST — before any side effects
+    await supabase.from("dm_status").upsert(
+      {
+        user_id:     user.id,
+        artist_slug: artistSlug,
+        username:    record.username.replace("@", ""),
+        contact_id:  contactId,
+        status:      next,
+        updated_at:  new Date().toISOString(),
+      },
+      { onConflict: "user_id,contact_id" }
+    );
+
+    // 2. dm_activity tracking
+    if (next === "DM sent" && prev !== "DM sent") {
+      await supabase.from("dm_activity").insert({
+        user_id:    user.id,
+        contact_id: contactId,
+        action:     "sent",
+        dm_sent_at: new Date().toISOString(),
+      });
+    } else if (prev === "DM sent" && next !== "DM sent") {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      await supabase.from("dm_activity")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("contact_id", contactId)
+        .eq("action", "sent")
+        .gte("dm_sent_at", todayStart.toISOString());
+    }
+
+    // 3. Notify parent (DM counter update)
+    onStatusChange?.(contactId, next, prev);
+
+    // 4. Celebrations (fire-and-forget, never blocks the save)
     if (next === "DM sent" && prev !== "DM sent") {
       setShowFire(true);
       setTimeout(() => setShowFire(false), 1000);
@@ -305,70 +344,24 @@ export default function ConnectionCard({
       setCardGlow("green");
       setTimeout(() => setCardGlow(null), 2000);
 
-      // Award points for this reply
-      if (user && artistSlug) {
-        const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
-        fetch("/api/points/award", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: user.id, contactId, followers: record.followers }),
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            if (data.alreadyAwarded) {
-              toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
-            } else if (data.pointsEarned) {
-              toast(`+${data.pointsEarned} points! 🎆 ${data.emoji} ${data.label} contact replied!`, { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
-            }
-          })
-          .catch(() => {
+      // Award points (non-blocking)
+      fetch("/api/points/award", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, contactId, followers: record.followers }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.pointsEarned) {
+            toast(`+${data.pointsEarned} points! 🎆 ${data.emoji} ${data.label} contact replied!`, { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+          } else {
             toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
-          });
-      } else {
-        toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
-      }
+          }
+        })
+        .catch(() => {
+          toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+        });
     }
-
-    if (!supabase) return;
-
-    const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
-
-    // Persist status to dm_status
-    await supabase.from("dm_status").upsert(
-      {
-        user_id: user.id,
-        artist_slug: artistSlug,
-        username: record.username.replace("@", ""),
-        contact_id: contactId,
-        status: next,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "user_id,contact_id" }
-    );
-
-    if (next === "DM sent" && prev !== "DM sent") {
-      // Insert activity row
-      await supabase.from("dm_activity").insert({
-        user_id: user.id,
-        contact_id: contactId,
-        action: "sent",
-        dm_sent_at: new Date().toISOString(),
-      });
-    } else if (prev === "DM sent" && next !== "DM sent") {
-      const now = new Date();
-      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
-      // Remove today's activity row
-      await supabase.from("dm_activity")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("contact_id", contactId)
-        .eq("action", "sent")
-        .gte("dm_sent_at", todayStart.toISOString());
-    }
-
-    // Notify parent so it can update the DM counter
-    console.log("onStatusChange called:", contactId, next);
-    onStatusChange?.(contactId, next, prev);
   }
 
   const typeColor = TYPE_COLORS[record.profileType] || TYPE_COLORS.Other;

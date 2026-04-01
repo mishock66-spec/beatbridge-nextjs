@@ -17,6 +17,7 @@ import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import ProfileChecklist from "@/components/ProfileChecklist";
 import StickyDMBar from "@/components/StickyDMBar";
 import MutualContactsWidget from "@/components/MutualContactsWidget";
+import { getUserRank } from "@/lib/contactTier";
 
 interface ArtistData {
   slug: string;
@@ -742,8 +743,6 @@ function LeaderboardWidget({ userId }: { userId: string | undefined }) {
 }
 
 // ─── useUserRank ─────────────────────────────────────────────────────────────
-
-import { getUserRank } from "@/lib/contactTier";
 
 function useUserRank(userId: string | undefined) {
   const [data, setData] = useState<{ total_points: number } | null>(null);
