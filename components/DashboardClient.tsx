@@ -741,6 +741,82 @@ function LeaderboardWidget({ userId }: { userId: string | undefined }) {
   );
 }
 
+// ─── useUserRank ─────────────────────────────────────────────────────────────
+
+import { getUserRank } from "@/lib/contactTier";
+
+function useUserRank(userId: string | undefined) {
+  const [data, setData] = useState<{ total_points: number; total_credits: number } | null>(null);
+
+  useEffect(() => {
+    if (!supabase || !userId) return;
+    supabase
+      .from("user_profiles")
+      .select("total_points, total_credits")
+      .eq("user_id", userId)
+      .maybeSingle()
+      .then(({ data: row }) => {
+        setData({ total_points: row?.total_points ?? 0, total_credits: row?.total_credits ?? 0 });
+      })
+      .catch(() => setData({ total_points: 0, total_credits: 0 }));
+  }, [userId]);
+
+  return data;
+}
+
+// ─── RankCard ─────────────────────────────────────────────────────────────────
+
+function RankCard({ userId }: { userId: string | undefined }) {
+  const rankData = useUserRank(userId);
+  if (!rankData) return null;
+
+  const { total_points, total_credits } = rankData;
+  const rank = getUserRank(total_points);
+  const progressPct = rank.next
+    ? Math.round(((total_points - (total_points - (rank.pointsToNext > 0 ? rank.pointsToNext : 0))) /
+        (rank.pointsToNext + (total_points - (total_points - (rank.pointsToNext > 0 ? rank.pointsToNext : 0)))) || 1) * 100)
+    : 100;
+
+  // Simpler progress: points within current tier range
+  const THRESHOLDS = [0, 100, 500, 1500, 5000];
+  const rankIndex = ["Rookie", "Networker", "Connector", "Industry", "Legend"].indexOf(rank.rank);
+  const tierMin = THRESHOLDS[rankIndex] ?? 0;
+  const tierMax = THRESHOLDS[rankIndex + 1] ?? 5000;
+  const pct = rank.next ? Math.min(Math.round(((total_points - tierMin) / (tierMax - tierMin)) * 100), 100) : 100;
+
+  return (
+    <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 mb-4">
+      <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Your Rank</p>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-2xl font-black text-white">
+            {rank.emoji} {rank.rank}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">{total_points} points total</p>
+        </div>
+        <div className="text-right">
+          <p className="text-xl font-black text-orange-400">⚡ {total_credits}</p>
+          <p className="text-xs text-gray-500 mt-0.5">credits available</p>
+        </div>
+      </div>
+      {rank.next && (
+        <>
+          <div className="h-1.5 bg-[#1f1f1f] rounded-full overflow-hidden mb-1.5">
+            <div
+              className="h-full bg-gradient-to-r from-orange-500 to-orange-400 rounded-full transition-all duration-500"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+          <p className="text-xs text-gray-600">
+            {rank.pointsToNext} pts to {rank.next}
+          </p>
+        </>
+      )}
+      <p className="text-[11px] text-gray-700 mt-2">⚡ Use credits to generate DMs for free</p>
+    </div>
+  );
+}
+
 // ─── DashboardClient ──────────────────────────────────────────────────────────
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
@@ -864,6 +940,9 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           accountAge={accountAge}
           onChangeAge={() => setShowAgeModal(true)}
         />
+
+        {/* Rank Card */}
+        <RankCard userId={user?.id} />
 
         {/* Instagram Safety Guide */}
         <div className="mb-6"><InstagramSafetyGuide /></div>

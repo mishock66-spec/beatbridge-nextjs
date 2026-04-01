@@ -7,6 +7,7 @@ import toast from "react-hot-toast";
 import type { AirtableRecord } from "@/lib/airtable";
 import { supabase } from "@/lib/supabase";
 import { replyProbability, contactPriority } from "@/lib/scoreContact";
+import { getContactTier } from "@/lib/contactTier";
 
 const TYPE_COLORS: Record<string, string> = {
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
@@ -299,19 +300,33 @@ export default function ConnectionCard({
       });
     } else if (next === "Replied" && prev !== "Replied") {
       import("canvas-confetti").then(({ default: confetti }) => {
-        confetti({
-          particleCount: 150,
-          spread: 80,
-          origin: { y: 0.6 },
-          colors: ["#f97316", "#ffffff", "#111111"],
-        });
+        confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ["#f97316", "#ffffff", "#111111"] });
       });
       setCardGlow("green");
       setTimeout(() => setCardGlow(null), 2000);
-      toast("🎆 They replied! You're in. Now send your link.", {
-        duration: 5000,
-        style: { border: "1px solid rgba(34,197,94,0.5)" },
-      });
+
+      // Award points for this reply
+      if (user && artistSlug) {
+        const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
+        fetch("/api/points/award", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: user.id, contactId, followers: record.followers }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.alreadyAwarded) {
+              toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+            } else if (data.pointsEarned) {
+              toast(`+${data.pointsEarned} points! 🎆 ${data.emoji} ${data.label} contact replied!`, { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+            }
+          })
+          .catch(() => {
+            toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+          });
+      } else {
+        toast("🎆 They replied! You're in. Now send your link.", { duration: 5000, style: { border: "1px solid rgba(34,197,94,0.5)" } });
+      }
     }
 
     if (!supabase) return;
@@ -544,6 +559,14 @@ export default function ConnectionCard({
               {formatFollowers(record.followers)} followers
             </p>
           )}
+          {record.followers > 0 && (() => {
+            const ct = getContactTier(record.followers);
+            return (
+              <p className="text-[11px] text-gray-600 mt-0.5">
+                {ct.emoji} {ct.label} · {ct.points} pts if they reply
+              </p>
+            );
+          })()}
         </div>
       </div>
 
