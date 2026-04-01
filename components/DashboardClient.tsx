@@ -746,19 +746,19 @@ function LeaderboardWidget({ userId }: { userId: string | undefined }) {
 import { getUserRank } from "@/lib/contactTier";
 
 function useUserRank(userId: string | undefined) {
-  const [data, setData] = useState<{ total_points: number; total_credits: number } | null>(null);
+  const [data, setData] = useState<{ total_points: number } | null>(null);
 
   useEffect(() => {
     if (!supabase || !userId) return;
     supabase
       .from("user_profiles")
-      .select("total_points, total_credits")
+      .select("total_points")
       .eq("user_id", userId)
       .maybeSingle()
       .then(({ data: row }) => {
-        setData({ total_points: row?.total_points ?? 0, total_credits: row?.total_credits ?? 0 });
+        setData({ total_points: row?.total_points ?? 0 });
       })
-      .catch(() => setData({ total_points: 0, total_credits: 0 }));
+      .catch(() => setData({ total_points: 0 }));
   }, [userId]);
 
   return data;
@@ -770,14 +770,9 @@ function RankCard({ userId }: { userId: string | undefined }) {
   const rankData = useUserRank(userId);
   if (!rankData) return null;
 
-  const { total_points, total_credits } = rankData;
+  const { total_points } = rankData;
   const rank = getUserRank(total_points);
-  const progressPct = rank.next
-    ? Math.round(((total_points - (total_points - (rank.pointsToNext > 0 ? rank.pointsToNext : 0))) /
-        (rank.pointsToNext + (total_points - (total_points - (rank.pointsToNext > 0 ? rank.pointsToNext : 0)))) || 1) * 100)
-    : 100;
 
-  // Simpler progress: points within current tier range
   const THRESHOLDS = [0, 100, 500, 1500, 5000];
   const rankIndex = ["Rookie", "Networker", "Connector", "Industry", "Legend"].indexOf(rank.rank);
   const tierMin = THRESHOLDS[rankIndex] ?? 0;
@@ -787,17 +782,9 @@ function RankCard({ userId }: { userId: string | undefined }) {
   return (
     <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 mb-4">
       <p className="text-xs text-gray-500 uppercase tracking-wider font-medium mb-3">Your Rank</p>
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <p className="text-2xl font-black text-white">
-            {rank.emoji} {rank.rank}
-          </p>
-          <p className="text-xs text-gray-500 mt-0.5">{total_points} points total</p>
-        </div>
-        <div className="text-right">
-          <p className="text-xl font-black text-orange-400">⚡ {total_credits}</p>
-          <p className="text-xs text-gray-500 mt-0.5">credits available</p>
-        </div>
+      <div className="mb-3">
+        <p className="text-2xl font-black text-white">{rank.emoji} {rank.rank}</p>
+        <p className="text-xs text-gray-500 mt-0.5">{total_points} points total</p>
       </div>
       {rank.next && (
         <>
@@ -807,12 +794,9 @@ function RankCard({ userId }: { userId: string | undefined }) {
               style={{ width: `${pct}%` }}
             />
           </div>
-          <p className="text-xs text-gray-600">
-            {rank.pointsToNext} pts to {rank.next}
-          </p>
+          <p className="text-xs text-gray-600">{rank.pointsToNext} pts to {rank.next}</p>
         </>
       )}
-      <p className="text-[11px] text-gray-700 mt-2">⚡ Use credits to generate DMs for free</p>
     </div>
   );
 }

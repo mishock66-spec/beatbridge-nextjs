@@ -101,6 +101,12 @@ This file gets smarter with every session.
 - Reason: event handlers in server components cause "Application error: a server-side exception" and take down the entire site.
 - Pattern: create components/MyClientComponent.tsx with "use client", import and use it in the server component.
 
+## CREDITS SYSTEM — Disabled
+- Credits system is disabled. Points are for gamification and leaderboard ranking only.
+- Credits are purchased via Stripe only — not earned through points.
+- Never add credits logic to /api/points/award or any points-related code.
+- Do not display credits balance anywhere in the UI.
+
 ## SELECTED STATE — Use Inline Styles for Critical Visual Indicators
 - When a selected state must be clearly visible (e.g. account age options, onboarding choices), use inline styles with explicit values, NOT Tailwind opacity modifiers.
 - Correct: `style={{ border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }}`

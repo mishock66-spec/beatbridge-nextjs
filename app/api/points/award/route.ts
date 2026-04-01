@@ -29,32 +29,27 @@ export async function POST(req: NextRequest) {
 
     // Insert transaction
     await supabase.from("point_transactions").insert({
-      user_id:      userId,
-      contact_id:   contactId,
+      user_id:       userId,
+      contact_id:    contactId,
       points_earned: points,
       tier,
     });
 
-    // Fetch current totals
+    // Fetch current points and increment
     const { data: profile } = await supabase
       .from("user_profiles")
-      .select("total_points, total_credits")
+      .select("total_points")
       .eq("user_id", userId)
       .maybeSingle();
 
-    const prevPoints  = profile?.total_points  ?? 0;
-    const prevCredits = profile?.total_credits ?? 0;
-    const newPoints   = prevPoints + points;
-
-    // 1 credit per 100 points (based on crossing a new 100-point threshold)
-    const newCredits  = prevCredits + (Math.floor(newPoints / 100) - Math.floor(prevPoints / 100));
+    const newPoints = (profile?.total_points ?? 0) + points;
 
     await supabase.from("user_profiles").upsert(
-      { user_id: userId, total_points: newPoints, total_credits: newCredits, updated_at: new Date().toISOString() },
+      { user_id: userId, total_points: newPoints, updated_at: new Date().toISOString() },
       { onConflict: "user_id" }
     );
 
-    return NextResponse.json({ pointsEarned: points, tier, emoji, label, totalPoints: newPoints, newCredits });
+    return NextResponse.json({ pointsEarned: points, tier, emoji, label, totalPoints: newPoints });
   } catch (err) {
     console.error("[points/award] error:", err);
     return NextResponse.json({ error: "Failed to award points" }, { status: 500 });
