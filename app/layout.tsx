@@ -6,6 +6,7 @@ import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ToastProvider from "@/components/ToastProvider";
 import { ClerkProvider } from "@clerk/nextjs";
 import ChatAssistant from "@/components/ChatAssistant";
+import { GoogleAnalytics } from "@next/third-parties/google";
 
 export const metadata: Metadata = {
   title: "BeatBridge — Hip-Hop Networking",
@@ -112,6 +113,7 @@ export default function RootLayout({
           <ScrollAnimations />
           {children}
           <ChatAssistant />
+          <GoogleAnalytics gaId="G-VB5ZLCF0NR" />
         </body>
       </html>
     </ClerkProvider>
