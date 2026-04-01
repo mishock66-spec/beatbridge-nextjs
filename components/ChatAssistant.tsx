@@ -87,7 +87,8 @@ export default function ChatAssistant() {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [guestMessageCount, setGuestMessageCount] = useState(0);
   const [showQuickActions, setShowQuickActions] = useState(true);
-  const [feedbackMode, setFeedbackMode] = useState<"idle" | "awaiting_description" | "sent">("idle");
+  const [feedbackMode, setFeedbackMode] = useState(false);
+  const feedbackModeRef = useRef(false);
   const [feedbackType, setFeedbackType] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -144,7 +145,8 @@ export default function ChatAssistant() {
     const name = user?.firstName ?? user?.username ?? null;
     setMessages([buildWelcomeMessage(name)]);
     setShowQuickActions(true);
-    setFeedbackMode("idle");
+    feedbackModeRef.current = false;
+    setFeedbackMode(false);
     setFeedbackType("");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -169,14 +171,14 @@ export default function ChatAssistant() {
     setShowQuickActions(false);
     if (!isSignedIn) setGuestMessageCount((c) => c + 1);
 
-    // — Feedback flow: user just described the issue → submit and confirm —
-    if (feedbackMode === "awaiting_description") {
+    // — Feedback flow: user just described the issue → call /api/feedback directly —
+    if (feedbackModeRef.current) {
       setLoading(true);
       const username = user?.firstName ?? user?.username ?? "User";
       const userEmail = user?.emailAddresses?.[0]?.emailAddress ?? "";
 
       try {
-        console.log("[feedback] Calling API with:", { username, description: trimmed, type: feedbackType });
+        console.log("[feedback] Calling /api/feedback with:", { username, description: trimmed, type: feedbackType });
         const res = await fetch("/api/feedback", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -188,34 +190,33 @@ export default function ChatAssistant() {
           }),
         });
         const data = await res.json();
-        console.log("[feedback] API response:", data);
+        console.log("[feedback] /api/feedback response:", data);
       } catch (err) {
         console.error("[feedback] fetch error:", err);
       }
 
+      feedbackModeRef.current = false;
+      setFeedbackMode(false);
       setMessages((prev) => [
         ...prev,
-        {
-          role: "assistant",
-          content: `Thanks ${username}. I've logged this and sent it to the team. They'll look into it. 🙏`,
-        },
+        { role: "assistant", content: `Done — sent to the team! 🙏` },
       ]);
-      setFeedbackMode("idle");
       setLoading(false);
       return;
     }
 
-    // — Detect feedback trigger in a fresh message (also re-triggers after "sent") —
+    // — Detect feedback trigger in a fresh message —
     const { triggered, type } = detectFeedback(trimmed);
     if (triggered) {
       setFeedbackType(type);
-      setFeedbackMode("awaiting_description");
+      feedbackModeRef.current = true;
+      setFeedbackMode(true);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content:
-            "Got it — I'll make sure this reaches the BeatBridge team. Can you describe the issue in a bit more detail? Which page were you on, and what happened exactly?",
+            "Got it — describe the issue and I'll send it directly to the BeatBridge team right now.",
         },
       ]);
       return;
