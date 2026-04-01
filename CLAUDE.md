@@ -1,5 +1,39 @@
 # Claude Code Instructions — BeatBridge
 
+## 🚨 CRITICAL RULES — NEVER BREAK THESE
+
+### STATUS PERSISTENCE
+- Contact statuses are ALWAYS stored in Supabase dm_status table
+- NEVER use localStorage, sessionStorage, or React state alone for statuses
+- The upsert MUST use these exact fields: user_id, contact_id, status
+- onConflict must always be 'user_id,contact_id'
+- contact_id = Airtable record ID (the "id" field of the record)
+- user_id = Clerk user ID
+- On page load: fetch ALL statuses for current user in ONE bulk query
+- On status change: upsert to Supabase IMMEDIATELY, before any other logic
+- Any feature added to handleStatusChange must come AFTER the upsert
+
+### DM COUNTER
+- The daily DM counter increments ONLY when status changes TO "DM sent"
+- Counter reads from dm_activity table (action="sent", created_at >= today local time)
+- dm_activity insert uses: user_id, action="sent", created_at=now()
+- Counter NEVER increments on "Send DM →" button click
+- StickyDMBar is a pure display component — it receives dmSentCount as a prop
+- The parent component (ArtistNetworkClient) owns the counter state
+- Daily reset uses browser local time (new Date()) not UTC
+
+### SUPABASE QUERIES
+- ALWAYS use await with destructuring: const { data, error } = await supabase...
+- NEVER use .then()/.catch() chaining on Supabase calls
+- ALWAYS check for errors: if (error) console.error(error)
+- Table names: dm_status, dm_activity, user_profiles, point_transactions
+
+### DATA SOURCES
+- Contact data (names, handles, followers, types): Airtable ONLY
+- User data (statuses, points, profile): Supabase ONLY
+- NEVER query Supabase for contact data
+- NEVER query Airtable for user data
+
 ## RÈGLES ABSOLUES
 - ALWAYS push directly to main branch
 - NEVER create feature branches
