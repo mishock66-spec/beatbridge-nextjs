@@ -102,20 +102,20 @@ function useStatusState(artists: ArtistData[], userId: string | undefined) {
     const key = statusStorageKey(artistSlug, username);
     setStatuses((prev) => ({ ...prev, [key]: next }));
     if (!userId || !supabase) return;
-    try {
-      await supabase.from("dm_status").upsert(
-        {
-          user_id: userId,
-          artist_slug: artistSlug,
-          username: username.replace("@", ""),
-          status: next,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,artist_slug,username" }
-      );
-    } catch {
-      // silent — status is already updated in UI
-    }
+    const contactId = `${artistSlug}_${username.replace("@", "").toLowerCase()}`;
+    console.log("Upserting status:", { user_id: userId, contact_id: contactId, status: next });
+    const { data, error } = await supabase.from("dm_status").upsert(
+      {
+        user_id:     userId,
+        artist_slug: artistSlug,
+        username:    username.replace("@", ""),
+        contact_id:  contactId,
+        status:      next,
+        updated_at:  new Date().toISOString(),
+      },
+      { onConflict: "user_id,contact_id" }
+    );
+    console.log("Upsert result:", { data, error });
   }
 
   return { statuses, mounted, updateStatus };

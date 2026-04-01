@@ -293,7 +293,8 @@ export default function ConnectionCard({
     const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
 
     // 1. Persist status to Supabase FIRST — before any side effects
-    await supabase.from("dm_status").upsert(
+    console.log("Upserting status:", { user_id: user.id, contact_id: contactId, status: next });
+    const { data: upsertData, error: upsertError } = await supabase.from("dm_status").upsert(
       {
         user_id:     user.id,
         artist_slug: artistSlug,
@@ -304,15 +305,17 @@ export default function ConnectionCard({
       },
       { onConflict: "user_id,contact_id" }
     );
+    console.log("Upsert result:", { data: upsertData, error: upsertError });
 
     // 2. dm_activity tracking
     if (next === "DM sent" && prev !== "DM sent") {
-      await supabase.from("dm_activity").insert({
+      const { data: actData, error: actError } = await supabase.from("dm_activity").insert({
         user_id:    user.id,
         contact_id: contactId,
         action:     "sent",
         dm_sent_at: new Date().toISOString(),
       });
+      console.log("dm_activity insert:", { data: actData, error: actError });
     } else if (prev === "DM sent" && next !== "DM sent") {
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -439,15 +442,17 @@ export default function ConnectionCard({
         setIsEditing(false);
         // Persist to Supabase so it survives page navigation
         if (artistSlug && supabase && user) {
+          const contactId = `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
           await supabase.from("dm_status").upsert(
             {
               user_id:     user.id,
               artist_slug: artistSlug,
               username:    record.username.replace("@", ""),
+              contact_id:  contactId,
               ice_breaker,
               updated_at:  new Date().toISOString(),
             },
-            { onConflict: "user_id,artist_slug,username" }
+            { onConflict: "user_id,contact_id" }
           );
         }
       }

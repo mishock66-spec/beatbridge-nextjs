@@ -129,6 +129,7 @@ export default function ArtistNetworkClient({
             }
           });
         }
+        console.log("Fetched statuses:", map);
         setStatusMap(map);
         if (countRes.count !== null) setDmSentCount(countRes.count);
         if (profileRes.data?.instagram_account_age) {
