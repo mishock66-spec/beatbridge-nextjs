@@ -90,6 +90,9 @@ export default function ChatAssistant() {
   const [feedbackMode, setFeedbackMode] = useState(false);
   const feedbackModeRef = useRef(false);
   const [feedbackType, setFeedbackType] = useState("");
+  const [showFeedbackForm, setShowFeedbackForm] = useState(false);
+  const [feedbackText, setFeedbackText] = useState("");
+  const [feedbackSubmitting, setFeedbackSubmitting] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
@@ -370,33 +373,99 @@ export default function ChatAssistant() {
 
           {/* Input */}
           <div className="flex-shrink-0 px-3 py-3 border-t border-white/[0.07] bg-[#0d0d0d]">
-            <div className="flex items-end gap-2">
-              <textarea
-                ref={inputRef}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder={guestLimitReached ? "Sign in to continue…" : "Ask anything…"}
-                disabled={guestLimitReached || loading}
-                rows={1}
-                className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/40 resize-none min-h-[44px] max-h-[120px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-                style={{ scrollbarWidth: "none" }}
-                onInput={(e) => {
-                  const el = e.currentTarget;
-                  el.style.height = "auto";
-                  el.style.height = Math.min(el.scrollHeight, 120) + "px";
-                }}
-              />
-              <button
-                onClick={() => sendMessage(input)}
-                disabled={!input.trim() || loading || guestLimitReached}
-                className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white flex items-center justify-center hover:opacity-90 hover:scale-[1.05] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 flex-shrink-0"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
-                </svg>
-              </button>
-            </div>
+            {showFeedbackForm ? (
+              <div className="flex flex-col gap-2">
+                <textarea
+                  value={feedbackText}
+                  onChange={(e) => setFeedbackText(e.target.value)}
+                  placeholder="Describe the issue or suggestion…"
+                  rows={3}
+                  className="w-full bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/40 resize-none"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      if (!feedbackText.trim() || feedbackSubmitting) return;
+                      setFeedbackSubmitting(true);
+                      try {
+                        const res = await fetch("/api/feedback", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            username: user?.username || user?.firstName || "Anonymous",
+                            userEmail: user?.emailAddresses?.[0]?.emailAddress ?? "",
+                            description: feedbackText.trim(),
+                            type: "feedback",
+                          }),
+                        });
+                        const data = await res.json();
+                        console.log("[feedback] response:", data);
+                        setMessages((prev) => [
+                          ...prev,
+                          { role: "assistant", content: res.ok ? "✅ Sent to the BeatBridge team!" : "❌ Failed to send. Try contact@beatbridge.live directly." },
+                        ]);
+                      } catch (err) {
+                        console.error("[feedback] error:", err);
+                        setMessages((prev) => [
+                          ...prev,
+                          { role: "assistant", content: "❌ Failed to send. Try contact@beatbridge.live directly." },
+                        ]);
+                      } finally {
+                        setFeedbackSubmitting(false);
+                        setFeedbackText("");
+                        setShowFeedbackForm(false);
+                      }
+                    }}
+                    disabled={!feedbackText.trim() || feedbackSubmitting}
+                    className="flex-1 text-sm font-semibold py-2 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                  >
+                    {feedbackSubmitting ? "Sending…" : "Send to team →"}
+                  </button>
+                  <button
+                    onClick={() => { setShowFeedbackForm(false); setFeedbackText(""); }}
+                    className="px-3 py-2 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white text-sm transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-end gap-2">
+                  <textarea
+                    ref={inputRef}
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    placeholder={guestLimitReached ? "Sign in to continue…" : "Ask anything…"}
+                    disabled={guestLimitReached || loading}
+                    rows={1}
+                    className="flex-1 bg-white/[0.05] border border-white/[0.08] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/40 resize-none min-h-[44px] max-h-[120px] disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                    style={{ scrollbarWidth: "none" }}
+                    onInput={(e) => {
+                      const el = e.currentTarget;
+                      el.style.height = "auto";
+                      el.style.height = Math.min(el.scrollHeight, 120) + "px";
+                    }}
+                  />
+                  <button
+                    onClick={() => sendMessage(input)}
+                    disabled={!input.trim() || loading || guestLimitReached}
+                    className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white flex items-center justify-center hover:opacity-90 hover:scale-[1.05] transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 flex-shrink-0"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 12h14M12 5l7 7-7 7" />
+                    </svg>
+                  </button>
+                </div>
+                <button
+                  onClick={() => setShowFeedbackForm(true)}
+                  className="mt-2 w-full text-xs text-[#505050] hover:text-orange-400 transition-colors text-center py-1"
+                >
+                  📢 Report a bug or suggest a feature
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
