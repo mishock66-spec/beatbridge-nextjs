@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
     const result = await resend.emails.send({
       from: "BeatBridge <onboarding@resend.dev>",
-      to: "contact@beatbridge.live",
+      to: "mishock66@gmail.com",
       subject,
       text: textBody,
     });
