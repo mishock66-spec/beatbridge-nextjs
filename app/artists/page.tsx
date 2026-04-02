@@ -41,60 +41,6 @@ const ARTISTS = [
     description:
       "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper.",
   },
-  {
-    name: "Wiz Khalifa",
-    subtitle: "Taylor Gang",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    genres: ["Hip-Hop", "Pittsburgh"],
-    photo: null,
-    description:
-      "Pittsburgh rapper and Taylor Gang founder. Deep ties to major labels and independent creatives.",
-  },
-  {
-    name: "Freddie Gibbs",
-    subtitle: "ESGN",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    genres: ["Hip-Hop", "Gary"],
-    photo: null,
-    description:
-      "Gary, Indiana's finest. Connections spanning independent producers to legendary labels.",
-  },
-  {
-    name: "Evidence",
-    subtitle: "Rhymesayers",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    genres: ["Hip-Hop", "LA"],
-    photo: null,
-    description: "LA beatmaker and MC with deep underground hip-hop connections.",
-  },
-  {
-    name: "Boldy James",
-    subtitle: "Detroit",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    genres: ["Hip-Hop", "Detroit"],
-    photo: null,
-    description:
-      "Detroit rapper with a rich network of beatmakers and independent labels.",
-  },
-  {
-    name: "Benny The Butcher",
-    subtitle: "Griselda",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    genres: ["Hip-Hop", "Buffalo"],
-    photo: null,
-    description:
-      "Griselda's cornerstone. Heavy connections across the East Coast indie scene.",
-  },
 ];
 
 type Artist = (typeof ARTISTS)[0];

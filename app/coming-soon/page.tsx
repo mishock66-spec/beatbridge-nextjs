@@ -4,6 +4,11 @@ export const dynamic = "force-dynamic";
 import { ComingSoonCard } from "@/components/ComingSoonCard";
 
 const COMING_SOON_ARTISTS = [
+  { name: "Wiz Khalifa", role: "Rapper / Taylor Gang", igHandle: "wizkhalifa" },
+  { name: "Freddie Gibbs", role: "Rapper / ESGN", igHandle: "freddiegibbs" },
+  { name: "Evidence", role: "Rapper / Producer", igHandle: "therealbigev" },
+  { name: "Boldy James", role: "Rapper", igHandle: "boldyjames" },
+  { name: "Benny The Butcher", role: "Rapper / Griselda", igHandle: "bennythebutcher" },
   { name: "Metro Boomin", role: "Producer", igHandle: "metrothicc" },
   { name: "The Alchemist", role: "Producer", igHandle: "alchemist" },
   { name: "WondaGurl", role: "Producer", igHandle: "wondagurl" },
