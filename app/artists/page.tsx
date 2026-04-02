@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { fetchAirtableCount } from "@/lib/airtable";
+import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
 import { ComingSoonCard } from "@/components/ComingSoonCard";
 
 export const revalidate = 0;
@@ -181,13 +181,14 @@ function ArtistCard({
 }
 
 export default async function Artists() {
-  // Fetch live counts for all active artists in parallel
+  // Fetch total connections count + per-artist counts in parallel
   const activeArtists = ARTISTS.filter((a) => a.suiviPar !== null);
-  const counts = await Promise.all(
-    activeArtists.map((a) =>
+  const [totalConnections, ...counts] = await Promise.all([
+    fetchTotalConnectionsCount().catch(() => 0),
+    ...activeArtists.map((a) =>
       fetchAirtableCount(a.suiviPar as string | string[]).catch(() => 0)
-    )
-  );
+    ),
+  ]);
   const countMap = new Map<string, number>();
   activeArtists.forEach((a, i) => countMap.set(a.name, counts[i]));
 
@@ -206,6 +207,19 @@ export default async function Artists() {
             Each artist&apos;s Instagram network is hand-researched and filtered
             to the people who actually move the needle — producers, labels,
             engineers, managers.
+          </p>
+        </div>
+
+        {/* Stats banner */}
+        <div className="mb-10 border-l-4 border-orange-500 bg-white/[0.025] backdrop-blur-md rounded-r-xl px-5 py-4">
+          <p className="text-sm text-[#a0a0a0]">
+            📡{" "}
+            <span className="text-orange-500 font-medium">
+              {totalConnections.toLocaleString()}
+            </span>{" "}
+            Instagram connections mapped across{" "}
+            <span className="text-orange-500 font-medium">3</span> artist
+            networks — and growing.
           </p>
         </div>
 

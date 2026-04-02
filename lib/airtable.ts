@@ -102,6 +102,44 @@ export async function fetchAirtableCount(
   return count;
 }
 
+export async function fetchTotalConnectionsCount(): Promise<number> {
+  const BASE_ID = "appW42oNhB9Hl14bq";
+  const TABLE_ID = "tbl0nVXbK5BQnU5FM";
+  const API_KEY = process.env.AIRTABLE_API_KEY;
+
+  if (!API_KEY) throw new Error("AIRTABLE_API_KEY environment variable is not set");
+
+  const url = `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`;
+  let count = 0;
+  let offset: string | null = null;
+
+  do {
+    const parts: string[] = [
+      "pageSize=100",
+      "fields[]=" + encodeURIComponent("Pseudo Instagram"),
+    ];
+    if (offset) parts.push("offset=" + encodeURIComponent(offset));
+
+    const res = await fetch(`${url}?${parts.join("&")}`, {
+      headers: { Authorization: `Bearer ${API_KEY}` },
+      cache: "no-store",
+    });
+
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Airtable error: ${res.status} ${res.statusText}${body ? ` — ${body}` : ""}`);
+    }
+
+    const data = await res.json();
+    count += (data.records as { fields: Record<string, unknown> }[]).filter(
+      (r) => Object.keys(r.fields).length > 0
+    ).length;
+    offset = data.offset || null;
+  } while (offset);
+
+  return count;
+}
+
 export async function fetchAirtableRecords(
   suiviPar?: string | string[],
   followerRange?: { min: number; max: number }

@@ -2,7 +2,7 @@ import Link from "next/link";
 import WaitlistForm from "@/components/WaitlistForm";
 import SignInValueProp from "@/components/SignInValueProp";
 import { TelegramButton } from "@/components/TelegramButton";
-import { fetchAirtableCount } from "@/lib/airtable";
+import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
 
 export const revalidate = 0;
 
@@ -66,13 +66,14 @@ const PREVIEW_ARTISTS = [
 ];
 
 export default async function Home() {
-  // Fetch live connection counts for active preview artists
+  // Fetch total connections count + per-artist preview counts in parallel
   const activePreview = PREVIEW_ARTISTS.filter((a) => a.suiviPar !== null);
-  const previewCounts = await Promise.all(
-    activePreview.map((a) =>
+  const [totalConnections, ...previewCounts] = await Promise.all([
+    fetchTotalConnectionsCount().catch(() => 0),
+    ...activePreview.map((a) =>
       fetchAirtableCount(a.suiviPar as string | string[]).catch(() => 0)
-    )
-  );
+    ),
+  ]);
   const previewCountMap = new Map<string, number>();
   activePreview.forEach((a, i) => previewCountMap.set(a.name, previewCounts[i]));
 
@@ -110,6 +111,18 @@ export default async function Home() {
             >
               Get Early Access
             </a>
+          </div>
+          {/* Stats bar */}
+          <div className="hero-animate hero-delay-4 mt-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-[#606060]">
+            <span>
+              <span className="text-orange-500 font-medium">{totalConnections.toLocaleString()}</span> connections mapped
+            </span>
+            <span className="text-[#303030]">·</span>
+            <span>
+              <span className="text-orange-500 font-medium">3</span> artist networks
+            </span>
+            <span className="text-[#303030]">·</span>
+            <span>New connections added constantly</span>
           </div>
         </div>
       </section>
