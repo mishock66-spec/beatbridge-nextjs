@@ -345,10 +345,14 @@ function ArtistContactList({
 // ─── useWelcomeStats ──────────────────────────────────────────────────────────
 
 function useWelcomeStats(userId: string | undefined) {
-  const [stats, setStats] = useState<{ dmsSentTotal: number; repliesTotal: number } | null>(null);
+  const [stats, setStats] = useState<{
+    dmsSentTotal: number;
+    repliesTotal: number;
+    firstLoginDone: boolean;
+  } | null>(null);
 
   useEffect(() => {
-    if (!supabase) { setStats({ dmsSentTotal: 0, repliesTotal: 0 }); return; }
+    if (!supabase) { setStats({ dmsSentTotal: 0, repliesTotal: 0, firstLoginDone: true }); return; }
     if (!userId) return;
 
     Promise.all([
@@ -362,14 +366,28 @@ function useWelcomeStats(userId: string | undefined) {
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("status", "Replied"),
+      supabase
+        .from("user_profiles")
+        .select("first_login_done")
+        .eq("user_id", userId)
+        .single(),
     ])
-      .then(([activityRes, statusRes]) => {
+      .then(([activityRes, statusRes, profileRes]) => {
+        const firstLoginDone = profileRes.data?.first_login_done ?? false;
         setStats({
           dmsSentTotal: activityRes.count ?? 0,
           repliesTotal: statusRes.count ?? 0,
+          firstLoginDone,
         });
+        // Mark first login as done so subsequent visits show "welcome back"
+        if (!firstLoginDone) {
+          supabase!
+            .from("user_profiles")
+            .upsert({ user_id: userId, first_login_done: true }, { onConflict: "user_id" })
+            .then(({ error }) => { if (error) console.error("first_login_done upsert error:", error); });
+        }
       })
-      .catch(() => setStats({ dmsSentTotal: 0, repliesTotal: 0 }));
+      .catch(() => setStats({ dmsSentTotal: 0, repliesTotal: 0, firstLoginDone: true }));
   }, [userId]);
 
   return stats;
@@ -384,6 +402,7 @@ function WelcomeBanner({
   dmsSentTotal,
   repliesTotal,
   totalContacts,
+  firstLoginDone,
 }: {
   username: string;
   dmsSentToday: number | null;
@@ -391,12 +410,12 @@ function WelcomeBanner({
   dmsSentTotal: number | null;
   repliesTotal: number | null;
   totalContacts: number;
+  firstLoginDone: boolean | null;
 }) {
-  const [visible, setVisible] = useState(() => {
-    if (typeof window === "undefined") return true;
-    return !sessionStorage.getItem("beatbridge_welcome_shown");
-  });
+  const [visible, setVisible] = useState(true);
 
+  // Wait for DB to resolve before rendering — avoids flashing the wrong message
+  if (firstLoginDone === null) return null;
   if (!visible) return null;
 
   const d = (v: number | null) => v !== null ? String(v) : "...";
@@ -405,7 +424,8 @@ function WelcomeBanner({
 
   let lines: ReactNode[];
 
-  if (dmsSentTotal === 0) {
+  if (firstLoginDone === false) {
+    // First ever visit — account just created
     lines = [
       <><span className="text-orange-400 font-bold">Yo {username}</span>, welcome to BeatBridge. 👋</>,
       "This is your networking HQ.",
@@ -438,7 +458,7 @@ function WelcomeBanner({
       {/* Banner */}
       <div className="relative bg-[#111111] border border-[#1f1f1f] border-l-4 border-l-orange-500 rounded-2xl p-5">
         <button
-          onClick={() => { sessionStorage.setItem("beatbridge_welcome_shown", "1"); setVisible(false); }}
+          onClick={() => setVisible(false)}
           aria-label="Dismiss"
           className="absolute top-3 right-3 w-7 h-7 rounded-lg flex items-center justify-center text-[#505050] hover:text-white hover:bg-white/[0.06] transition-colors"
         >
@@ -886,12 +906,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       )}
 
       <div className="max-w-4xl mx-auto px-4 py-12 pb-20">
-        {/* Welcome banner — shown immediately, stats fill in as they load */}
-        {console.log("[Dashboard] WelcomeBanner render check:", {
-          dailyLoaded,
-          welcomeStats,
-          sessionFlag: typeof window !== "undefined" ? sessionStorage.getItem("beatbridge_welcome_shown") : "ssr",
-        }) as never}
+        {/* Welcome banner — waits for first_login_done from DB before rendering */}
         <WelcomeBanner
           username={displayName}
           dmsSentToday={dailyLoaded ? dailyCount : null}
@@ -899,6 +914,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           dmsSentTotal={welcomeStats?.dmsSentTotal ?? null}
           repliesTotal={welcomeStats?.repliesTotal ?? null}
           totalContacts={totalAll}
+          firstLoginDone={welcomeStats?.firstLoginDone ?? null}
         />
 
         {/* Header */}
