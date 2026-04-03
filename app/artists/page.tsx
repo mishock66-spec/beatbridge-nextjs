@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
 import { ComingSoonCard } from "@/components/ComingSoonCard";
+import ArtistProgressBar from "@/components/ArtistProgressBar";
 
 export const revalidate = 0;
 
@@ -109,6 +110,10 @@ function ArtistCard({
           {connections} connections
         </span>
       </div>
+
+      {artist.free && artist.slug && (
+        <ArtistProgressBar artistSlug={artist.slug} totalContacts={connections} />
+      )}
 
       {artist.free && artist.slug ? (
         <Link

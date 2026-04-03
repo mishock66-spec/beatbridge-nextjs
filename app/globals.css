@@ -50,6 +50,16 @@ body {
   will-change: auto;
 }
 
+/* ─── Progress bar — milestone badge flash ─── */
+@keyframes milestoneFlash {
+  0%   { opacity: 0; transform: scale(0.8); }
+  40%  { opacity: 1; transform: scale(1.1); }
+  100% { opacity: 1; transform: scale(1); }
+}
+.milestone-flash {
+  animation: milestoneFlash 0.5s ease-out both;
+}
+
 /* ─── Celebration — fire burst ─── */
 @keyframes fire-rise {
   0%   { transform: translateY(0) scale(1);   opacity: 1; }
