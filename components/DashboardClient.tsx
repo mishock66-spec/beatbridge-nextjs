@@ -212,35 +212,53 @@ function StatCard({
 
 type FilterTab = "All" | ContactStatus;
 
+function applyFollowerFilter(followers: number, followerFilter: string): boolean {
+  if (!followerFilter) return true;
+  if (followerFilter === "500 – 5K")   return followers >= 500   && followers <= 5000;
+  if (followerFilter === "5K – 20K")   return followers >= 5001  && followers <= 20000;
+  if (followerFilter === "20K – 50K")  return followers >= 20001 && followers <= 50000;
+  if (followerFilter === "50K+")       return followers > 50000;
+  return true;
+}
+
 function ArtistContactList({
   artist,
   statuses,
   updateStatus,
   mounted,
+  typeFilter,
+  followerFilter,
 }: {
   artist: ArtistData;
   statuses: Record<string, ContactStatus>;
   updateStatus: (slug: string, username: string, s: ContactStatus) => void;
   mounted: boolean;
+  typeFilter: string;
+  followerFilter: string;
 }) {
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
 
-  const records = artist.records;
+  // Apply global type + follower filters first, then local status tab
+  const globalFiltered = artist.records.filter((r) => {
+    if (typeFilter && r.profileType !== typeFilter) return false;
+    if (!applyFollowerFilter(r.followers, followerFilter)) return false;
+    return true;
+  });
 
   const countFor = (tab: FilterTab) => {
-    if (!mounted) return tab === "All" ? records.length : 0;
-    if (tab === "All") return records.length;
-    return records.filter((r) => {
+    if (!mounted) return tab === "All" ? globalFiltered.length : 0;
+    if (tab === "All") return globalFiltered.length;
+    return globalFiltered.filter((r) => {
       const key = statusStorageKey(artist.slug, r.username);
       return (statuses[key] ?? "To contact") === tab;
     }).length;
   };
 
   const filtered = !mounted
-    ? records
+    ? globalFiltered
     : activeTab === "All"
-    ? records
-    : records.filter((r) => {
+    ? globalFiltered
+    : globalFiltered.filter((r) => {
         const key = statusStorageKey(artist.slug, r.username);
         return (statuses[key] ?? "To contact") === activeTab;
       });
@@ -820,7 +838,218 @@ function RankCard({ userId }: { userId: string | undefined }) {
   );
 }
 
+// ─── FilterDropdown ───────────────────────────────────────────────────────────
+
+function FilterDropdown({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: string[];
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const isActive = value !== "";
+  const displayLabel = value !== "" ? value : label;
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg border transition-all whitespace-nowrap ${
+          isActive
+            ? "border-orange-500/60 bg-orange-500/10 text-orange-400"
+            : "border-[#2f2f2f] bg-[#111111] text-gray-400 hover:border-gray-500 hover:text-gray-300"
+        }`}
+      >
+        {displayLabel}
+        <svg
+          className={`w-3 h-3 opacity-60 transition-transform duration-200 ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute top-full mt-1 left-0 z-30 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[160px]">
+          <button
+            onClick={() => { onChange(""); setOpen(false); }}
+            className={`w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center justify-between ${
+              value === "" ? "text-orange-400" : "text-gray-400"
+            }`}
+          >
+            All
+            {value === "" && (
+              <svg className="w-3 h-3 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+            )}
+          </button>
+          {options.map((opt) => (
+            <button
+              key={opt}
+              onClick={() => { onChange(opt); setOpen(false); }}
+              className={`w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center justify-between ${
+                value === opt ? "text-orange-400" : "text-gray-400"
+              }`}
+            >
+              {opt}
+              {value === opt && (
+                <svg className="w-3 h-3 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── ArtistSection (collapsible) ──────────────────────────────────────────────
+
+function ArtistSection({
+  artist,
+  statuses,
+  updateStatus,
+  mounted,
+  typeFilter,
+  followerFilter,
+}: {
+  artist: ArtistData;
+  statuses: Record<string, ContactStatus>;
+  updateStatus: (slug: string, username: string, s: ContactStatus) => void;
+  mounted: boolean;
+  typeFilter: string;
+  followerFilter: string;
+}) {
+  const [expanded, setExpanded] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return sessionStorage.getItem(`dashboard_expanded_${artist.slug}`) === "1";
+  });
+
+  const toggle = () => {
+    const next = !expanded;
+    setExpanded(next);
+    if (typeof window !== "undefined") {
+      sessionStorage.setItem(`dashboard_expanded_${artist.slug}`, next ? "1" : "0");
+    }
+  };
+
+  const total = artist.records.length;
+  const dmSentOrReplied = mounted
+    ? artist.records.filter((r) => {
+        const s = statuses[statusStorageKey(artist.slug, r.username)] ?? "To contact";
+        return s === "DM sent" || s === "Replied";
+      }).length
+    : 0;
+  const pct = total > 0 ? Math.round((dmSentOrReplied / total) * 100) : 0;
+
+  return (
+    <div className="mb-4">
+      {/* Clickable header */}
+      <button
+        onClick={toggle}
+        className="w-full bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex items-center gap-4 hover:border-orange-500/20 transition-colors text-left"
+      >
+        {/* Artist photo */}
+        <div className="w-11 h-11 rounded-xl overflow-hidden bg-[#1f1f1f] flex-shrink-0">
+          {artist.photo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-lg font-bold text-[#404040]">
+              {artist.name[0]}
+            </div>
+          )}
+        </div>
+
+        {/* Name + progress */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1.5">
+            <h2 className="text-sm font-black truncate">{artist.name}</h2>
+            <span className="text-xs text-gray-600 flex-shrink-0">{total} contacts</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-[#2a2a2a] rounded-full overflow-hidden">
+              <div
+                className="h-full bg-orange-500 rounded-full transition-all duration-500"
+                style={{ width: `${pct}%` }}
+              />
+            </div>
+            <span className="text-xs font-bold text-orange-500 flex-shrink-0 tabular-nums">{pct}%</span>
+            <span className="text-xs text-gray-600 flex-shrink-0 tabular-nums">
+              {dmSentOrReplied}/{total}
+            </span>
+          </div>
+        </div>
+
+        {/* Chevron */}
+        <svg
+          className={`w-4 h-4 text-gray-500 flex-shrink-0 transition-transform duration-300 ${
+            expanded ? "rotate-180" : ""
+          }`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Collapsible contact list — grid-template-rows trick for smooth animation */}
+      <div
+        style={{
+          display: "grid",
+          gridTemplateRows: expanded ? "1fr" : "0fr",
+          transition: "grid-template-rows 0.3s ease",
+        }}
+      >
+        <div style={{ overflow: "hidden" }}>
+          <div className="pt-2">
+            <ArtistContactList
+              artist={artist}
+              statuses={statuses}
+              updateStatus={updateStatus}
+              mounted={mounted}
+              typeFilter={typeFilter}
+              followerFilter={followerFilter}
+            />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── DashboardClient ──────────────────────────────────────────────────────────
+
+const TYPE_FILTER_OPTIONS = [
+  "Producer",
+  "Artist/Rapper",
+  "Manager",
+  "Sound Engineer",
+  "Label",
+  "Studio",
+  "Photographer/Videographer",
+  "DJ",
+  "Other",
+];
+
+const FOLLOWER_FILTER_OPTIONS = ["500 – 5K", "5K – 20K", "20K – 50K", "50K+"];
 
 export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
@@ -828,6 +1057,8 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
   const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
   const welcomeStats = useWelcomeStats(user?.id);
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [typeFilter, setTypeFilter] = useState("");
+  const [followerFilter, setFollowerFilter] = useState("");
 
   // Show modal once data is loaded and no preference saved yet
   useEffect(() => {
@@ -979,64 +1210,45 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         {/* Community Leaderboard */}
         <LeaderboardWidget userId={user?.id} />
 
-        {/* Artist sections */}
-        {artists.map((artist) => {
-          const total = artist.records.length;
-          const dmSentOrReplied = mounted
-            ? artist.records.filter((r) => {
-                const s = statuses[statusStorageKey(artist.slug, r.username)] ?? "To contact";
-                return s === "DM sent" || s === "Replied";
-              }).length
-            : 0;
-          const pct = total > 0 ? Math.round((dmSentOrReplied / total) * 100) : 0;
+        {/* Filter bar */}
+        <div className="mb-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-500 mr-1">Filter:</span>
+            <FilterDropdown
+              label="Type ▾"
+              options={TYPE_FILTER_OPTIONS}
+              value={typeFilter}
+              onChange={setTypeFilter}
+            />
+            <FilterDropdown
+              label="Followers ▾"
+              options={FOLLOWER_FILTER_OPTIONS}
+              value={followerFilter}
+              onChange={setFollowerFilter}
+            />
+            {(typeFilter || followerFilter) && (
+              <button
+                onClick={() => { setTypeFilter(""); setFollowerFilter(""); }}
+                className="text-xs text-orange-400 hover:text-orange-300 transition-colors ml-1 underline underline-offset-2"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        </div>
 
-          return (
-            <div key={artist.slug} className="mb-12">
-              {/* Progress bar card */}
-              <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-6 mb-4">
-                <div className="flex items-center gap-4 mb-5">
-                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#1f1f1f] flex-shrink-0">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-3">
-                      <h2 className="text-lg font-black truncate">{artist.name}</h2>
-                      <span className="text-sm flex-shrink-0">
-                        <span className="text-orange-500 font-bold">{dmSentOrReplied}</span>
-                        <span className="text-gray-600"> / {total}</span>
-                        <span className="text-gray-500 ml-1 text-xs">contacted</span>
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                <div className="h-2 bg-[#1f1f1f] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-orange-500 rounded-full transition-all duration-500"
-                    style={{ width: `${pct}%` }}
-                  />
-                </div>
-                <div className="flex justify-between mt-2">
-                  <span className="text-xs text-gray-600">{pct}% contacted (DM sent or replied)</span>
-                  <Link
-                    href={`/artist/${artist.slug}`}
-                    className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
-                  >
-                    View network →
-                  </Link>
-                </div>
-              </div>
-
-              {/* Contact list with filter tabs */}
-              <ArtistContactList
-                artist={artist}
-                statuses={statuses}
-                updateStatus={updateStatus}
-                mounted={mounted}
-              />
-            </div>
-          );
-        })}
+        {/* Artist sections — collapsible, state persisted in sessionStorage */}
+        {artists.map((artist) => (
+          <ArtistSection
+            key={artist.slug}
+            artist={artist}
+            statuses={statuses}
+            updateStatus={updateStatus}
+            mounted={mounted}
+            typeFilter={typeFilter}
+            followerFilter={followerFilter}
+          />
+        ))}
       </div>
 
       <StickyDMBar

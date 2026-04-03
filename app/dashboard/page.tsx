@@ -1,36 +1,33 @@
 import { Suspense } from "react";
-import { fetchAirtableRecords } from "@/lib/airtable";
+import { fetchAllAirtableGrouped } from "@/lib/airtable";
 import DashboardClient from "@/components/DashboardClient";
 import SuccessToast from "@/components/SuccessToast";
 
 export const revalidate = 0;
 
-const ARTISTS = [
-  {
-    slug: "currensy",
-    name: "Curren$y",
-    suiviPar: ["Curren$y", "CurrenSy"] as string | string[],
-    photo: "/images/currensy.png",
-  },
-  {
-    slug: "harry-fraud",
-    name: "Harry Fraud",
-    suiviPar: "Harry Fraud" as string | string[],
-    photo: "/images/harryfraud.jpg",
-  },
-];
+// Metadata for known artists — slug + photo path.
+// Any artist in Airtable without an entry here gets a generated slug and no photo.
+const ARTIST_METADATA: Record<string, { slug: string; photo: string }> = {
+  "Curren$y":   { slug: "currensy",    photo: "/images/currensy.png" },
+  "Harry Fraud": { slug: "harry-fraud", photo: "/images/harryfraud.jpg" },
+  "Wheezy":     { slug: "wheezy",      photo: "/images/wheezy.jpg" },
+};
 
 export default async function DashboardPage() {
-  const artists = await Promise.all(
-    ARTISTS.map(async (artist) => {
-      try {
-        const records = await fetchAirtableRecords(artist.suiviPar);
-        return { slug: artist.slug, name: artist.name, photo: artist.photo, records };
-      } catch {
-        return { slug: artist.slug, name: artist.name, photo: artist.photo, records: [] };
-      }
-    })
-  );
+  let groups: { artistName: string; records: import("@/lib/airtable").AirtableRecord[] }[] = [];
+  try {
+    groups = await fetchAllAirtableGrouped();
+  } catch {
+    groups = [];
+  }
+
+  const artists = groups.map(({ artistName, records }) => {
+    const meta = ARTIST_METADATA[artistName] ?? {
+      slug: artistName.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""),
+      photo: "",
+    };
+    return { slug: meta.slug, name: artistName, photo: meta.photo, records };
+  });
 
   return (
     <>

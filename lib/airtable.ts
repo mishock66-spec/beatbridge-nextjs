@@ -9,6 +9,7 @@ export type AirtableRecord = {
   followUp: string;
   description: string;
   instagramDmId: string;
+  suiviPar?: string;
 };
 
 const TYPE_MAP: Record<string, string> = {
@@ -52,7 +53,43 @@ function mapRecord(record: {
     followUp: (f["follow_up"] as string) || "",
     description: (f["Notes"] as string) || "",
     instagramDmId: (f["Instagram DM ID"] as string) || "",
+    suiviPar: (f["Suivi par"] as string) || "",
   };
+}
+
+// Normalize inconsistent "Suivi par" values to canonical artist names
+const SUIVIPAR_NORMALIZE: Record<string, string> = {
+  "CurrenSy": "Curren$y",
+};
+
+const ARTIST_ORDER = ["Curren$y", "Harry Fraud", "Wheezy"];
+
+export async function fetchAllAirtableGrouped(): Promise<
+  { artistName: string; records: AirtableRecord[] }[]
+> {
+  const all = await fetchAirtableRecords();
+  const groups = new Map<string, AirtableRecord[]>();
+
+  for (const record of all) {
+    const raw = record.suiviPar ?? "";
+    const name = SUIVIPAR_NORMALIZE[raw] ?? raw;
+    if (!name) continue;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name)!.push(record);
+  }
+
+  // Sort: predefined order first, then alphabetical for any extras
+  const result: { artistName: string; records: AirtableRecord[] }[] = [];
+  for (const name of ARTIST_ORDER) {
+    if (groups.has(name)) {
+      result.push({ artistName: name, records: groups.get(name)! });
+      groups.delete(name);
+    }
+  }
+  for (const [name, records] of Array.from(groups).sort(([a], [b]) => a.localeCompare(b))) {
+    result.push({ artistName: name, records });
+  }
+  return result;
 }
 
 export async function fetchAirtableCount(
