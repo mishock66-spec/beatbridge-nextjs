@@ -2,6 +2,7 @@ import Link from "next/link";
 import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
 import { ComingSoonCard } from "@/components/ComingSoonCard";
 import ArtistProgressBar from "@/components/ArtistProgressBar";
+import { SocialLinks } from "@/components/SocialLinks";
 
 export const revalidate = 0;
 
@@ -57,58 +58,6 @@ const ARTISTS = [
 ];
 
 type Artist = (typeof ARTISTS)[0];
-
-// ─── Social icons ─────────────────────────────────────────────────────────────
-
-function IconInstagram() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px]">
-      <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-      <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-      <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
-    </svg>
-  );
-}
-
-function IconX() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px]">
-      <path d="M18 6L6 18M6 6l12 12" />
-    </svg>
-  );
-}
-
-const SOCIAL_ICONS: Record<string, { icon: () => JSX.Element; label: string }> = {
-  instagram: { icon: IconInstagram, label: "Instagram" },
-  twitter:   { icon: IconX,         label: "X / Twitter" },
-};
-
-function SocialLinks({ socials }: { socials: Partial<Record<keyof typeof SOCIAL_ICONS, string>> }) {
-  const entries = (Object.keys(SOCIAL_ICONS) as (keyof typeof SOCIAL_ICONS)[])
-    .filter((key) => socials[key]);
-
-  if (entries.length === 0) return null;
-
-  return (
-    <div className="flex items-center gap-2.5 mt-1.5">
-      {entries.map((key) => {
-        const { icon: Icon, label } = SOCIAL_ICONS[key];
-        return (
-          <a
-            key={key}
-            href={socials[key]}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={label}
-            className="text-[#505050] hover:text-orange-400 transition-colors duration-150"
-          >
-            <Icon />
-          </a>
-        );
-      })}
-    </div>
-  );
-}
 
 function ArtistCard({
   artist,

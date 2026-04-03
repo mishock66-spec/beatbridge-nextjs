@@ -6,6 +6,7 @@ import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
+import { SocialLinks } from "@/components/SocialLinks";
 
 export const revalidate = 0;
 
@@ -18,6 +19,7 @@ const ARTIST_META: Record<
     bio: string;
     photo?: string;
     suiviPar: string | string[];
+    socials: { instagram?: string; twitter?: string };
   }
 > = {
   currensy: {
@@ -27,6 +29,10 @@ const ARTIST_META: Record<
     photo: "/images/currensy.png",
     suiviPar: ["Curren$y", "CurrenSy"],
     bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
+    socials: {
+      instagram: "https://www.instagram.com/spitta_andretti/",
+      twitter:   "https://x.com/CurrenSy_Spitta",
+    },
   },
   "harry-fraud": {
     name: "Harry Fraud",
@@ -35,6 +41,10 @@ const ARTIST_META: Record<
     photo: "/images/harryfraud.jpg",
     suiviPar: "Harry Fraud",
     bio: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
+    socials: {
+      instagram: "https://www.instagram.com/harryfraud/",
+      twitter:   "https://x.com/HarryFraud",
+    },
   },
   wheezy: {
     name: "Wheezy",
@@ -43,6 +53,10 @@ const ARTIST_META: Record<
     photo: "/images/wheezy.jpg",
     suiviPar: "Wheezy",
     bio: "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper, Wheezy's sound defines modern Atlanta trap.",
+    socials: {
+      instagram: "https://www.instagram.com/wheezy/",
+      twitter:   "https://x.com/wheezy0uttahere",
+    },
   },
 };
 
@@ -126,8 +140,9 @@ export default async function ArtistNetwork({
             <h1 className="text-4xl sm:text-5xl font-black mb-1">
               {meta.name}
             </h1>
-            <p className="text-gray-500 text-sm mb-3">{meta.subtitle}</p>
-            <p className="text-gray-400 text-sm max-w-2xl leading-relaxed">
+            <p className="text-gray-500 text-sm">{meta.subtitle}</p>
+            <SocialLinks socials={meta.socials} />
+            <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
               {meta.bio}
             </p>
           </div>

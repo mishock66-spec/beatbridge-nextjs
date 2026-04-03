@@ -3,6 +3,7 @@ import { fetchAirtableRecords } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
+import { SocialLinks } from "@/components/SocialLinks";
 
 export const revalidate = 0;
 
@@ -54,8 +55,9 @@ export default async function WheezyArtistPage() {
               FREE
             </div>
             <h1 className="text-4xl sm:text-5xl font-black mb-1">Wheezy</h1>
-            <p className="text-gray-500 text-sm mb-3">Atlanta · Trap · Certified Trapper</p>
-            <p className="text-gray-400 text-sm max-w-2xl leading-relaxed">
+            <p className="text-gray-500 text-sm">Atlanta · Trap · Certified Trapper</p>
+            <SocialLinks socials={{ instagram: "https://www.instagram.com/wheezy/", twitter: "https://x.com/wheezy0uttahere" }} />
+            <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
               {"Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper, Wheezy's sound defines modern Atlanta trap."}
             </p>
           </div>
