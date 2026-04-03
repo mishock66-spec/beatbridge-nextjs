@@ -20,6 +20,7 @@ const ARTIST_META: Record<
     photo?: string;
     suiviPar: string | string[];
     socials: { instagram?: string; twitter?: string };
+    email?: string;
   }
 > = {
   currensy: {
@@ -45,6 +46,7 @@ const ARTIST_META: Record<
       instagram: "https://www.instagram.com/harryfraud/",
       twitter:   "https://x.com/HarryFraud",
     },
+    email: "HarryFraudBeats@gmail.com",
   },
   wheezy: {
     name: "Wheezy",
@@ -141,7 +143,7 @@ export default async function ArtistNetwork({
               {meta.name}
             </h1>
             <p className="text-gray-500 text-sm">{meta.subtitle}</p>
-            <SocialLinks socials={meta.socials} />
+            <SocialLinks socials={meta.socials} email={meta.email} />
             <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
               {meta.bio}
             </p>
