@@ -53,8 +53,16 @@
 ## ARTIST ROSTER
 - Curren$y: slug=currensy, Airtable filter=["Curren$y","CurrenSy"], Instagram=spitta_andretti, Twitter=CurrenSy_Spitta
 - Harry Fraud: slug=harry-fraud, Airtable filter="Harry Fraud", Instagram=harryfraud, Twitter=HarryFraud, Email=HarryFraudBeats@gmail.com
-- Wheezy: slug=wheezy, Airtable filter="Wheezy", Instagram=wheezy, Twitter=wheezy0uttahere
-- Juke Wong: slug=juke-wong, Airtable filter="Juke Wong", Instagram=jukewong, Twitter=jukewong
+- Wheezy: slug=wheezy, Airtable filter="Wheezy", Instagram=wheezy, Twitter=wheezy0uttahere, photo=/images/wheezy.jpg
+- Juke Wong: slug=juke-wong, Airtable filter="Juke Wong", Instagram=jukewong, Twitter=jukewong, photo=/images/jukewong.jpg
+
+## ABSOLUTE RULES — Adding a new artist
+1. ALWAYS save artist photo to /public/images/[slug].jpg — no photo = blocking issue. Use `curl -sL "https://unavatar.io/instagram/[handle]" -o public/images/[slug].jpg` to fetch from Instagram.
+2. ALWAYS create dedicated page at app/artist/[slug]/page.tsx (not just [slug] catch-all) AND follower-range sub-pages at app/artist/[slug]/[range]/page.tsx with the same RANGE_CONFIG + DEFAULT_TEMPLATE pattern as Wheezy/Juke Wong.
+3. ALWAYS classify ALL contacts by analyzing their bio (Notes field) BEFORE launch. Classification options: Beatmaker/Producteur, Ingé son, Manager, Artiste/Rappeur, Autre. Never leave Type de profil as "Autre" without bio analysis. Write a script in scripts/process-[slug].mjs and run it.
+4. ALWAYS generate template DM + follow_up for every contact with an empty template field. Format: "Yo [name], [bio reference] — [beatmaker pitch], think it could fit your lane?" follow_up is always: "Appreciate the reply — here it is: [LINK]"
+5. Instagram + Twitter/X only — never YouTube, Spotify or other platforms on artist cards or pages.
+6. Add artist to: app/artists/page.tsx ARTISTS array, app/page.tsx PREVIEW_ARTISTS, app/dashboard/page.tsx ARTIST_METADATA, lib/airtable.ts ARTIST_ORDER.
 
 ## ABSOLUTE RULE — External Navigation (Device-Aware)
 - Send DM and Instagram links use device-aware navigation: window.location.href on mobile (avoids popup blockers), window.open(_blank) on desktop (opens new tab). Always use this pattern for external links.
