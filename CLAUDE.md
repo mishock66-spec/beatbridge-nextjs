@@ -41,6 +41,7 @@
 - Always run: git add -A && git commit -m "..." && git push origin main
 - Artist connection counts on roster cards must always reflect the TOTAL number of Airtable records filtered by Suivi par = artist name. Never hardcode connection counts. Use fetchAirtableCount() from lib/airtable.ts in an async server component with revalidate = 0.
 - Dashboard artist sections are generated dynamically from Airtable "Suivi par" field values via fetchAllAirtableGrouped() in lib/airtable.ts. Never hardcode artist names in the dashboard. Any new artist added to Airtable automatically appears on the dashboard. Add slug + photo metadata to ARTIST_METADATA in app/dashboard/page.tsx when a new artist is onboarded.
+- Each artist card on /artists must display their social media links (Instagram, Twitter/X, YouTube, Spotify). When adding a new artist to the ARTISTS array in app/artists/page.tsx, always include a `socials` object with their available platform URLs. Never add an artist without social links.
 
 ## PROJECT INFO
 - Live site: https://beatbridge-nextjs.vercel.app
