@@ -18,10 +18,8 @@ const ARTISTS = [
     description:
       "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
     socials: {
-      instagram: "https://www.instagram.com/currensyspitta/",
-      twitter:   "https://x.com/currensyspitta",
-      youtube:   "https://www.youtube.com/@CurrenSy_Spitta",
-      spotify:   "https://open.spotify.com/artist/3qqokbMokBKFObMFUJHiBg",
+      instagram: "https://www.instagram.com/spitta_andretti/",
+      twitter:   "https://x.com/CurrenSy_Spitta",
     },
   },
   {
@@ -37,8 +35,7 @@ const ARTISTS = [
       "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
     socials: {
       instagram: "https://www.instagram.com/harryfraud/",
-      twitter:   "https://x.com/harryfraud",
-      spotify:   "https://open.spotify.com/artist/5EvAkOSCOQkxtN5QHQK9fS",
+      twitter:   "https://x.com/HarryFraud",
     },
   },
   {
@@ -53,9 +50,8 @@ const ARTISTS = [
     description:
       "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper.",
     socials: {
-      instagram: "https://www.instagram.com/wheezyouttahere/",
-      twitter:   "https://x.com/WheezyOuttaHere",
-      spotify:   "https://open.spotify.com/artist/5lSfCNkT9KKVO5C1NJnOPo",
+      instagram: "https://www.instagram.com/wheezy/",
+      twitter:   "https://x.com/wheezy0uttahere",
     },
   },
 ];
@@ -82,31 +78,9 @@ function IconX() {
   );
 }
 
-function IconYouTube() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px]">
-      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.95-1.97C18.88 4 12 4 12 4s-6.88 0-8.59.46a2.78 2.78 0 0 0-1.95 1.97A29 29 0 0 0 1 12a29 29 0 0 0 .46 5.58A2.78 2.78 0 0 0 3.41 19.6C5.12 20 12 20 12 20s6.88 0 8.59-.46a2.78 2.78 0 0 0 1.95-1.96A29 29 0 0 0 23 12a29 29 0 0 0-.46-5.58z" />
-      <polygon points="9.75 15.02 15.5 12 9.75 8.98" fill="currentColor" stroke="none" />
-    </svg>
-  );
-}
-
-function IconSpotify() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" className="w-[17px] h-[17px]">
-      <circle cx="12" cy="12" r="10" />
-      <path d="M8 11.5c2.3-1 5-.8 7.5.5" />
-      <path d="M8.5 14.5c2-.8 4.3-.5 6 .8" />
-      <path d="M7.5 8.5c3-1.3 6.5-1 9.5.8" />
-    </svg>
-  );
-}
-
 const SOCIAL_ICONS: Record<string, { icon: () => JSX.Element; label: string }> = {
   instagram: { icon: IconInstagram, label: "Instagram" },
   twitter:   { icon: IconX,         label: "X / Twitter" },
-  youtube:   { icon: IconYouTube,   label: "YouTube" },
-  spotify:   { icon: IconSpotify,   label: "Spotify" },
 };
 
 function SocialLinks({ socials }: { socials: Partial<Record<keyof typeof SOCIAL_ICONS, string>> }) {
