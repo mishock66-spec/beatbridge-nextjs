@@ -50,6 +50,12 @@
 - Airtable base: appW42oNhB9Hl14bq
 - Local folder: C:\Users\crayx\beatbridge-nextjs
 
+## ARTIST ROSTER
+- Curren$y: slug=currensy, Airtable filter=["Curren$y","CurrenSy"], Instagram=spitta_andretti, Twitter=CurrenSy_Spitta
+- Harry Fraud: slug=harry-fraud, Airtable filter="Harry Fraud", Instagram=harryfraud, Twitter=HarryFraud, Email=HarryFraudBeats@gmail.com
+- Wheezy: slug=wheezy, Airtable filter="Wheezy", Instagram=wheezy, Twitter=wheezy0uttahere
+- Juke Wong: slug=juke-wong, Airtable filter="Juke Wong", Instagram=jukewong, Twitter=jukewong
+
 ## ABSOLUTE RULE — External Navigation (Device-Aware)
 - Send DM and Instagram links use device-aware navigation: window.location.href on mobile (avoids popup blockers), window.open(_blank) on desktop (opens new tab). Always use this pattern for external links.
 - Use the helper: `const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);` then `isMobile ? window.location.href = url : window.open(url, '_blank', 'noopener,noreferrer')`.

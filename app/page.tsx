@@ -56,12 +56,13 @@ const PREVIEW_ARTISTS = [
     photo: "/images/wheezy.jpg",
   },
   {
-    name: "Wiz Khalifa",
-    subtitle: "Taylor Gang",
-    slug: null,
-    suiviPar: null as null,
-    free: false,
-    photo: null,
+    name: "Juke Wong",
+    subtitle: "Melodic Trap",
+    slug: "juke-wong",
+    suiviPar: "Juke Wong" as string | string[],
+    free: true,
+    igHandle: "jukewong",
+    photo: undefined,
   },
 ];
 
@@ -119,7 +120,7 @@ export default async function Home() {
             </span>
             <span className="text-[#303030]">·</span>
             <span>
-              <span className="text-orange-500 font-medium">3</span> artist networks
+              <span className="text-orange-500 font-medium">4</span> artist networks
             </span>
             <span className="text-[#303030]">·</span>
             <span>New connections added constantly</span>

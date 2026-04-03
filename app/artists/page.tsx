@@ -55,6 +55,22 @@ const ARTISTS = [
       twitter:   "https://x.com/wheezy0uttahere",
     },
   },
+  {
+    name: "Juke Wong",
+    subtitle: "Melodic Trap · Wheezy's Circle",
+    slug: "juke-wong",
+    suiviPar: "Juke Wong" as string | string[],
+    free: true,
+    genres: ["Hip-Hop", "Trap", "Melodic"],
+    igHandle: "jukewong",
+    photo: undefined,
+    description:
+      "Producer known for his work with Wheezy and his signature melodic trap sound.",
+    socials: {
+      instagram: "https://www.instagram.com/jukewong/",
+      twitter:   "https://x.com/jukewong",
+    },
+  },
 ];
 
 type Artist = (typeof ARTISTS)[0];
@@ -185,7 +201,7 @@ export default async function Artists() {
               {totalConnections.toLocaleString()}
             </span>{" "}
             Instagram connections mapped across{" "}
-            <span className="text-orange-500 font-medium">3</span> artist
+            <span className="text-orange-500 font-medium">4</span> artist
             networks — and growing.
           </p>
         </div>

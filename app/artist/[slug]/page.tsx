@@ -60,6 +60,17 @@ const ARTIST_META: Record<
       twitter:   "https://x.com/wheezy0uttahere",
     },
   },
+  "juke-wong": {
+    name: "Juke Wong",
+    subtitle: "Melodic Trap · Wheezy's Circle",
+    igHandle: "jukewong",
+    suiviPar: "Juke Wong",
+    bio: "Producer known for his work with Wheezy and his signature melodic trap sound.",
+    socials: {
+      instagram: "https://www.instagram.com/jukewong/",
+      twitter:   "https://x.com/jukewong",
+    },
+  },
 };
 
 export default async function ArtistNetwork({
