@@ -63,7 +63,7 @@ const ARTISTS = [
     free: true,
     genres: ["Hip-Hop", "Trap", "Melodic"],
     igHandle: "jukewong",
-    photo: "/images/jukewong.jpg",
+    photo: undefined,
     description:
       "Producer known for his work with Wheezy and his signature melodic trap sound.",
     socials: {

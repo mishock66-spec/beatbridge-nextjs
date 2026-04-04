@@ -42,7 +42,7 @@ export default async function JukeWongArtistPage() {
           <div className="w-32 h-32 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/images/jukewong.jpg"
+              src="https://unavatar.io/instagram/jukewong"
               alt="Juke Wong"
               className="w-full h-full object-cover"
             />
@@ -75,6 +75,19 @@ export default async function JukeWongArtistPage() {
               Smaller accounts = higher response rate.
             </span>{" "}
             Start with 500–5K for best results.
+          </p>
+        </div>
+
+        {/* Top Contacts button */}
+        <div className="mb-10">
+          <Link
+            href="/artist/juke-wong/top"
+            className="inline-flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
+          >
+            ★ Top Contacts — Curated DM List
+          </Link>
+          <p className="text-xs text-[#505050] mt-2">
+            High-value contacts with ready-to-send DM templates
           </p>
         </div>
 
