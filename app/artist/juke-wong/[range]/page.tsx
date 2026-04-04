@@ -95,7 +95,7 @@ export default async function JukeWongRangePage({
           <div className="w-20 h-20 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/artists/juke-wong.jpg"
+              src="/images/juke-wong.jpg"
               alt="Juke Wong"
               className="w-full h-full object-cover"
             />

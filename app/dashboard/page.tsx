@@ -11,7 +11,7 @@ const ARTIST_METADATA: Record<string, { slug: string; photo: string }> = {
   "Curren$y":   { slug: "currensy",    photo: "/images/currensy.png" },
   "Harry Fraud": { slug: "harry-fraud", photo: "/images/harryfraud.jpg" },
   "Wheezy":     { slug: "wheezy",      photo: "/images/wheezy.jpg" },
-  "Juke Wong":  { slug: "juke-wong",   photo: "/artists/juke-wong.jpg" },
+  "Juke Wong":  { slug: "juke-wong",   photo: "/images/juke-wong.jpg" },
 };
 
 export default async function DashboardPage() {
