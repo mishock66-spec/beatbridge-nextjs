@@ -68,7 +68,6 @@ const ARTIST_META: Record<
     bio: "Producer known for his work with Wheezy and his signature melodic trap sound.",
     socials: {
       instagram: "https://www.instagram.com/jukewong/",
-      twitter:   "https://x.com/jukewong",
     },
   },
 };

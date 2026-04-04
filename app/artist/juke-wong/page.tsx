@@ -53,7 +53,7 @@ export default async function JukeWongArtistPage() {
             </div>
             <h1 className="text-4xl sm:text-5xl font-black mb-1">Juke Wong</h1>
             <p className="text-gray-500 text-sm">Melodic Trap · Wheezy&apos;s Circle</p>
-            <SocialLinks socials={{ instagram: "https://www.instagram.com/jukewong/", twitter: "https://x.com/jukewong" }} />
+            <SocialLinks socials={{ instagram: "https://www.instagram.com/jukewong/" }} />
             <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
               Producer known for his work with Wheezy and his signature melodic trap sound.
             </p>
