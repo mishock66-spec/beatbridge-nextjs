@@ -62,7 +62,7 @@ const PREVIEW_ARTISTS = [
     suiviPar: "Juke Wong" as string | string[],
     free: true,
     igHandle: "jukewong",
-    photo: undefined,
+    photo: "/artists/juke-wong.jpg",
   },
 ];
 

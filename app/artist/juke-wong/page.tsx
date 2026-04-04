@@ -42,7 +42,7 @@ export default async function JukeWongArtistPage() {
           <div className="w-32 h-32 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://unavatar.io/instagram/jukewong"
+              src="/artists/juke-wong.jpg"
               alt="Juke Wong"
               className="w-full h-full object-cover"
             />

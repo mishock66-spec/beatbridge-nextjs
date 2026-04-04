@@ -57,7 +57,7 @@
 - Juke Wong: slug=juke-wong, Airtable filter="Juke Wong", Instagram=jukewong, Twitter=jukewong, photo=/images/jukewong.jpg
 
 ## ABSOLUTE RULES — Adding a new artist
-1. ALWAYS save artist photo to /public/images/[slug].jpg — no photo = blocking issue. Use `curl -sL "https://unavatar.io/instagram/[handle]" -o public/images/[slug].jpg` to fetch from Instagram.
+1. ALWAYS save artist photo to /public/artists/[slug].jpg — no placeholder allowed. Use `curl -sL "https://unavatar.io/instagram/[handle]" -o public/artists/[slug].jpg` to fetch from Instagram. Verify the file is >10KB (a 1–2KB result is a placeholder — get a real photo). Reference path in code: `/artists/[slug].jpg`. All photo references across artists/page, page.tsx, dashboard/page, and dedicated artist pages must point to this path.
 2. ALWAYS create dedicated page at app/artist/[slug]/page.tsx (not just [slug] catch-all) AND follower-range sub-pages at app/artist/[slug]/[range]/page.tsx with the same RANGE_CONFIG + DEFAULT_TEMPLATE pattern as Wheezy/Juke Wong.
 3. ALWAYS classify ALL contacts by analyzing their bio (Notes field) BEFORE launch. Classification options: Beatmaker/Producteur, Ingé son, Manager, Artiste/Rappeur, Autre. Never leave Type de profil as "Autre" without bio analysis. Write a script in scripts/process-[slug].mjs and run it.
 4. ALWAYS generate template DM + follow_up for every contact with an empty template field. Format: "Yo [name], [bio reference] — [beatmaker pitch], think it could fit your lane?" follow_up is always: "Appreciate the reply — here it is: [LINK]"

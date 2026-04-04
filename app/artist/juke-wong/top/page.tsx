@@ -9,13 +9,47 @@ import { TelegramButton } from "@/components/TelegramButton";
 
 export const revalidate = 0;
 
+const TOP_CAP = 50;
+
+function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
+  // Priority 1: Producer, Sound Engineer, Manager — with bio and template, sorted followers DESC
+  const primary = all
+    .filter(
+      (r) =>
+        (r.profileType === "Producer" ||
+          r.profileType === "Sound Engineer" ||
+          r.profileType === "Manager") &&
+        r.description.trim() !== "" &&
+        r.template.trim() !== ""
+    )
+    .sort((a, b) => b.followers - a.followers);
+
+  if (primary.length >= TOP_CAP) return primary.slice(0, TOP_CAP);
+
+  // Fill remaining spots with Artist/Rapper contacts that have bio + template
+  const needed = TOP_CAP - primary.length;
+  const primaryIds = new Set(primary.map((r) => r.id));
+  const secondary = all
+    .filter(
+      (r) =>
+        r.profileType === "Artist/Rapper" &&
+        r.description.trim() !== "" &&
+        r.template.trim() !== "" &&
+        !primaryIds.has(r.id)
+    )
+    .sort((a, b) => b.followers - a.followers)
+    .slice(0, needed);
+
+  return [...primary, ...secondary];
+}
+
 export default async function JukeWongTopContactsPage() {
   let records: AirtableRecord[] = [];
   let error: string | null = null;
 
   try {
     const all = await fetchAirtableRecords("Juke Wong");
-    records = all.filter((r) => r.template.trim() !== "");
+    records = selectTopContacts(all);
   } catch (err) {
     error = err instanceof Error ? err.message : "Unknown error";
   }
@@ -30,17 +64,11 @@ export default async function JukeWongTopContactsPage() {
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm mb-10 flex-wrap">
-          <Link
-            href="/artists"
-            className="text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artists" className="text-gray-500 hover:text-orange-500 transition-colors">
             All Artists
           </Link>
           <span className="text-gray-600">›</span>
-          <Link
-            href="/artist/juke-wong"
-            className="text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artist/juke-wong" className="text-gray-500 hover:text-orange-500 transition-colors">
             Juke Wong
           </Link>
           <span className="text-gray-600">›</span>
@@ -52,7 +80,7 @@ export default async function JukeWongTopContactsPage() {
           <div className="w-20 h-20 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://unavatar.io/instagram/jukewong"
+              src="/artists/juke-wong.jpg"
               alt="Juke Wong"
               className="w-full h-full object-cover"
             />
@@ -68,13 +96,11 @@ export default async function JukeWongTopContactsPage() {
               </span>
             </h1>
             <p className="text-[#a0a0a0] text-sm">
-              Curated music contacts with ready-to-send DM templates
+              The {records.length} highest-value contacts in Juke Wong&apos;s network — producers, engineers, managers with ready-to-send DM templates
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
-            <p className="text-3xl font-black text-orange-500">
-              {records.length}
-            </p>
+            <p className="text-3xl font-black text-orange-500">{records.length}</p>
             <p className="text-gray-500 text-xs mt-1">Curated contacts</p>
           </div>
         </div>
@@ -84,9 +110,9 @@ export default async function JukeWongTopContactsPage() {
           <span className="text-base leading-none mt-0.5">★</span>
           <p className="text-sm text-[#a0a0a0] leading-relaxed">
             <span className="text-orange-400 font-semibold">
-              These are the highest-value contacts in Juke Wong&apos;s network.
+              Producers, engineers, and managers first.
             </span>{" "}
-            Each one has a curated DM template written specifically for them.
+            These are the contacts most likely to move the needle — sorted by reach, capped at {TOP_CAP}.
           </p>
         </div>
 
@@ -105,10 +131,7 @@ export default async function JukeWongTopContactsPage() {
 
         {/* Back to Juke Wong */}
         <div className="mt-12 flex justify-center border-t border-[#1f1f1f] pt-8">
-          <Link
-            href="/artist/juke-wong"
-            className="text-sm text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artist/juke-wong" className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
             ← Back to Juke Wong
           </Link>
         </div>

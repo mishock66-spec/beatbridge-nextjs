@@ -10,6 +10,8 @@ import { TelegramButton } from "@/components/TelegramButton";
 
 export const revalidate = 0;
 
+const PAGE_SIZE = 50;
+
 const DEFAULT_TEMPLATE =
   "Yo, caught you in Juke Wong's circle — got some melodic trap beats I've been sitting on, think it could fit your lane?";
 
@@ -32,15 +34,19 @@ const ALL_RANGES = Object.entries(RANGE_CONFIG).map(([slug, cfg]) => ({
 
 export default async function JukeWongRangePage({
   params,
+  searchParams,
 }: {
   params: { range: string };
+  searchParams: { page?: string };
 }) {
   const { range } = params;
   const config = RANGE_CONFIG[range];
 
   if (!config) notFound();
 
-  let records: AirtableRecord[] = [];
+  const currentPage = Math.max(1, parseInt(searchParams.page ?? "1", 10));
+
+  let allRecords: AirtableRecord[] = [];
   let error: string | null = null;
 
   try {
@@ -48,7 +54,7 @@ export default async function JukeWongRangePage({
       min: config.min,
       max: config.max,
     });
-    records = raw.map((r) => ({
+    allRecords = raw.map((r) => ({
       ...r,
       template: r.template || DEFAULT_TEMPLATE,
     }));
@@ -56,9 +62,16 @@ export default async function JukeWongRangePage({
     error = err instanceof Error ? err.message : "Unknown error";
   }
 
+  const totalPages = Math.max(1, Math.ceil(allRecords.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const records = allRecords.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
   const dmPriorityOrder = [...records]
     .sort((a, b) => a.followers - b.followers)
     .map((r) => r.username);
+
+  const pageUrl = (p: number) =>
+    p === 1 ? `/artist/juke-wong/${range}` : `/artist/juke-wong/${range}?page=${p}`;
 
   return (
     <div className="min-h-screen">
@@ -66,17 +79,11 @@ export default async function JukeWongRangePage({
 
         {/* Breadcrumb */}
         <div className="flex items-center gap-2 text-sm mb-10 flex-wrap">
-          <Link
-            href="/artists"
-            className="text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artists" className="text-gray-500 hover:text-orange-500 transition-colors">
             All Artists
           </Link>
           <span className="text-gray-600">›</span>
-          <Link
-            href="/artist/juke-wong"
-            className="text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artist/juke-wong" className="text-gray-500 hover:text-orange-500 transition-colors">
             Juke Wong
           </Link>
           <span className="text-gray-600">›</span>
@@ -88,7 +95,7 @@ export default async function JukeWongRangePage({
           <div className="w-20 h-20 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="https://unavatar.io/instagram/jukewong"
+              src="/artists/juke-wong.jpg"
               alt="Juke Wong"
               className="w-full h-full object-cover"
             />
@@ -108,10 +115,8 @@ export default async function JukeWongRangePage({
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
-            <p className="text-3xl font-black text-orange-500">
-              {records.length}
-            </p>
-            <p className="text-gray-500 text-xs mt-1">Contacts in range</p>
+            <p className="text-3xl font-black text-orange-500">{allRecords.length}</p>
+            <p className="text-gray-500 text-xs mt-1">Total in range</p>
           </div>
         </div>
 
@@ -147,6 +152,24 @@ export default async function JukeWongRangePage({
         <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
+        {/* Page indicator */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between mb-6">
+            <p className="text-sm text-[#606060]">
+              Showing{" "}
+              <span className="text-[#a0a0a0] font-medium">
+                {(safePage - 1) * PAGE_SIZE + 1}–{Math.min(safePage * PAGE_SIZE, allRecords.length)}
+              </span>{" "}
+              of{" "}
+              <span className="text-[#a0a0a0] font-medium">{allRecords.length}</span> contacts
+            </p>
+            <p className="text-sm text-[#606060]">
+              Page <span className="text-[#a0a0a0] font-medium">{safePage}</span> of{" "}
+              <span className="text-[#a0a0a0] font-medium">{totalPages}</span>
+            </p>
+          </div>
+        )}
+
         {/* Connection grid */}
         <ArtistNetworkClient
           records={records}
@@ -156,23 +179,79 @@ export default async function JukeWongRangePage({
           artistSlug="juke-wong"
         />
 
-        {/* Prev / Next navigation */}
-        <div className="mt-12 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
+        {/* Pagination controls */}
+        {totalPages > 1 && (
+          <div className="mt-10 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
+            {safePage > 1 ? (
+              <Link
+                href={pageUrl(safePage - 1)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30"
+              >
+                ← Previous
+              </Link>
+            ) : (
+              <div />
+            )}
+
+            {/* Page number pills — show up to 5 around current */}
+            <div className="hidden sm:flex items-center gap-1.5">
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(
+                  (p) =>
+                    p === 1 ||
+                    p === totalPages ||
+                    Math.abs(p - safePage) <= 2
+                )
+                .reduce<(number | "…")[]>((acc, p, i, arr) => {
+                  if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+                  acc.push(p);
+                  return acc;
+                }, [])
+                .map((p, i) =>
+                  p === "…" ? (
+                    <span key={`ellipsis-${i}`} className="text-[#404040] px-1 text-sm">
+                      …
+                    </span>
+                  ) : (
+                    <Link
+                      key={p}
+                      href={pageUrl(p as number)}
+                      className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${
+                        p === safePage
+                          ? "bg-orange-500 text-white"
+                          : "text-[#606060] hover:text-orange-400 border border-white/[0.06] hover:border-orange-500/30"
+                      }`}
+                    >
+                      {p}
+                    </Link>
+                  )
+                )}
+            </div>
+
+            {safePage < totalPages ? (
+              <Link
+                href={pageUrl(safePage + 1)}
+                className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30"
+              >
+                Next →
+              </Link>
+            ) : (
+              <div />
+            )}
+          </div>
+        )}
+
+        {/* Prev / Next range navigation */}
+        <div className="mt-8 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
           {config.prev ? (
-            <Link
-              href={`/artist/juke-wong/${config.prev}`}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors"
-            >
+            <Link href={`/artist/juke-wong/${config.prev}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
               ← {RANGE_CONFIG[config.prev].label}
             </Link>
           ) : (
             <div />
           )}
           {config.next ? (
-            <Link
-              href={`/artist/juke-wong/${config.next}`}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors"
-            >
+            <Link href={`/artist/juke-wong/${config.next}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
               {RANGE_CONFIG[config.next].label} →
             </Link>
           ) : (
@@ -182,10 +261,7 @@ export default async function JukeWongRangePage({
 
         {/* Back to Juke Wong */}
         <div className="mt-8 flex justify-center">
-          <Link
-            href="/artist/juke-wong"
-            className="text-sm text-gray-500 hover:text-orange-500 transition-colors"
-          >
+          <Link href="/artist/juke-wong" className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
             ← Back to Juke Wong
           </Link>
         </div>
