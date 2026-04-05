@@ -21,13 +21,6 @@ const CANDIDATES = [
     photo: "https://unavatar.io/instagram/pierrebourne",
   },
   {
-    slug: "southside",
-    name: "Southside",
-    label: "Southside",
-    genre: "Atlanta · Trap",
-    photo: "https://unavatar.io/instagram/southside",
-  },
-  {
     slug: "murda-beatz",
     name: "Murda Beatz",
     label: "Murda on the Beat",
@@ -47,6 +40,13 @@ const CANDIDATES = [
     label: "Nick Mira",
     genre: "Virginia · Melodic Trap",
     photo: "https://unavatar.io/instagram/nickmira",
+  },
+  {
+    slug: "the-alchemist",
+    name: "The Alchemist",
+    label: "Alc",
+    genre: "NYC · Boom-Bap",
+    photo: "https://unavatar.io/instagram/alchemist",
   },
 ];
 

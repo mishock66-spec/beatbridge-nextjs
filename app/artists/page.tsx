@@ -72,6 +72,22 @@ const ARTISTS = [
       instagram: "https://www.instagram.com/jukewong/",
     },
   },
+  {
+    name: "Southside",
+    subtitle: "Atlanta · 808 Mafia · Trap",
+    slug: "southside",
+    suiviPar: "Southside" as string | string[],
+    free: true,
+    genres: ["Hip-Hop", "Atlanta", "Trap"],
+    igHandle: "808mafiaboss",
+    photo: "/images/southside.jpg",
+    description:
+      "Co-founder of 808 Mafia. The architect behind Future, Drake, Travis Scott and Young Thug's biggest records.",
+    socials: {
+      instagram: "https://www.instagram.com/808mafiaboss/",
+      twitter:   "https://x.com/808mafiaboss",
+    },
+  },
 ];
 
 type Artist = (typeof ARTISTS)[0];
@@ -218,7 +234,7 @@ export default async function Artists() {
               {totalConnections.toLocaleString()}
             </span>{" "}
             Instagram connections mapped across{" "}
-            <span className="text-orange-500 font-medium">4</span> artist
+            <span className="text-orange-500 font-medium">5</span> artist
             networks unlocked — and growing.
           </p>
         </div>
@@ -245,7 +261,7 @@ export default async function Artists() {
             {[
               { name: "Metro Boomin", genre: "Atlanta · Trap" },
               { name: "Pi'erre Bourne", genre: "Atlanta · SoundCloud Rap" },
-              { name: "Tay Keith", genre: "Memphis · Trap" },
+              { name: "Murda Beatz", genre: "Toronto · Trap" },
             ].map((c) => (
               <div
                 key={c.name}

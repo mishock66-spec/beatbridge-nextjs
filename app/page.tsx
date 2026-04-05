@@ -64,6 +64,15 @@ const PREVIEW_ARTISTS = [
     igHandle: "jukewong",
     photo: "/images/juke-wong.jpg",
   },
+  {
+    name: "Southside",
+    subtitle: "808 Mafia · Trap",
+    slug: "southside",
+    suiviPar: "Southside" as string | string[],
+    free: true,
+    igHandle: "808mafiaboss",
+    photo: "/images/southside.jpg",
+  },
 ];
 
 export default async function Home() {
