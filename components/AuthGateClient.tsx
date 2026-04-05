@@ -38,7 +38,10 @@ export default function AuthGateClient({
     fetch("/api/user/access", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: user.id }),
+      body: JSON.stringify({
+        userId: user.id,
+        userEmail: user.primaryEmailAddress?.emailAddress,
+      }),
     })
       .then((r) => r.json())
       .then((data: AccessResult) => {
