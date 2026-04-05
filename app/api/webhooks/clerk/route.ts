@@ -50,7 +50,7 @@ export async function POST(req: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
       await supabase.from("user_profiles").upsert(
-        { user_id: newUserId, trial_start: new Date().toISOString() },
+        { user_id: newUserId, trial_start: new Date().toISOString(), onboarding_completed: false },
         { onConflict: "user_id" }
       );
     }
