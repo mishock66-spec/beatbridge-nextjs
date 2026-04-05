@@ -263,6 +263,7 @@ export default function PricingClient({
             <ul className="space-y-3">
               {[
                 "Everything in Pro",
+                "Access 10K+ follower contacts for all artists",
                 "Download full CSV contact list per artist",
                 "Access to unfiltered contacts (beyond curated list)",
                 "14-day free trial, no credit card required",

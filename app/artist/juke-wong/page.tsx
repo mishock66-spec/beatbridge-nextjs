@@ -9,12 +9,12 @@ import AuthGateClient from "@/components/AuthGateClient";
 export const revalidate = 0;
 
 const RANGES = [
-  { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate" },
-  { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement" },
-  { slug: "10k-20k", label: "10K – 20K",  desc: "Mid-tier reach" },
-  { slug: "20k-30k", label: "20K – 30K",  desc: "Growing accounts" },
-  { slug: "30k-40k", label: "30K – 40K",  desc: "Established" },
-  { slug: "40k-50k", label: "40K – 50K",  desc: "Large following" },
+  { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate", premium: false },
+  { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement",    premium: false },
+  { slug: "10k-20k", label: "10K – 20K",  desc: "Mid-tier reach",     premium: true  },
+  { slug: "20k-30k", label: "20K – 30K",  desc: "Growing accounts",   premium: true  },
+  { slug: "30k-40k", label: "30K – 40K",  desc: "Established",        premium: true  },
+  { slug: "40k-50k", label: "40K – 50K",  desc: "Large following",    premium: true  },
 ];
 
 export default async function JukeWongArtistPage() {
@@ -93,6 +93,32 @@ export default async function JukeWongArtistPage() {
           </p>
         </div>
 
+        {/* Contact the artist directly */}
+        <div className="mb-10 bg-orange-500/[0.07] border border-orange-500/25 rounded-2xl p-6" style={{ boxShadow: "0 0 24px rgba(249,115,22,0.06)" }}>
+          <div className="flex flex-col sm:flex-row sm:items-center gap-5">
+            <div className="flex-1">
+              <p className="text-xs font-bold text-orange-500 uppercase tracking-[0.1em] mb-2">
+                🎯 Contact the artist directly
+              </p>
+              <h3 className="text-lg font-medium text-white mb-1">
+                Juke Wong has under 10K followers — he&apos;s still reachable.
+              </h3>
+              <p className="text-sm text-[#a0a0a0] leading-relaxed">
+                At ~9,200 followers, Juke Wong himself is in the reply-able range.
+                Skip the middlemen and DM him directly on Instagram.
+              </p>
+            </div>
+            <a
+              href="https://ig.me/m/jukewong"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-shrink-0 inline-flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
+            >
+              DM Juke Wong on Instagram →
+            </a>
+          </div>
+        </div>
+
         {/* Explore by follower range */}
         <div>
           <div className="mb-6">
@@ -104,17 +130,32 @@ export default async function JukeWongArtistPage() {
             </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
-            {RANGES.map(({ slug, label, desc }) => (
+            {RANGES.map(({ slug, label, desc, premium }) => (
               <Link
                 key={slug}
                 href={`/artist/juke-wong/${slug}`}
-                className="bg-[#111111] border border-[#1f1f1f] rounded-xl p-5 hover:border-orange-500/40 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group"
+                className={`border rounded-xl p-5 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group ${
+                  premium
+                    ? "bg-white/[0.025] border-purple-500/20 hover:border-purple-500/40"
+                    : "bg-[#111111] border-[#1f1f1f] hover:border-orange-500/40"
+                }`}
               >
-                <p className="text-base font-semibold text-white group-hover:text-orange-400 transition-colors">
-                  {label}
-                </p>
-                <p className="text-xs text-[#505050] mt-1">{desc}</p>
-                <p className="text-xs text-orange-500/60 mt-3 font-medium group-hover:text-orange-400 transition-colors">
+                <div className="flex items-center justify-between mb-1">
+                  <p className={`text-base font-semibold transition-colors ${
+                    premium ? "text-white group-hover:text-purple-400" : "text-white group-hover:text-orange-400"
+                  }`}>
+                    {label}
+                  </p>
+                  {premium && (
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 uppercase tracking-wider">
+                      Premium
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-[#505050] mt-0.5">{desc}</p>
+                <p className={`text-xs mt-3 font-medium transition-colors ${
+                  premium ? "text-purple-500/60 group-hover:text-purple-400" : "text-orange-500/60 group-hover:text-orange-400"
+                }`}>
                   Browse →
                 </p>
               </Link>

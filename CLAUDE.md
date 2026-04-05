@@ -163,3 +163,18 @@ This file gets smarter with every session.
 - When a selected state must be clearly visible (e.g. account age options, onboarding choices), use inline styles with explicit values, NOT Tailwind opacity modifiers.
 - Correct: `style={{ border: "2px solid #f97316", background: "rgba(249, 115, 22, 0.1)" }}`
 - Wrong: `className="border-orange-500/60 bg-orange-500/20"` — too subtle, visually indistinguishable at a glance.
+
+## PREMIUM GATING BY ARTIST FOLLOWER COUNT
+- For each artist, contacts ABOVE the artist's own follower count are Premium-only.
+- Free/Pro users only see contacts up to the artist's follower count.
+- Example: Juke Wong (~9.2K followers) → 500-5K and 5K-10K are free; 10K+ ranges are Premium-locked.
+- Always add a "Contact the artist directly" section (orange accent card) if the artist has under 50K followers.
+  - Link to https://ig.me/m/[igHandle] for the direct DM button.
+- Premium-locked range pages use PremiumGateClient (components/PremiumGateClient.tsx):
+  - Renders blurred preview cards + lock overlay for Pro/trial users.
+  - Renders full ArtistNetworkClient + CSV download button for Premium users.
+- CSV export route pattern: /api/export/[artist-slug] — GET with ?userId=... query param.
+  - Check user_profiles.plan === "premium" before serving the CSV.
+  - Return 403 if not premium.
+- Mark premium ranges in RANGE_CONFIG with `premium: true` and in RANGES array too.
+- Range nav pills: use purple color scheme for premium-locked ranges, orange for free ranges.
