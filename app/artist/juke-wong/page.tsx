@@ -9,8 +9,9 @@ import AuthGateClient from "@/components/AuthGateClient";
 export const revalidate = 0;
 
 const RANGES = [
-  { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate", premium: false },
-  { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement",    premium: false },
+  { slug: "0-500",   label: "0 – 500",    desc: "Highest reply rate",  premium: false },
+  { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate",  premium: false },
+  { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement",     premium: false },
   { slug: "10k-20k", label: "10K – 20K",  desc: "Mid-tier reach",     premium: true  },
   { slug: "20k-30k", label: "20K – 30K",  desc: "Growing accounts",   premium: true  },
   { slug: "30k-40k", label: "30K – 40K",  desc: "Established",        premium: true  },

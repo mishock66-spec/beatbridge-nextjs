@@ -21,8 +21,9 @@ const RANGE_CONFIG: Record<
   string,
   { min: number; max: number; label: string; prev?: string; next?: string; premium?: boolean }
 > = {
-  "500-5k":  { min: 500,   max: 4999,  label: "500 – 5K",   next: "5k-10k" },
-  "5k-10k":  { min: 5000,  max: 9999,  label: "5K – 10K",   prev: "500-5k",  next: "10k-20k" },
+  "0-500":   { min: 0,     max: 499,   label: "0 – 500",    next: "500-5k" },
+  "500-5k":  { min: 500,   max: 4999,  label: "500 – 5K",   prev: "0-500",  next: "5k-10k" },
+  "5k-10k":  { min: 5000,  max: 9999,  label: "5K – 10K",   prev: "500-5k", next: "10k-20k" },
   "10k-20k": { min: 10000, max: 19999, label: "10K – 20K",  prev: "5k-10k",  next: "20k-30k", premium: true },
   "20k-30k": { min: 20000, max: 29999, label: "20K – 30K",  prev: "10k-20k", next: "30k-40k", premium: true },
   "30k-40k": { min: 30000, max: 39999, label: "30K – 40K",  prev: "20k-30k", next: "40k-50k", premium: true },
@@ -34,6 +35,8 @@ const ALL_RANGES = Object.entries(RANGE_CONFIG).map(([slug, cfg]) => ({
   label: cfg.label,
   premium: cfg.premium ?? false,
 }));
+
+const IS_NANO_RANGE = new Set(["0-500"]);
 
 export default async function JukeWongRangePage({
   params,
@@ -135,15 +138,27 @@ export default async function JukeWongRangePage({
         </div>
 
         {/* Tip banner */}
-        <div className="bg-orange-500/[0.08] border border-orange-500/20 rounded-xl px-4 py-3 mb-8 flex items-start gap-3">
-          <span className="text-base leading-none mt-0.5">💡</span>
-          <p className="text-sm text-[#a0a0a0] leading-relaxed">
-            <span className="text-orange-400 font-semibold">
-              Smaller accounts = higher response rate.
-            </span>{" "}
-            Start with the 500–5K range for best results.
-          </p>
-        </div>
+        {IS_NANO_RANGE.has(range) ? (
+          <div className="bg-orange-500/[0.10] border border-orange-500/30 rounded-xl px-4 py-3 mb-8 flex items-start gap-3">
+            <span className="text-base leading-none mt-0.5">⚡</span>
+            <p className="text-sm text-[#a0a0a0] leading-relaxed">
+              <span className="text-orange-400 font-semibold">
+                Under 500 followers — these are the most reachable people in Juke Wong&apos;s network.
+              </span>{" "}
+              Expect the highest reply rates here.
+            </p>
+          </div>
+        ) : (
+          <div className="bg-orange-500/[0.08] border border-orange-500/20 rounded-xl px-4 py-3 mb-8 flex items-start gap-3">
+            <span className="text-base leading-none mt-0.5">💡</span>
+            <p className="text-sm text-[#a0a0a0] leading-relaxed">
+              <span className="text-orange-400 font-semibold">
+                Smaller accounts = higher response rate.
+              </span>{" "}
+              Start with the 500–5K range for best results.
+            </p>
+          </div>
+        )}
 
         {/* Range navigation pills */}
         <div className="flex flex-wrap gap-2 mb-10">
