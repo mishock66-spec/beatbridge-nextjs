@@ -16,6 +16,12 @@ export async function POST(req: Request) {
   );
 
   const priceToPlan: Record<string, string> = {
+    // Current price IDs
+    "price_1TIsEJFdAMtpz9xE1W9s1uZL": "pro",      // Pro monthly
+    "price_1TIsENFdAMtpz9xE8jMbm2SI": "pro",      // Pro annual
+    "price_1TIsEQFdAMtpz9xE4bpY1fSF": "premium",  // Premium monthly
+    "price_1TIsEUFdAMtpz9xEBt0FCtlc": "premium",  // Premium annual
+    // Legacy price IDs (existing subscribers)
     [process.env.STRIPE_PRICE_PRO_MONTHLY ?? ""]: "pro",
     [process.env.STRIPE_PRICE_PRO_ANNUAL ?? ""]: "pro",
     [process.env.STRIPE_PRICE_PREMIUM_MONTHLY ?? ""]: "premium",

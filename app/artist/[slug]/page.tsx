@@ -7,6 +7,7 @@ import { TelegramButton } from "@/components/TelegramButton";
 import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import { SocialLinks } from "@/components/SocialLinks";
+import AuthGateClient from "@/components/AuthGateClient";
 
 export const revalidate = 0;
 
@@ -119,6 +120,7 @@ export default async function ArtistNetwork({
   }
 
   return (
+    <AuthGateClient redirectUrl={`/artist/${slug}`}>
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-12 pb-20">
         {/* Back */}
@@ -228,5 +230,6 @@ export default async function ArtistNetwork({
         </div>
       </div>
     </div>
+    </AuthGateClient>
   );
 }

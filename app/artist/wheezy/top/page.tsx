@@ -6,6 +6,7 @@ import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
+import AuthGateClient from "@/components/AuthGateClient";
 
 export const revalidate = 0;
 
@@ -25,6 +26,7 @@ export default async function WheezyTopContactsPage() {
     .map((r) => r.username);
 
   return (
+    <AuthGateClient redirectUrl="/artist/wheezy/top">
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-12">
 
@@ -120,5 +122,6 @@ export default async function WheezyTopContactsPage() {
         </div>
       </div>
     </div>
+    </AuthGateClient>
   );
 }

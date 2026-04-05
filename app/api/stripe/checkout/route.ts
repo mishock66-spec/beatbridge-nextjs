@@ -26,7 +26,10 @@ export async function POST(req: Request) {
       line_items: [{ price: priceId, quantity: 1 }],
       ...(isLifetime
         ? {}
-        : { subscription_data: { trial_period_days: 14 } }),
+        : {
+            subscription_data: { trial_period_days: 14 },
+            payment_method_collection: "if_required",
+          }),
       success_url: `${siteUrl}/dashboard?success=true`,
       cancel_url: `${siteUrl}/pricing`,
       ...(userEmail ? { customer_email: userEmail } : {}),

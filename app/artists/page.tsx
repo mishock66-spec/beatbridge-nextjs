@@ -3,6 +3,7 @@ import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
 import { ComingSoonCard } from "@/components/ComingSoonCard";
 import ArtistProgressBar from "@/components/ArtistProgressBar";
 import { SocialLinks } from "@/components/SocialLinks";
+import ExploreNetworkButton from "@/components/ExploreNetworkButton";
 
 export const revalidate = 0;
 
@@ -147,12 +148,7 @@ function ArtistCard({
       )}
 
       {artist.free && artist.slug ? (
-        <Link
-          href={`/artist/${artist.slug}`}
-          className="block text-center text-sm font-semibold bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
-        >
-          Explore Network →
-        </Link>
+        <ExploreNetworkButton slug={artist.slug} />
       ) : (
         <div className="text-center text-sm font-medium text-[#505050] bg-white/[0.02] px-4 py-3 rounded-lg border border-white/[0.06]">
           Available with Pro

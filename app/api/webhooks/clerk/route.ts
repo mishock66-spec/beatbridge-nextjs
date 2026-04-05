@@ -4,6 +4,7 @@ import { Webhook } from "svix";
 import { headers } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { createClient } from "@supabase/supabase-js";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -40,6 +41,19 @@ export async function POST(req: NextRequest) {
 
   if (event.type === "user.created") {
     const data = event.data;
+
+    // Seed user_profiles with trial_start
+    const newUserId = data.id as string;
+    if (newUserId) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      await supabase.from("user_profiles").upsert(
+        { user_id: newUserId, trial_start: new Date().toISOString() },
+        { onConflict: "user_id" }
+      );
+    }
 
     // Extract user info
     const emailAddresses = data.email_addresses as Array<{ email_address: string }> | undefined;
