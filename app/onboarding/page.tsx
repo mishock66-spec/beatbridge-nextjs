@@ -9,6 +9,77 @@ import { supabase } from "@/lib/supabase";
 import { ACCOUNT_AGE_LIMITS, type AccountAge } from "@/lib/dmLimits";
 import AvatarUpload from "@/components/AvatarUpload";
 
+// ─── Social link helpers ───────────────────────────────────────────────────────
+
+function SocialField({
+  label, icon, value, onChange, placeholder, type,
+}: {
+  label: string;
+  icon: React.ReactNode;
+  value: string;
+  onChange: (v: string) => void;
+  placeholder: string;
+  type: "text" | "url";
+}) {
+  return (
+    <div>
+      <label className="flex items-center gap-2 text-xs uppercase tracking-[0.1em] text-[#606060] mb-1.5">
+        <span className="text-[#505050]">{icon}</span>
+        {label}
+      </label>
+      <input
+        type={type}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        autoComplete="off"
+        spellCheck={false}
+        className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 text-sm min-h-[44px]"
+      />
+    </div>
+  );
+}
+
+function InstagramIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+    </svg>
+  );
+}
+
+function BeatstarsIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm0 4.8l6 3.6v7.2l-6 3.6-6-3.6V8.4L12 4.8zm0 2.4L7.2 9.6v4.8L12 16.8l4.8-2.4V9.6L12 7.2z"/>
+    </svg>
+  );
+}
+
+function SoundCloudIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M1.175 12.225c-.015 0-.03 0-.044.003-.03-.344-.014-.71.052-1.075a4.23 4.23 0 011.482-2.61 4.232 4.232 0 012.778-1.01c.14 0 .28.007.417.022a5.91 5.91 0 011.97-2.473A5.905 5.905 0 0111.25 4.2c1.54 0 2.94.586 3.986 1.545a5.87 5.87 0 011.647 3.107 3.523 3.523 0 011.046-.158 3.537 3.537 0 013.537 3.537 3.537 3.537 0 01-3.537 3.537H1.175A1.175 1.175 0 010 14.593a1.175 1.175 0 011.175-1.175v-.193z"/>
+    </svg>
+  );
+}
+
+function YouTubeIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M23.498 6.186a3.016 3.016 0 00-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 00.502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 002.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 002.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+    </svg>
+  );
+}
+
+function SpotifyIcon() {
+  return (
+    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
+    </svg>
+  );
+}
+
 // Hardcoded for testing — will be wired to Stripe later
 const USER_PLAN: "free" | "pro" | "premium" = "pro";
 const PLAN_LIMIT: Record<"pro" | "premium", number> = { pro: 50, premium: Infinity };
@@ -179,6 +250,16 @@ export default function OnboardingPage() {
   const [error, setError] = useState("");
   const [genState, setGenState] = useState<GenState | null>(null);
 
+  // Social links
+  const [socialLinks, setSocialLinks] = useState({
+    instagram_url: "",
+    beatstars_url: "",
+    soundcloud_url: "",
+    youtube_url: "",
+    spotify_url: "",
+  });
+  const [savingSocial, setSavingSocial] = useState(false);
+
   useEffect(() => {
     if (!isLoaded) return;
     if (!isSignedIn) {
@@ -189,7 +270,7 @@ export default function OnboardingPage() {
       if (!supabase || !user) { setChecking(false); return; }
       const { data } = await supabase
         .from("user_profiles")
-        .select("id, producer_name, beat_styles, influences, goals, bio, instagram_account_age")
+        .select("id, producer_name, beat_styles, influences, goals, bio, instagram_account_age, instagram_url, beatstars_url, soundcloud_url, youtube_url, spotify_url")
         .eq("user_id", user.id)
         .single();
       if (data) {
@@ -201,6 +282,13 @@ export default function OnboardingPage() {
         if (data.instagram_account_age) {
           setInstagramAccountAge(data.instagram_account_age as AccountAge);
         }
+        setSocialLinks({
+          instagram_url:  data.instagram_url  || "",
+          beatstars_url:  data.beatstars_url  || "",
+          soundcloud_url: data.soundcloud_url || "",
+          youtube_url:    data.youtube_url    || "",
+          spotify_url:    data.spotify_url    || "",
+        });
         setIsEdit(true);
       }
       setChecking(false);
@@ -349,6 +437,31 @@ export default function OnboardingPage() {
     } catch {
       setError("Failed to save. Please try again.");
       setSaving(false);
+    }
+  }
+
+  async function handleSaveSocialLinks() {
+    if (!user || !supabase) return;
+    setSavingSocial(true);
+    const { error: err } = await supabase
+      .from("user_profiles")
+      .upsert(
+        {
+          user_id:        user.id,
+          instagram_url:  socialLinks.instagram_url.trim(),
+          beatstars_url:  socialLinks.beatstars_url.trim(),
+          soundcloud_url: socialLinks.soundcloud_url.trim(),
+          youtube_url:    socialLinks.youtube_url.trim(),
+          spotify_url:    socialLinks.spotify_url.trim(),
+          updated_at:     new Date().toISOString(),
+        },
+        { onConflict: "user_id" }
+      );
+    setSavingSocial(false);
+    if (err) {
+      toast.error("Something went wrong, please try again.");
+    } else {
+      toast.success("Social links updated ✓");
     }
   }
 
@@ -594,6 +707,80 @@ export default function OnboardingPage() {
           <GenerationReport results={genState.results} />
         )}
       </form>
+
+      {/* Social Links */}
+      <section id="social-links" className="mt-12 pt-10 border-t border-white/[0.06]">
+        <div className="mb-6">
+          <h2 className="text-xl font-light tracking-[0.02em] text-white mb-1">Your Social Links</h2>
+          <p className="text-sm text-[#606060]">
+            Update your links anytime — they&apos;re used in your AI DM generation.
+          </p>
+        </div>
+
+        <div className="flex flex-col gap-4">
+          {/* Instagram */}
+          <SocialField
+            label="Instagram"
+            icon={<InstagramIcon />}
+            value={socialLinks.instagram_url}
+            onChange={(v) => setSocialLinks((s) => ({ ...s, instagram_url: v }))}
+            placeholder="@yourusername"
+            type="text"
+          />
+          {/* Beatstars */}
+          <SocialField
+            label="Beatstars"
+            icon={<BeatstarsIcon />}
+            value={socialLinks.beatstars_url}
+            onChange={(v) => setSocialLinks((s) => ({ ...s, beatstars_url: v }))}
+            placeholder="https://beatstars.com/yourname"
+            type="url"
+          />
+          {/* SoundCloud */}
+          <SocialField
+            label="SoundCloud"
+            icon={<SoundCloudIcon />}
+            value={socialLinks.soundcloud_url}
+            onChange={(v) => setSocialLinks((s) => ({ ...s, soundcloud_url: v }))}
+            placeholder="https://soundcloud.com/yourname"
+            type="url"
+          />
+          {/* YouTube */}
+          <SocialField
+            label="YouTube"
+            icon={<YouTubeIcon />}
+            value={socialLinks.youtube_url}
+            onChange={(v) => setSocialLinks((s) => ({ ...s, youtube_url: v }))}
+            placeholder="https://youtube.com/@yourname"
+            type="url"
+          />
+          {/* Spotify */}
+          <SocialField
+            label="Spotify"
+            icon={<SpotifyIcon />}
+            value={socialLinks.spotify_url}
+            onChange={(v) => setSocialLinks((s) => ({ ...s, spotify_url: v }))}
+            placeholder="https://open.spotify.com/artist/..."
+            type="url"
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={handleSaveSocialLinks}
+          disabled={savingSocial}
+          className="mt-6 w-full py-3 rounded-lg font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90 hover:scale-[1.02] transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:scale-100 active:scale-95 min-h-[44px] text-sm"
+        >
+          {savingSocial ? (
+            <span className="flex items-center justify-center gap-2">
+              <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin inline-block" />
+              Saving...
+            </span>
+          ) : (
+            "Save changes"
+          )}
+        </button>
+      </section>
     </main>
   );
 }
