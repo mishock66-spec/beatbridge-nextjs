@@ -4,6 +4,7 @@ import { ComingSoonCard } from "@/components/ComingSoonCard";
 import ArtistProgressBar from "@/components/ArtistProgressBar";
 import { SocialLinks } from "@/components/SocialLinks";
 import ExploreNetworkButton from "@/components/ExploreNetworkButton";
+import { LATEST_DROP } from "@/lib/announcements";
 
 export const revalidate = 0;
 
@@ -75,6 +76,18 @@ const ARTISTS = [
 
 type Artist = (typeof ARTISTS)[0];
 
+function LiveDot() {
+  return (
+    <span className="relative inline-flex items-center gap-1.5">
+      <span className="relative flex h-2 w-2">
+        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-60" />
+        <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+      </span>
+      <span className="text-[10px] font-bold text-green-400 uppercase tracking-[0.08em]">Live</span>
+    </span>
+  );
+}
+
 function ArtistCard({
   artist,
   connections,
@@ -82,6 +95,8 @@ function ArtistCard({
   artist: Artist;
   connections: number;
 }) {
+  const isLatestDrop = artist.slug === LATEST_DROP.slug && LATEST_DROP.active;
+
   return (
     <div
       className={`bg-white/[0.025] backdrop-blur-md border rounded-2xl p-7 relative flex flex-col transition-all duration-200 scroll-animate ${
@@ -91,6 +106,13 @@ function ArtistCard({
       }`}
       style={{ willChange: "transform" }}
     >
+      {/* LIVE badge for latest drop */}
+      {isLatestDrop && (
+        <div className="absolute top-5 right-5">
+          <LiveDot />
+        </div>
+      )}
+
       {!artist.free && (
         <div className="absolute top-5 right-5 bg-orange-500/15 text-orange-500 text-xs font-bold px-3 py-1 rounded-full border border-orange-500/30">
           PRO
@@ -197,7 +219,7 @@ export default async function Artists() {
             </span>{" "}
             Instagram connections mapped across{" "}
             <span className="text-orange-500 font-medium">4</span> artist
-            networks — and growing.
+            networks unlocked — and growing.
           </p>
         </div>
 
@@ -210,6 +232,42 @@ export default async function Artists() {
               connections={countMap.get(artist.name) ?? 0}
             />
           ))}
+        </div>
+
+        {/* NEXT DROP — community vote teaser */}
+        <div className="mt-10 mb-4">
+          <div className="inline-flex items-center gap-2 text-[10px] font-bold text-[#505050] uppercase tracking-[0.12em] mb-4">
+            <span className="w-4 h-px bg-white/10" />
+            Next drop — you decide
+            <span className="w-4 h-px bg-white/10" />
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {[
+              { name: "Metro Boomin", genre: "Atlanta · Trap" },
+              { name: "Pi'erre Bourne", genre: "Atlanta · SoundCloud Rap" },
+              { name: "Tay Keith", genre: "Memphis · Trap" },
+            ].map((c) => (
+              <div
+                key={c.name}
+                className="bg-white/[0.02] border border-dashed border-white/[0.08] rounded-2xl p-5 flex flex-col items-center text-center gap-3 relative overflow-hidden"
+              >
+                {/* Blurred avatar placeholder */}
+                <div className="w-12 h-12 rounded-full bg-white/[0.04] border border-white/[0.08] flex items-center justify-center text-xl select-none blur-[2px]">
+                  🔒
+                </div>
+                <div>
+                  <p className="font-medium text-sm text-[#505050]">{c.name}</p>
+                  <p className="text-xs text-[#404040]">{c.genre}</p>
+                </div>
+                <Link
+                  href="/vote"
+                  className="text-xs font-semibold text-orange-500/80 hover:text-orange-400 transition-colors border border-orange-500/20 hover:border-orange-500/40 px-3 py-1.5 rounded-lg"
+                >
+                  Vote to unlock →
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Coming Soon Section */}

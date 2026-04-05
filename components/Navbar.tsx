@@ -134,6 +134,17 @@ export default function Navbar() {
           </div>
 
           <Link
+            href="/vote"
+            className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
+              pathname === "/vote"
+                ? "text-orange-500"
+                : "text-[#a0a0a0] hover:text-white"
+            }`}
+          >
+            Vote
+          </Link>
+
+          <Link
             href="/leaderboard"
             className={`hidden sm:block text-sm font-medium tracking-wide transition-colors ${
               pathname === "/leaderboard"

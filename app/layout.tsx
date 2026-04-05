@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Navbar from "@/components/Navbar";
+import NewDropBanner from "@/components/NewDropBanner";
 import ScrollAnimations from "@/components/ScrollAnimations";
 import ServiceWorkerRegistration from "@/components/ServiceWorkerRegistration";
 import ToastProvider from "@/components/ToastProvider";
@@ -109,6 +110,7 @@ export default function RootLayout({
         <body className="bg-[#080808] text-white antialiased">
           <ServiceWorkerRegistration />
           <ToastProvider />
+          <NewDropBanner />
           <Navbar />
           <ScrollAnimations />
           {children}
