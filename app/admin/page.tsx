@@ -1,11 +1,7 @@
-import { redirect } from "next/navigation";
-import { auth, currentUser } from "@clerk/nextjs/server";
 import { createClient } from "@supabase/supabase-js";
 import AdminClient from "@/components/AdminClient";
 
 export const revalidate = 0;
-
-const ADMIN_EMAIL = "mishock66@gmail.com";
 
 async function getAdminData() {
   const supabase = createClient(
@@ -27,38 +23,10 @@ async function getAdminData() {
 }
 
 export default async function AdminPage() {
-  // ── Server-side auth guard ─────────────────────────────────────────────────
-  let isAdmin = false;
-  let adminUserId = "";
-
-  try {
-    const { userId } = await auth();
-    if (userId) {
-      const user = await currentUser();
-      const email = user?.emailAddresses[0]?.emailAddress ?? "";
-      const envUserId = process.env.ADMIN_CLERK_USER_ID;
-
-      const emailMatch = email === ADMIN_EMAIL;
-      const idMatch = !envUserId || userId === envUserId;
-
-      if (emailMatch && idMatch) {
-        isAdmin = true;
-        adminUserId = userId;
-      }
-    }
-  } catch {
-    // auth() throws without middleware — silently deny
-  }
-
-  if (!isAdmin) {
-    redirect("/dashboard");
-  }
-
   const { banner, voteCandidates, siteTexts } = await getAdminData();
 
   return (
     <AdminClient
-      adminUserId={adminUserId}
       initialBanner={banner}
       initialVoteCandidates={voteCandidates}
       initialSiteTexts={siteTexts}

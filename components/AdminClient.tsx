@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -92,18 +94,31 @@ const textareaCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-l
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+const ADMIN_EMAIL = "mishock66@gmail.com";
+
 export default function AdminClient({
-  adminUserId,
   initialBanner,
   initialVoteCandidates,
   initialSiteTexts,
 }: {
-  adminUserId: string;
   initialBanner: BannerConfig | null;
   initialVoteCandidates: VoteCandidate[];
   initialSiteTexts: Partial<SiteTexts>;
 }) {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
   const [section, setSection] = useState<Section>("stats");
+
+  // ── Client-side admin guard ────────────────────────────────────────────────
+  useEffect(() => {
+    if (!isLoaded) return;
+    const email = user?.primaryEmailAddress?.emailAddress ?? "";
+    if (email !== ADMIN_EMAIL) {
+      router.replace("/dashboard");
+    }
+  }, [isLoaded, user, router]);
+
+  const adminUserId = user?.id ?? "";
 
   // ── Banner ────────────────────────────────────────────────────────────────
   const [banner, setBanner] = useState<BannerConfig>(
@@ -306,6 +321,11 @@ export default function AdminClient({
     { id: "vote",    label: "Vote",    icon: "🗳️"  },
     { id: "texts",   label: "Texts",   icon: "✏️"  },
   ];
+
+  // Show nothing while Clerk initialises or if not admin
+  if (!isLoaded || user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
+    return <div className="min-h-screen bg-[#080808]" />;
+  }
 
   return (
     <div className="min-h-screen bg-[#080808]">
