@@ -88,7 +88,7 @@ type Stats = {
   dmsSentTotal: number;
 };
 
-type Section = "stats" | "users" | "banner" | "artists" | "contacts" | "templates" | "vote" | "texts";
+type Section = "stats" | "users" | "messages" | "banner" | "artists" | "contacts" | "templates" | "vote" | "texts";
 
 const DEFAULT_ARTISTS: ArtistConfig[] = [
   { slug: "currensy",    name: "Curren$y",    description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
@@ -385,6 +385,15 @@ export default function AdminClient({
   const [userSearch, setUserSearch] = useState("");
   const [clerkFailed, setClerkFailed] = useState(false);
 
+  // ── Messages ──────────────────────────────────────────────────────────────
+  const [msgForm, setMsgForm] = useState({ title: "", body: "", type: "update", recipientUserId: "" });
+  const [sendingMsg, setSendingMsg] = useState(false);
+  const [msgHistory, setMsgHistory] = useState<Array<{
+    batchId: string; title: string; type: string;
+    isBroadcast: boolean; createdAt: string; count: number;
+  }>>([]);
+  const [loadingMsgHistory, setLoadingMsgHistory] = useState(false);
+
   // ── Contact search ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ContactResult[]>([]);
@@ -445,6 +454,54 @@ export default function AdminClient({
   useEffect(() => {
     if (section === "users") fetchUsers();
   }, [section, fetchUsers]);
+
+  const fetchMsgHistory = useCallback(async () => {
+    setLoadingMsgHistory(true);
+    const res = await fetch("/api/admin/messages", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: adminUserId }),
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setMsgHistory(data.history ?? []);
+    }
+    setLoadingMsgHistory(false);
+  }, [adminUserId]);
+
+  useEffect(() => {
+    if (section === "messages") fetchMsgHistory();
+  }, [section, fetchMsgHistory]);
+
+  async function handleSendMessage() {
+    if (!msgForm.title || !msgForm.body) return;
+    setSendingMsg(true);
+    try {
+      const res = await fetch("/api/admin/send-message", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: adminUserId,
+          title: msgForm.title,
+          body: msgForm.body,
+          type: msgForm.type,
+          recipientUserId: msgForm.recipientUserId || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Send failed");
+      const target = msgForm.recipientUserId
+        ? `1 user`
+        : `${data.recipientCount} users`;
+      toast.success(`Message sent to ${target} ✓ (${data.emailsSent} emails)`);
+      setMsgForm({ title: "", body: "", type: "update", recipientUserId: "" });
+      fetchMsgHistory();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Send failed");
+    } finally {
+      setSendingMsg(false);
+    }
+  }
 
   // ── Fetch Airtable contact counts ──────────────────────────────────────────
   const fetchContactCounts = useCallback(async () => {
@@ -689,6 +746,7 @@ export default function AdminClient({
   const navItems: { id: Section; label: string; icon: string }[] = [
     { id: "stats",     label: "Stats",     icon: "📊" },
     { id: "users",     label: "Users",     icon: "👥" },
+    { id: "messages",  label: "Messages",  icon: "💬" },
     { id: "banner",    label: "Banner",    icon: "📢" },
     { id: "artists",   label: "Artists",   icon: "🎤" },
     { id: "contacts",  label: "Contacts",  icon: "🔍" },
@@ -778,6 +836,134 @@ export default function AdminClient({
               adminUserId={adminUserId}
               clerkFailed={clerkFailed}
             />
+          )}
+
+          {/* ── MESSAGES ──────────────────────────────────────────────────── */}
+          {section === "messages" && (
+            <div>
+              <h2 className="text-xl font-light tracking-[0.02em] mb-6">Send Message</h2>
+
+              {/* Compose form */}
+              <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-6">
+                <div className="flex flex-col gap-4">
+                  <Field label="Title">
+                    <input
+                      className={inputCls}
+                      placeholder="e.g. New artist network just dropped 🔓"
+                      value={msgForm.title}
+                      onChange={(e) => setMsgForm((f) => ({ ...f, title: e.target.value }))}
+                    />
+                  </Field>
+                  <Field label="Body (supports **bold** and *italic*)">
+                    <textarea
+                      className={textareaCls}
+                      rows={5}
+                      placeholder="Write your message here..."
+                      value={msgForm.body}
+                      onChange={(e) => setMsgForm((f) => ({ ...f, body: e.target.value }))}
+                    />
+                  </Field>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Type">
+                      <select
+                        className={inputCls}
+                        value={msgForm.type}
+                        onChange={(e) => setMsgForm((f) => ({ ...f, type: e.target.value }))}
+                      >
+                        <option value="announcement">Announcement</option>
+                        <option value="update">Update</option>
+                        <option value="tip">Tip</option>
+                        <option value="personal">Personal</option>
+                      </select>
+                    </Field>
+                    <Field label="Recipient">
+                      <select
+                        className={inputCls}
+                        value={msgForm.recipientUserId}
+                        onChange={(e) => setMsgForm((f) => ({ ...f, recipientUserId: e.target.value }))}
+                      >
+                        <option value="">All users (broadcast)</option>
+                        {users.map((u) => (
+                          <option key={u.id} value={u.id}>
+                            {u.name || u.id} {u.email !== "—" ? `(${u.email})` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+
+                  {/* Preview */}
+                  {(msgForm.title || msgForm.body) && (
+                    <div className="border border-white/[0.06] rounded-xl p-4 bg-[#0d0d0d]">
+                      <p className="text-xs text-[#505050] uppercase tracking-[0.08em] mb-3">Preview</p>
+                      {msgForm.title && (
+                        <p className="text-sm font-semibold text-white mb-2">{msgForm.title}</p>
+                      )}
+                      {msgForm.body && (
+                        <p className="text-xs text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{msgForm.body}</p>
+                      )}
+                      <div className="mt-3 pt-3 border-t border-white/[0.06]">
+                        <span className="text-xs text-orange-400">View in inbox →</span>
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <p className="text-xs text-[#505050]">
+                      {msgForm.recipientUserId
+                        ? "Sends to 1 user + email notification"
+                        : `Sends to all ${users.length} users + email notifications`}
+                    </p>
+                    <SaveButton
+                      onClick={handleSendMessage}
+                      saving={sendingMsg}
+                      label={sendingMsg ? "Sending…" : "Send Message"}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* History */}
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-semibold text-white">Sent history</h3>
+                <button
+                  onClick={fetchMsgHistory}
+                  disabled={loadingMsgHistory}
+                  className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
+                >
+                  {loadingMsgHistory ? "Loading…" : "↺ Refresh"}
+                </button>
+              </div>
+
+              {msgHistory.length === 0 ? (
+                <p className="text-[#505050] text-sm">No messages sent yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {msgHistory.map((h) => {
+                    const typeColors: Record<string, string> = {
+                      announcement: "text-orange-400 bg-orange-500/10",
+                      update:       "text-blue-400 bg-blue-500/10",
+                      tip:          "text-green-400 bg-green-500/10",
+                      personal:     "text-purple-400 bg-purple-500/10",
+                    };
+                    return (
+                      <div key={h.batchId} className="flex items-center gap-3 bg-white/[0.02] border border-white/[0.06] rounded-xl px-4 py-3">
+                        <span className={`text-xs font-medium px-2 py-0.5 rounded-full flex-shrink-0 ${typeColors[h.type] ?? "text-[#707070] bg-white/[0.06]"}`}>
+                          {h.type}
+                        </span>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white truncate">{h.title}</p>
+                          <p className="text-xs text-[#505050]">
+                            {h.isBroadcast ? `Sent to all (${h.count})` : "Personal"} ·{" "}
+                            {new Date(h.createdAt).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                          </p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           )}
 
           {/* ── BANNER ────────────────────────────────────────────────────── */}

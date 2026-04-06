@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useUser, useClerk, SignInButton } from "@clerk/nextjs";
 import { useState, useEffect, useRef } from "react";
 import Avatar from "@/components/Avatar";
+import NotificationBell from "@/components/NotificationBell";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
@@ -237,6 +238,7 @@ export default function Navbar() {
               >
                 Dashboard
               </Link>
+              <NotificationBell userId={user!.id} />
               <NavAvatar
                 userId={user!.id}
                 username={user!.firstName ?? user!.username ?? user!.emailAddresses[0]?.emailAddress?.split("@")[0] ?? "U"}

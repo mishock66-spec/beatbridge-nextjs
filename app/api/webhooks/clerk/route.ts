@@ -58,7 +58,7 @@ export async function POST(req: NextRequest) {
       [firstName, lastName].filter(Boolean).join(" ").trim() ||
       (userEmail !== "Unknown" ? userEmail.split("@")[0] : "");
 
-    // Create Supabase profile immediately on sign-up
+    // Create Supabase profile + welcome message immediately on sign-up
     const newUserId = data.id as string;
     if (newUserId) {
       const supabase = createClient(
@@ -78,6 +78,20 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "user_id" }
       );
+
+      // Send welcome inbox message
+      const welcomeTitle = "Welcome to BeatBridge 🎹";
+      const welcomeBody = `Hey${derivedName ? ` ${derivedName}` : ""}! Welcome to BeatBridge — your 14-day trial has started.\n\nHere's how to get the most out of it:\n\n**1. Explore a network** — Go to /artists and pick an artist. Browse their producers, engineers, and managers.\n\n**2. Use the DM templates** — Every contact has a ready-to-send ice-breaker. Fill in your name and listening link once and all templates update automatically.\n\n**3. Track your outreach** — Mark contacts as "DM sent", "Replied", or "Not interested" to stay organized.\n\nIf you have questions, reply to this message or reach out at contact@beatbridge.live.\n\nLet's get you some placements. 🔥`;
+
+      await supabase.from("messages").insert({
+        batch_id: crypto.randomUUID(),
+        user_id: newUserId,
+        title: welcomeTitle,
+        body: welcomeBody,
+        type: "announcement",
+        read: false,
+        is_broadcast: false,
+      });
     }
     const fullName = derivedName || "No name provided";
 
