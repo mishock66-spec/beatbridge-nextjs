@@ -62,7 +62,7 @@ const SUIVIPAR_NORMALIZE: Record<string, string> = {
   "CurrenSy": "Curren$y",
 };
 
-const ARTIST_ORDER = ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside"];
+const ARTIST_ORDER = ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin"];
 
 export async function fetchAllAirtableGrouped(): Promise<
   { artistName: string; records: AirtableRecord[] }[]

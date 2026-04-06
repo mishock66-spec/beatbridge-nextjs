@@ -56,6 +56,7 @@
 - Wheezy: slug=wheezy, Airtable filter="Wheezy", Instagram=wheezy, Twitter=wheezy0uttahere, photo=/images/wheezy.jpg
 - Juke Wong: slug=juke-wong, Airtable filter="Juke Wong", Instagram=jukewong, Twitter=jukewong, photo=/images/juke-wong.jpg
 - Southside: slug=southside, Airtable filter="Southside", Instagram=808mafiaboss, Twitter=808mafiaboss, photo=/images/southside.jpg
+- Metro Boomin: slug=metro-boomin, Airtable filter="Metro Boomin", Instagram=metroboomin, Twitter=MetroBoomin, photo=/images/metro-boomin.jpg
 
 ## ABSOLUTE RULES — Adding a new artist
 1. ALWAYS save artist photo to /public/artists/[slug].jpg — no placeholder allowed. NEVER use unavatar.io — it returns generic 1.5KB placeholders at build time. To find the real photo URL: search the web for "[artist name] producer photo site:studiotalksevents.com OR site:framerusercontent.com" to get a direct image URL, then download with `curl -L "[url]" -o public/artists/[slug].jpg`. Verify the file is >10KB before committing. Reference path in code: `/images/[slug].jpg` (in public/images/ — NOT public/artists/ which conflicts with the /artists Next.js route). All photo references across artists/page, page.tsx, dashboard/page, and dedicated artist pages must point to this path.

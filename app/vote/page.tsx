@@ -5,7 +5,6 @@ import { auth } from "@clerk/nextjs/server";
 export const revalidate = 0;
 
 const CANDIDATE_SLUGS = [
-  "metro-boomin",
   "pierre-bourne",
   "southside",
   "murda-beatz",

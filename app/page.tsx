@@ -73,6 +73,15 @@ const PREVIEW_ARTISTS = [
     igHandle: "808mafiaboss",
     photo: "/images/southside.jpg",
   },
+  {
+    name: "Metro Boomin",
+    subtitle: "Boominati · Trap",
+    slug: "metro-boomin",
+    suiviPar: "Metro Boomin" as string | string[],
+    free: true,
+    igHandle: "metroboomin",
+    photo: "/images/metro-boomin.jpg",
+  },
 ];
 
 export default async function Home() {

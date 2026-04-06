@@ -7,13 +7,6 @@ import toast from "react-hot-toast";
 
 const CANDIDATES = [
   {
-    slug: "metro-boomin",
-    name: "Metro Boomin",
-    label: "Young Metro",
-    genre: "Atlanta · Trap",
-    photo: "https://unavatar.io/instagram/metrothicc",
-  },
-  {
     slug: "pierre-bourne",
     name: "Pi'erre Bourne",
     label: "Pi'erre Bourne",

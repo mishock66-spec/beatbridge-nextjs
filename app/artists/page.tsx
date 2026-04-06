@@ -89,6 +89,22 @@ const ARTISTS = [
       twitter:   "https://x.com/808mafiaboss",
     },
   },
+  {
+    name: "Metro Boomin",
+    subtitle: "Atlanta · Boominati Worldwide · Trap",
+    slug: "metro-boomin",
+    suiviPar: "Metro Boomin" as string | string[],
+    free: true,
+    genres: ["Hip-Hop", "Atlanta", "Trap"],
+    igHandle: "metroboomin",
+    photo: "/images/metro-boomin.jpg",
+    description:
+      "Founder of Boominati Worldwide. The architect behind 21 Savage, Future, Drake, Travis Scott and Gunna's biggest records.",
+    socials: {
+      instagram: "https://www.instagram.com/metroboomin/",
+      twitter:   "https://x.com/MetroBoomin",
+    },
+  },
 ];
 
 type Artist = (typeof ARTISTS)[0];
