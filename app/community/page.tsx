@@ -65,7 +65,6 @@ export default function CommunityPage() {
       const { data, error } = await supabase
         .from("user_profiles")
         .select("user_id, producer_name, instagram_url, beatstars_url, soundcloud_url")
-        .eq("onboarding_completed", true)
         .order("created_at", { ascending: false });
 
       if (error) console.error(error);
