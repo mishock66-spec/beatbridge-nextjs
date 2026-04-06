@@ -11,7 +11,7 @@ import AuthGateClient from "@/components/AuthGateClient";
 export const revalidate = 0;
 
 const TOP_CAP = 50;
-const FOLLOWER_CAP = 10_000; // Juke Wong ~9.2K followers — cap at 10K
+const FOLLOWER_CAP = 50_000; // Curren$y ~500K — cap at 50K
 
 function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
   const capped = all.filter((r) => r.followers < FOLLOWER_CAP);
@@ -47,12 +47,13 @@ function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
   return [...primary, ...secondary];
 }
 
-export default async function JukeWongTopContactsPage() {
+export default async function CurrensyTopContactsPage() {
   let records: AirtableRecord[] = [];
   let error: string | null = null;
 
   try {
-    const all = await fetchAirtableRecords("Juke Wong");
+    // Curren$y has two "Suivi par" values in Airtable
+    const all = await fetchAirtableRecords(["Curren$y", "CurrenSy"]);
     records = selectTopContacts(all);
   } catch (err) {
     error = err instanceof Error ? err.message : "Unknown error";
@@ -63,7 +64,7 @@ export default async function JukeWongTopContactsPage() {
     .map((r) => r.username);
 
   return (
-    <AuthGateClient redirectUrl="/artist/juke-wong/top">
+    <AuthGateClient redirectUrl="/artist/currensy/top">
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-12">
 
@@ -73,8 +74,8 @@ export default async function JukeWongTopContactsPage() {
             All Artists
           </Link>
           <span className="text-gray-600">›</span>
-          <Link href="/artist/juke-wong" className="text-gray-500 hover:text-orange-500 transition-colors">
-            Juke Wong
+          <Link href="/artist/currensy" className="text-gray-500 hover:text-orange-500 transition-colors">
+            Curren$y
           </Link>
           <span className="text-gray-600">›</span>
           <span className="text-[#a0a0a0]">Top Contacts</span>
@@ -84,15 +85,11 @@ export default async function JukeWongTopContactsPage() {
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-8">
           <div className="w-20 h-20 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/images/juke-wong.jpg"
-              alt="Juke Wong"
-              className="w-full h-full object-cover"
-            />
+            <img src="/images/currensy.png" alt="Curren$y" className="w-full h-full object-cover" />
           </div>
           <div className="flex-1">
             <p className="text-[#606060] text-xs uppercase tracking-[0.1em] mb-1">
-              Juke Wong · Curated List
+              Curren$y · Curated List
             </p>
             <h1 className="text-3xl sm:text-4xl font-light tracking-[0.02em] mb-1">
               Top{" "}
@@ -101,7 +98,7 @@ export default async function JukeWongTopContactsPage() {
               </span>
             </h1>
             <p className="text-[#a0a0a0] text-sm">
-              The {records.length} highest-value contacts in Juke Wong&apos;s network — under 10K followers, producers, engineers, managers first
+              The {records.length} highest-value contacts in Curren$y&apos;s network — under 50K followers, producers, engineers, managers first
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
@@ -117,7 +114,7 @@ export default async function JukeWongTopContactsPage() {
             <span className="text-orange-400 font-semibold">
               Producers, engineers, and managers first.
             </span>{" "}
-            All under 10K followers — capped so you&apos;re DMing people who actually reply. Sorted by reach, max {TOP_CAP}.
+            All under 50K followers — capped so you&apos;re DMing people who actually reply. Sorted by reach, max {TOP_CAP}.
           </p>
         </div>
 
@@ -125,23 +122,20 @@ export default async function JukeWongTopContactsPage() {
         <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
-        {/* Connection grid */}
         <ArtistNetworkClient
           records={records}
           loading={false}
           error={error}
           dmPriorityOrder={dmPriorityOrder}
-          artistSlug="juke-wong"
+          artistSlug="currensy"
         />
 
-        {/* Back to Juke Wong */}
         <div className="mt-12 flex justify-center border-t border-[#1f1f1f] pt-8">
-          <Link href="/artist/juke-wong" className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
-            ← Back to Juke Wong
+          <Link href="/artist/currensy" className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
+            ← Back to Curren$y
           </Link>
         </div>
 
-        {/* Telegram */}
         <div className="mt-10 border-t border-[#1f1f1f] pt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-400 text-sm">Got a reply? Share it with the community</p>
           <TelegramButton label="Join Telegram →" />

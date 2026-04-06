@@ -221,6 +221,23 @@ export default async function ArtistNetwork({
           </div>
         )}
 
+        {/* Top Contacts — Curren$y and Harry Fraud */}
+        {(slug === "currensy" || slug === "harry-fraud") && (
+          <div className="mt-16 border-t border-[#1f1f1f] pt-10">
+            <div className="mb-4">
+              <Link
+                href={`/artist/${slug}/top`}
+                className="inline-flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200"
+              >
+                ★ Top Contacts — Curated DM List
+              </Link>
+              <p className="text-xs text-[#505050] mt-2">
+                High-value contacts with ready-to-send DM templates
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Telegram community banner */}
         <div className="mt-16 border-t border-[#1f1f1f] pt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-400 text-sm">

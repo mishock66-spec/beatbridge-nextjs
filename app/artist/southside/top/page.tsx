@@ -11,28 +11,33 @@ import AuthGateClient from "@/components/AuthGateClient";
 export const revalidate = 0;
 
 const TOP_CAP = 50;
+const FOLLOWER_CAP = 50_000; // Southside ~2M — cap at 50K
 
 function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
-  // Tier 1: Producer / Sound Engineer / Manager with a template, sorted followers DESC
-  const primary = all
+  const capped = all.filter((r) => r.followers < FOLLOWER_CAP);
+
+  // Tier 1: Producer / Sound Engineer / Manager — with bio + template, followers DESC
+  const primary = capped
     .filter(
       (r) =>
         (r.profileType === "Producer" ||
           r.profileType === "Sound Engineer" ||
           r.profileType === "Manager") &&
+        r.description.trim() !== "" &&
         r.template.trim() !== ""
     )
     .sort((a, b) => b.followers - a.followers);
 
   if (primary.length >= TOP_CAP) return primary.slice(0, TOP_CAP);
 
-  // Tier 2: Artist/Rapper with a template
+  // Tier 2: Artist/Rapper — with bio + template
   const needed = TOP_CAP - primary.length;
   const primaryIds = new Set(primary.map((r) => r.id));
-  const secondary = all
+  const secondary = capped
     .filter(
       (r) =>
         r.profileType === "Artist/Rapper" &&
+        r.description.trim() !== "" &&
         r.template.trim() !== "" &&
         !primaryIds.has(r.id)
     )
@@ -41,10 +46,9 @@ function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
 
   const combined = [...primary, ...secondary];
 
-  // Tier 3 fallback: if template data hasn't been generated yet, show all contacts
-  // sorted by followers DESC so the page is never empty
+  // Tier 3 fallback: process script not yet run — show all capped contacts by followers DESC
   if (combined.length === 0) {
-    return [...all].sort((a, b) => b.followers - a.followers).slice(0, TOP_CAP);
+    return [...capped].sort((a, b) => b.followers - a.followers).slice(0, TOP_CAP);
   }
 
   return combined;
@@ -100,7 +104,7 @@ export default async function SouthsideTopContactsPage() {
               </span>
             </h1>
             <p className="text-[#a0a0a0] text-sm">
-              The {records.length} highest-value contacts in Southside&apos;s network — producers, engineers, managers with ready-to-send DM templates
+              The {records.length} highest-value contacts in Southside&apos;s network — under 50K followers, producers, engineers, managers first
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
@@ -116,7 +120,7 @@ export default async function SouthsideTopContactsPage() {
             <span className="text-orange-400 font-semibold">
               Producers, engineers, and managers first.
             </span>{" "}
-            These are the contacts most likely to move the needle — sorted by reach, capped at {TOP_CAP}.
+            All under 50K followers — capped so you&apos;re DMing people who actually reply. Sorted by reach, max {TOP_CAP}.
           </p>
         </div>
 
