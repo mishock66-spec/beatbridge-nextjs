@@ -80,6 +80,7 @@ export default function ArtistNetworkClient({
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [listeningLink, setListeningLink] = useState("");
+  const [producerName, setProducerName] = useState("");
 
   // Bulk fetch: dm_status map + today's DM count + account age — one round-trip
   type StatusEntry = { status: ContactStatus; ice_breaker?: string };
@@ -142,6 +143,37 @@ export default function ArtistNetworkClient({
       .catch(() => { setStatusMap({}); })
       .finally(() => setDataLoaded(true));
   }, [isLoaded, isSignedIn, user, artistSlug]);
+
+  // Producer name — load from localStorage first, then pre-fill from Supabase username if empty
+  useEffect(() => {
+    const stored = typeof window !== "undefined" ? localStorage.getItem("beatbridge_producer_name") : null;
+    if (stored) {
+      setProducerName(stored);
+      return;
+    }
+    if (!isLoaded || !isSignedIn || !user || !supabase) return;
+    supabase
+      .from("user_profiles")
+      .select("username")
+      .eq("user_id", user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.username && !localStorage.getItem("beatbridge_producer_name")) {
+          setProducerName(data.username);
+        }
+      });
+  }, [isLoaded, isSignedIn, user]);
+
+  function handleProducerNameChange(val: string) {
+    setProducerName(val);
+    if (typeof window !== "undefined") {
+      if (val) {
+        localStorage.setItem("beatbridge_producer_name", val);
+      } else {
+        localStorage.removeItem("beatbridge_producer_name");
+      }
+    }
+  }
 
   // Prop-based callback — no window events needed
   const handleCardStatusChange = useCallback(
@@ -209,23 +241,42 @@ export default function ArtistNetworkClient({
 
   return (
     <>
-      {/* Listening Link Input */}
-      <div className="mb-6">
-        <label className="block text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-2">
-          Your Listening Link
-        </label>
-        <input
-          type="url"
-          value={listeningLink}
-          onChange={(e) => setListeningLink(e.target.value)}
-          placeholder="Paste your SoundCloud, YouTube or BeatStars link..."
-          className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors"
-        />
-        {listeningLink && (
-          <p className="text-xs text-orange-400/70 mt-1.5">
-            ✓ [YOUR LINK] replaced in all DM templates
-          </p>
-        )}
+      {/* Producer Name + Listening Link inputs */}
+      <div className="mb-6 flex flex-col sm:flex-row gap-3">
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-2">
+            Your Name
+          </label>
+          <input
+            type="text"
+            value={producerName}
+            onChange={(e) => handleProducerNameChange(e.target.value)}
+            placeholder="Your producer name (e.g. Metro Boomin)"
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors min-h-[44px]"
+          />
+          {producerName && (
+            <p className="text-xs text-orange-400/70 mt-1.5">
+              ✓ [BEATMAKER_NAME] replaced with &quot;{producerName}&quot;
+            </p>
+          )}
+        </div>
+        <div className="flex-1">
+          <label className="block text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-2">
+            Your Listening Link
+          </label>
+          <input
+            type="url"
+            value={listeningLink}
+            onChange={(e) => setListeningLink(e.target.value)}
+            placeholder="Paste your SoundCloud, YouTube or BeatStars link..."
+            className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors min-h-[44px]"
+          />
+          {listeningLink && (
+            <p className="text-xs text-orange-400/70 mt-1.5">
+              ✓ [YOUR LINK] replaced in all DM templates
+            </p>
+          )}
+        </div>
       </div>
 
       {/* Filters + Search */}
@@ -320,6 +371,7 @@ export default function ArtistNetworkClient({
                   <ConnectionCard
                     record={record}
                     listeningLink={listeningLink}
+                    producerName={producerName}
                     dmPriority={priorityMap.get(normHandle(record.username))}
                     artistSlug={artistSlug}
                     artistName={artistName}

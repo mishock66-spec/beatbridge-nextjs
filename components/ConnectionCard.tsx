@@ -247,6 +247,7 @@ function StatusPill({
 export default function ConnectionCard({
   record,
   listeningLink,
+  producerName = "",
   dmPriority,
   artistSlug,
   artistName,
@@ -258,6 +259,7 @@ export default function ConnectionCard({
 }: {
   record: AirtableRecord;
   listeningLink: string;
+  producerName?: string;
   dmPriority?: number;
   artistSlug?: string;
   artistName?: string;
@@ -375,16 +377,18 @@ export default function ConnectionCard({
   const activeFollowUp = customFollowUp ?? record.followUp;
 
   const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
+  const BEATMAKER_PLACEHOLDER_RE = /\[BEATMAKER_NAME\]/g;
 
-  const resolvedTemplate =
-    listeningLink && activeTemplate
-      ? activeTemplate.replace(LINK_PLACEHOLDER_RE, listeningLink)
-      : activeTemplate;
+  function applyPlaceholders(text: string | null | undefined): string | undefined {
+    if (!text) return text ?? undefined;
+    let result = text;
+    if (producerName) result = result.replace(BEATMAKER_PLACEHOLDER_RE, producerName);
+    if (listeningLink) result = result.replace(LINK_PLACEHOLDER_RE, listeningLink);
+    return result;
+  }
 
-  const resolvedFollowUp =
-    listeningLink && activeFollowUp
-      ? activeFollowUp.replace(LINK_PLACEHOLDER_RE, listeningLink)
-      : activeFollowUp;
+  const resolvedTemplate = applyPlaceholders(activeTemplate);
+  const resolvedFollowUp = applyPlaceholders(activeFollowUp);
 
   function handleCopyDM() {
     if (!isSignedIn) {
@@ -467,18 +471,34 @@ export default function ConnectionCard({
   const MARK_LINK = `<mark style="background-color:rgba(249,115,22,0.15);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
   const MARK_PLACEHOLDER = `<mark style="background-color:rgba(249,115,22,0.3);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
 
-  function highlight(resolved: string) {
+  function highlight(resolved: string | undefined) {
     if (!resolved) return "";
+    let text = resolved;
+    // Highlight the filled-in link
     if (listeningLink) {
-      return resolved.replace(
+      text = text.replace(
         new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
         `${MARK_LINK}${listeningLink}</mark>`
       );
+    } else {
+      text = text.replace(
+        LINK_PLACEHOLDER_RE,
+        (match) => `${MARK_PLACEHOLDER}${match}</mark>`
+      );
     }
-    return resolved.replace(
-      LINK_PLACEHOLDER_RE,
-      (match) => `${MARK_PLACEHOLDER}${match}</mark>`
-    );
+    // Highlight the filled-in producer name
+    if (producerName) {
+      text = text.replace(
+        new RegExp(producerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
+        `${MARK_LINK}${producerName}</mark>`
+      );
+    } else {
+      text = text.replace(
+        /\[BEATMAKER_NAME\]/g,
+        (match) => `${MARK_PLACEHOLDER}${match}</mark>`
+      );
+    }
+    return text;
   }
 
   const highlightedTemplate = highlight(resolvedTemplate);
