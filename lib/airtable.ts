@@ -110,11 +110,12 @@ export async function fetchAirtableCount(
     values.length === 1
       ? `{Suivi par}="${values[0]}"`
       : `OR(${values.map((v) => `{Suivi par}="${v}"`).join(",")})`;
+  const countFormula = `AND(${suivi},{Statut de contact}!="Archivé")`;
 
   do {
     const parts: string[] = [
       "pageSize=100",
-      "filterByFormula=" + encodeURIComponent(suivi),
+      "filterByFormula=" + encodeURIComponent(countFormula),
       "fields[]=" + encodeURIComponent("Pseudo Instagram"),
     ];
     if (offset) parts.push("offset=" + encodeURIComponent(offset));
@@ -203,6 +204,8 @@ export async function fetchAirtableRecords(
     ];
 
     const conditions: string[] = [];
+    // Always exclude archived contacts from public-facing pages
+    conditions.push(`{Statut de contact}!="Archivé"`);
     if (suiviPar) {
       const values = Array.isArray(suiviPar) ? suiviPar : [suiviPar];
       const suivi =

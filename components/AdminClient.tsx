@@ -45,6 +45,7 @@ type ContactResult = {
   followers: number;
   profileType: string;
   suiviPar: string;
+  statutDeContact: string;
 };
 
 type ContactEdit = {
@@ -468,7 +469,8 @@ export default function AdminClient({
   const [searching, setSearching] = useState(false);
   const [contactEdits, setContactEdits] = useState<Record<string, ContactEdit>>({});
   const [savingContact, setSavingContact] = useState<string | null>(null);
-  const [deletingContact, setDeletingContact] = useState<string | null>(null);
+  const [archivingContact, setArchivingContact] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Template regen ────────────────────────────────────────────────────────
@@ -612,7 +614,7 @@ export default function AdminClient({
     searchDebounceRef.current = setTimeout(async () => {
       setSearching(true);
       const res = await fetch(
-        `/api/admin/contact-search?userId=${encodeURIComponent(adminUserId)}&q=${encodeURIComponent(searchQuery)}`
+        `/api/admin/contact-search?userId=${encodeURIComponent(adminUserId)}&q=${encodeURIComponent(searchQuery)}&showArchived=${showArchived}`
       ).catch(() => null);
       if (res?.ok) {
         const data = await res.json().catch(() => null);
@@ -620,7 +622,7 @@ export default function AdminClient({
       }
       setSearching(false);
     }, 400);
-  }, [searchQuery, adminUserId]);
+  }, [searchQuery, adminUserId, showArchived]);
 
   async function handleSaveContact(contact: ContactResult) {
     const edit = contactEdits[contact.id];
@@ -658,25 +660,31 @@ export default function AdminClient({
     return contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
   }
 
-  async function handleDeleteContact(contact: ContactResult) {
-    if (!confirm(`Are you sure you want to delete @${contact.username}? This cannot be undone.`)) return;
-    setDeletingContact(contact.id);
+  async function handleArchiveContact(contact: ContactResult) {
+    if (!confirm(`Archive @${contact.username}? This will hide them from the site and mark them as archived in Airtable.`)) return;
+    setArchivingContact(contact.id);
     try {
-      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
-        method: "DELETE",
+      const res = await fetch(`/api/admin/contacts/${contact.id}/archive`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: adminUserId }),
+        body: JSON.stringify({ userId: adminUserId, artistName: contact.suiviPar }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Delete failed");
+        throw new Error(err.error ?? "Archive failed");
       }
-      setSearchResults((prev) => prev.filter((c) => c.id !== contact.id));
-      toast.success(`Contact @${contact.username} deleted ✓`);
+      if (!showArchived) {
+        setSearchResults((prev) => prev.filter((c) => c.id !== contact.id));
+      } else {
+        setSearchResults((prev) =>
+          prev.map((c) => c.id === contact.id ? { ...c, statutDeContact: "Archivé" } : c)
+        );
+      }
+      toast.success(`@${contact.username} archived ✓`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Delete failed");
+      toast.error(e instanceof Error ? e.message : "Archive failed");
     } finally {
-      setDeletingContact(null);
+      setArchivingContact(null);
     }
   }
 
@@ -1232,7 +1240,19 @@ export default function AdminClient({
           {/* ── CONTACTS ──────────────────────────────────────────────────── */}
           {section === "contacts" && (
             <div>
-              <h2 className="text-xl font-light tracking-[0.02em] mb-6">Contact Editor</h2>
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-light tracking-[0.02em]">Contact Editor</h2>
+                <button
+                  onClick={() => { setShowArchived((v) => !v); setSearchResults([]); }}
+                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
+                    showArchived
+                      ? "border-orange-500/40 text-orange-400 bg-orange-500/10"
+                      : "border-white/[0.08] text-[#606060] hover:text-[#a0a0a0] hover:border-white/[0.15]"
+                  }`}
+                >
+                  {showArchived ? "Hide archived" : "Show archived"}
+                </button>
+              </div>
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-5">
                 <div className="relative">
                   <input
@@ -1274,23 +1294,30 @@ export default function AdminClient({
                             <p className="text-xs text-[#505050] mt-0.5">{contact.suiviPar}</p>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
+                            {contact.statutDeContact === "Archivé" && (
+                              <span className="text-xs text-[#606060] bg-white/[0.05] px-2 py-1 rounded-md whitespace-nowrap">
+                                Archived
+                              </span>
+                            )}
                             <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
                               {contact.profileType || "—"}
                             </span>
-                            <button
-                              onClick={() => handleDeleteContact(contact)}
-                              disabled={deletingContact === contact.id}
-                              title={`Delete @${contact.username}`}
-                              className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-40"
-                            >
-                              {deletingContact === contact.id ? (
-                                <span className="w-3.5 h-3.5 block border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              )}
-                            </button>
+                            {contact.statutDeContact !== "Archivé" && (
+                              <button
+                                onClick={() => handleArchiveContact(contact)}
+                                disabled={archivingContact === contact.id}
+                                title={`Archive @${contact.username}`}
+                                className="p-1.5 text-[#505050] hover:text-[#a0a0a0] transition-colors rounded-lg hover:bg-white/[0.06] disabled:opacity-40"
+                              >
+                                {archivingContact === contact.id ? (
+                                  <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
+                                ) : (
+                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                                  </svg>
+                                )}
+                              </button>
+                            )}
                           </div>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-3 mb-4">
