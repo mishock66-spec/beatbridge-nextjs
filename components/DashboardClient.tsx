@@ -1072,7 +1072,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       .eq("user_id", user.id)
       .single()
       .then(({ data }) => {
-        if (!data || data.onboarding_completed === false) {
+        if (!data || !data.onboarding_completed) {
           router.replace("/onboarding/social");
         } else {
           if (data.instagram_url) setInstagramUrl(data.instagram_url);
