@@ -13,33 +13,41 @@ export const revalidate = 0;
 const TOP_CAP = 50;
 
 function selectTopContacts(all: AirtableRecord[]): AirtableRecord[] {
+  // Tier 1: Producer / Sound Engineer / Manager with a template, sorted followers DESC
   const primary = all
     .filter(
       (r) =>
         (r.profileType === "Producer" ||
           r.profileType === "Sound Engineer" ||
           r.profileType === "Manager") &&
-        r.description.trim() !== "" &&
         r.template.trim() !== ""
     )
     .sort((a, b) => b.followers - a.followers);
 
   if (primary.length >= TOP_CAP) return primary.slice(0, TOP_CAP);
 
+  // Tier 2: Artist/Rapper with a template
   const needed = TOP_CAP - primary.length;
   const primaryIds = new Set(primary.map((r) => r.id));
   const secondary = all
     .filter(
       (r) =>
         r.profileType === "Artist/Rapper" &&
-        r.description.trim() !== "" &&
         r.template.trim() !== "" &&
         !primaryIds.has(r.id)
     )
     .sort((a, b) => b.followers - a.followers)
     .slice(0, needed);
 
-  return [...primary, ...secondary];
+  const combined = [...primary, ...secondary];
+
+  // Tier 3 fallback: if template data hasn't been generated yet, show all contacts
+  // sorted by followers DESC so the page is never empty
+  if (combined.length === 0) {
+    return [...all].sort((a, b) => b.followers - a.followers).slice(0, TOP_CAP);
+  }
+
+  return combined;
 }
 
 export default async function SouthsideTopContactsPage() {
