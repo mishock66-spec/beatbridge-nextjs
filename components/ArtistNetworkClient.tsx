@@ -126,7 +126,7 @@ export default function ArtistNetworkClient({
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
-        .select("instagram_account_age, plan, username, beatstars_url, soundcloud_url, youtube_url")
+        .select("instagram_account_age, plan, producer_name, beatstars_url, soundcloud_url, youtube_url")
         .eq("user_id", user.id)
         .single(),
     ])
@@ -151,12 +151,12 @@ export default function ArtistNetworkClient({
         if (p?.instagram_account_age) setAccountAge(p.instagram_account_age as AccountAge);
         if (p?.plan) setUserPlan(p.plan as string);
 
-        // Auto-fill producer name: localStorage wins, then Supabase username
+        // Auto-fill producer name: localStorage wins, then Supabase producer_name
         const storedName = localStorage.getItem("beatbridge_producer_name");
         if (storedName) {
           setProducerName(storedName);
-        } else if (p?.username) {
-          setProducerName(p.username);
+        } else if (p?.producer_name) {
+          setProducerName(p.producer_name);
         }
 
         // Auto-fill listening link: localStorage wins, then beatstars > soundcloud > youtube
@@ -186,7 +186,7 @@ export default function ArtistNetworkClient({
     nameDebounceRef.current = setTimeout(() => {
       sbName
         .from("user_profiles")
-        .update({ username: val })
+        .update({ producer_name: val })
         .eq("user_id", user.id)
         .then(({ error }) => { if (error) console.error("Failed to save producer name:", error); });
     }, 1000);

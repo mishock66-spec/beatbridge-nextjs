@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import toast from "react-hot-toast";
@@ -376,22 +376,23 @@ export default function ConnectionCard({
   const activeTemplate = customTemplate ?? (record.template ? cleanIceBreaker(record.template) : record.template);
   const activeFollowUp = customFollowUp ?? record.followUp;
 
-  // Apply [BEATMAKER_NAME] and [LINK] substitutions.
-  // Use split/join for [BEATMAKER_NAME] — avoids any g-flag lastIndex issues with regex reuse.
-  function applyPlaceholders(text: string | null | undefined): string | undefined {
-    if (!text) return text ?? undefined;
-    let result = text;
-    if (producerName) {
-      result = result.split("[BEATMAKER_NAME]").join(producerName);
-    }
-    if (listeningLink) {
-      result = result.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, listeningLink);
-    }
-    return result;
-  }
+  // Substitute [BEATMAKER_NAME] and [LINK] placeholders.
+  // useMemo ensures recomputation whenever producerName or listeningLink change.
+  const resolvedTemplate = useMemo(() => {
+    if (!activeTemplate) return activeTemplate ?? undefined;
+    let t = activeTemplate;
+    if (producerName) t = t.split("[BEATMAKER_NAME]").join(producerName);
+    if (listeningLink) t = t.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, listeningLink);
+    return t;
+  }, [activeTemplate, producerName, listeningLink]);
 
-  const resolvedTemplate = applyPlaceholders(activeTemplate);
-  const resolvedFollowUp = applyPlaceholders(activeFollowUp);
+  const resolvedFollowUp = useMemo(() => {
+    if (!activeFollowUp) return activeFollowUp ?? undefined;
+    let t = activeFollowUp;
+    if (producerName) t = t.split("[BEATMAKER_NAME]").join(producerName);
+    if (listeningLink) t = t.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, listeningLink);
+    return t;
+  }, [activeFollowUp, producerName, listeningLink]);
 
   function handleCopyDM() {
     if (!isSignedIn) {
@@ -474,37 +475,39 @@ export default function ConnectionCard({
   const MARK_LINK = `<mark style="background-color:rgba(249,115,22,0.15);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
   const MARK_PLACEHOLDER = `<mark style="background-color:rgba(249,115,22,0.3);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
 
-  function highlight(resolved: string | undefined) {
-    if (!resolved) return "";
-    let text = resolved;
-    // Highlight the filled-in producer name (already substituted) or prompt the placeholder
+  const highlightedTemplate = useMemo(() => {
+    const text = resolvedTemplate;
+    if (!text) return "";
+    let html = text;
     if (producerName) {
-      text = text.split(producerName).join(
-        `${MARK_LINK}${producerName}</mark>`
-      );
+      html = html.split(producerName).join(`${MARK_LINK}${producerName}</mark>`);
     } else {
-      // producerName empty — highlight the placeholder itself in orange as a prompt
-      text = text.split("[BEATMAKER_NAME]").join(
-        `${MARK_PLACEHOLDER}[BEATMAKER_NAME]</mark>`
-      );
+      html = html.split("[BEATMAKER_NAME]").join(`${MARK_PLACEHOLDER}[BEATMAKER_NAME]</mark>`);
     }
-    // Highlight the filled-in link (already substituted) or prompt the placeholder
     if (listeningLink) {
-      text = text.replace(
-        new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-        `${MARK_LINK}${listeningLink}</mark>`
-      );
+      html = html.replace(new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), `${MARK_LINK}${listeningLink}</mark>`);
     } else {
-      text = text.replace(
-        /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi,
-        (match) => `${MARK_PLACEHOLDER}${match}</mark>`
-      );
+      html = html.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, (m) => `${MARK_PLACEHOLDER}${m}</mark>`);
     }
-    return text;
-  }
+    return html;
+  }, [resolvedTemplate, producerName, listeningLink]);
 
-  const highlightedTemplate = highlight(resolvedTemplate);
-  const highlightedFollowUp = highlight(resolvedFollowUp);
+  const highlightedFollowUp = useMemo(() => {
+    const text = resolvedFollowUp;
+    if (!text) return "";
+    let html = text;
+    if (producerName) {
+      html = html.split(producerName).join(`${MARK_LINK}${producerName}</mark>`);
+    } else {
+      html = html.split("[BEATMAKER_NAME]").join(`${MARK_PLACEHOLDER}[BEATMAKER_NAME]</mark>`);
+    }
+    if (listeningLink) {
+      html = html.replace(new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"), `${MARK_LINK}${listeningLink}</mark>`);
+    } else {
+      html = html.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, (m) => `${MARK_PLACEHOLDER}${m}</mark>`);
+    }
+    return html;
+  }, [resolvedFollowUp, producerName, listeningLink]);
 
   return (
     <div
