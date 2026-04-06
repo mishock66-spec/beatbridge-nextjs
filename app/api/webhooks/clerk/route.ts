@@ -42,20 +42,6 @@ export async function POST(req: NextRequest) {
   if (event.type === "user.created") {
     const data = event.data;
 
-    // Seed user_profiles with trial_start
-    const newUserId = data.id as string;
-    if (newUserId) {
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      await supabase.from("user_profiles").upsert(
-        { user_id: newUserId, trial_start: new Date().toISOString(), onboarding_completed: false },
-        { onConflict: "user_id" }
-      );
-    }
-
-    // Extract user info
     const emailAddresses = data.email_addresses as Array<{ email_address: string }> | undefined;
     const primaryEmailId = data.primary_email_address_id as string | undefined;
     const primaryEmailObj = emailAddresses?.find(
@@ -66,7 +52,34 @@ export async function POST(req: NextRequest) {
 
     const firstName = (data.first_name as string) || "";
     const lastName = (data.last_name as string) || "";
-    const fullName = [firstName, lastName].filter(Boolean).join(" ") || "No name provided";
+
+    // Derive a display name: "First Last", or email prefix if no name provided
+    const derivedName =
+      [firstName, lastName].filter(Boolean).join(" ").trim() ||
+      (userEmail !== "Unknown" ? userEmail.split("@")[0] : "");
+
+    // Create Supabase profile immediately on sign-up
+    const newUserId = data.id as string;
+    if (newUserId) {
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
+      const now = new Date().toISOString();
+      await supabase.from("user_profiles").upsert(
+        {
+          user_id: newUserId,
+          producer_name: derivedName || null,
+          plan: "free",
+          subscription_status: "free",
+          trial_start: now,
+          onboarding_completed: false,
+          created_at: now,
+        },
+        { onConflict: "user_id" }
+      );
+    }
+    const fullName = derivedName || "No name provided";
 
     const createdAt = data.created_at as number;
     const signUpDate = createdAt
