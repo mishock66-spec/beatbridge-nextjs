@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
+import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard, { type ContactStatus } from "@/components/ConnectionCard";
@@ -82,7 +83,11 @@ export default function ArtistNetworkClient({
   const [listeningLink, setListeningLink] = useState("");
   const [producerName, setProducerName] = useState("");
 
-  // Bulk fetch: dm_status map + today's DM count + account age — one round-trip
+  // Debounce refs for Supabase write-back
+  const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const linkDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Bulk fetch: dm_status + DM count + account age + profile fields — one round-trip
   type StatusEntry = { status: ContactStatus; ice_breaker?: string };
   const [statusMap, setStatusMap] = useState<Record<string, StatusEntry> | null>(null);
   const [dmSentCount, setDmSentCount] = useState(0);
@@ -92,8 +97,17 @@ export default function ArtistNetworkClient({
 
   useEffect(() => {
     if (!artistSlug || !supabase) { setStatusMap({}); setDataLoaded(true); return; }
-    if (!isLoaded) return; // Wait for Clerk to finish loading
-    if (!isSignedIn || !user) { setStatusMap({}); setDataLoaded(true); return; }
+    if (!isLoaded) return;
+    if (!isSignedIn || !user) {
+      // Not signed in — fall back to localStorage only
+      const storedName = localStorage.getItem("beatbridge_producer_name") || "";
+      const storedLink = localStorage.getItem("beatbridge_listening_link") || "";
+      if (storedName) setProducerName(storedName);
+      if (storedLink) setListeningLink(storedLink);
+      setStatusMap({});
+      setDataLoaded(true);
+      return;
+    }
 
     const now = new Date();
     const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
@@ -112,7 +126,7 @@ export default function ArtistNetworkClient({
         .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
-        .select("instagram_account_age, plan")
+        .select("instagram_account_age, plan, username, beatstars_url, soundcloud_url, youtube_url")
         .eq("user_id", user.id)
         .single(),
     ])
@@ -130,49 +144,72 @@ export default function ArtistNetworkClient({
             }
           });
         }
-        console.log("Fetched statuses:", map);
         setStatusMap(map);
         if (countRes.count !== null) setDmSentCount(countRes.count);
-        if (profileRes.data?.instagram_account_age) {
-          setAccountAge(profileRes.data.instagram_account_age as AccountAge);
+
+        const p = profileRes.data;
+        if (p?.instagram_account_age) setAccountAge(p.instagram_account_age as AccountAge);
+        if (p?.plan) setUserPlan(p.plan as string);
+
+        // Auto-fill producer name: localStorage wins, then Supabase username
+        const storedName = localStorage.getItem("beatbridge_producer_name");
+        if (storedName) {
+          setProducerName(storedName);
+        } else if (p?.username) {
+          setProducerName(p.username);
         }
-        if (profileRes.data?.plan) {
-          setUserPlan(profileRes.data.plan as string);
+
+        // Auto-fill listening link: localStorage wins, then beatstars > soundcloud > youtube
+        const storedLink = localStorage.getItem("beatbridge_listening_link");
+        if (storedLink) {
+          setListeningLink(storedLink);
+        } else {
+          const profileLink = p?.beatstars_url || p?.soundcloud_url || p?.youtube_url || "";
+          if (profileLink) setListeningLink(profileLink);
         }
       })
       .catch(() => { setStatusMap({}); })
       .finally(() => setDataLoaded(true));
   }, [isLoaded, isSignedIn, user, artistSlug]);
 
-  // Producer name — load from localStorage first, then pre-fill from Supabase username if empty
-  useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("beatbridge_producer_name") : null;
-    if (stored) {
-      setProducerName(stored);
-      return;
-    }
-    if (!isLoaded || !isSignedIn || !user || !supabase) return;
-    supabase
-      .from("user_profiles")
-      .select("username")
-      .eq("user_id", user.id)
-      .single()
-      .then(({ data }) => {
-        if (data?.username && !localStorage.getItem("beatbridge_producer_name")) {
-          setProducerName(data.username);
-        }
-      });
-  }, [isLoaded, isSignedIn, user]);
-
   function handleProducerNameChange(val: string) {
     setProducerName(val);
-    if (typeof window !== "undefined") {
-      if (val) {
-        localStorage.setItem("beatbridge_producer_name", val);
-      } else {
-        localStorage.removeItem("beatbridge_producer_name");
-      }
+    if (val) {
+      localStorage.setItem("beatbridge_producer_name", val);
+    } else {
+      localStorage.removeItem("beatbridge_producer_name");
     }
+    // Debounce write-back to Supabase
+    if (nameDebounceRef.current) clearTimeout(nameDebounceRef.current);
+    const sbName = supabase;
+    if (!isSignedIn || !user || !sbName) return;
+    nameDebounceRef.current = setTimeout(() => {
+      sbName
+        .from("user_profiles")
+        .update({ username: val })
+        .eq("user_id", user.id)
+        .then(({ error }) => { if (error) console.error("Failed to save producer name:", error); });
+    }, 1000);
+  }
+
+  function handleListeningLinkChange(val: string) {
+    setListeningLink(val);
+    if (val) {
+      localStorage.setItem("beatbridge_listening_link", val);
+    } else {
+      localStorage.removeItem("beatbridge_listening_link");
+    }
+    // Debounce write-back to Supabase
+    if (linkDebounceRef.current) clearTimeout(linkDebounceRef.current);
+    const sbLink = supabase;
+    if (!isSignedIn || !user || !sbLink) return;
+    linkDebounceRef.current = setTimeout(() => {
+      sbLink
+        .from("user_profiles")
+        .update({ beatstars_url: val })
+        .eq("user_id", user.id)
+        .then(({ error }) => { if (error) console.error("Failed to save listening link:", error); });
+    }, 1000);
   }
 
   // Prop-based callback — no window events needed
@@ -267,7 +304,7 @@ export default function ArtistNetworkClient({
           <input
             type="url"
             value={listeningLink}
-            onChange={(e) => setListeningLink(e.target.value)}
+            onChange={(e) => handleListeningLinkChange(e.target.value)}
             placeholder="Paste your SoundCloud, YouTube or BeatStars link..."
             className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors min-h-[44px]"
           />
@@ -277,6 +314,12 @@ export default function ArtistNetworkClient({
             </p>
           )}
         </div>
+      </div>
+      {/* Profile link */}
+      <div className="mb-6 -mt-3 text-right">
+        <Link href="/onboarding" className="text-xs text-[#505050] hover:text-orange-400 transition-colors">
+          Edit your profile →
+        </Link>
       </div>
 
       {/* Filters + Search */}
