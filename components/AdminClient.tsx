@@ -471,6 +471,7 @@ export default function AdminClient({
   const [savingContact, setSavingContact] = useState<string | null>(null);
   const [archivingContact, setArchivingContact] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
+  const [archiveTarget, setArchiveTarget] = useState<ContactResult | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Template regen ────────────────────────────────────────────────────────
@@ -624,6 +625,13 @@ export default function AdminClient({
     }, 400);
   }, [searchQuery, adminUserId, showArchived]);
 
+  useEffect(() => {
+    if (!archiveTarget) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setArchiveTarget(null); }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [archiveTarget]);
+
   async function handleSaveContact(contact: ContactResult) {
     const edit = contactEdits[contact.id];
     if (!edit) return;
@@ -660,8 +668,8 @@ export default function AdminClient({
     return contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
   }
 
-  async function handleArchiveContact(contact: ContactResult) {
-    if (!confirm(`Archive @${contact.username}? This will hide them from the site and mark them as archived in Airtable.`)) return;
+  async function executeArchive(contact: ContactResult) {
+    setArchiveTarget(null);
     setArchivingContact(contact.id);
     try {
       const res = await fetch(`/api/admin/contacts/${contact.id}/archive`, {
@@ -1304,7 +1312,7 @@ export default function AdminClient({
                             </span>
                             {contact.statutDeContact !== "Archivé" && (
                               <button
-                                onClick={() => handleArchiveContact(contact)}
+                                onClick={() => setArchiveTarget(contact)}
                                 disabled={archivingContact === contact.id}
                                 title={`Archive @${contact.username}`}
                                 className="p-1.5 text-[#505050] hover:text-[#a0a0a0] transition-colors rounded-lg hover:bg-white/[0.06] disabled:opacity-40"
@@ -1353,6 +1361,41 @@ export default function AdminClient({
 
               {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
                 <p className="text-[#505050] text-sm text-center py-8">No contacts found for "{searchQuery}"</p>
+              )}
+
+              {/* Archive confirmation modal */}
+              {archiveTarget && (
+                <div
+                  className="fixed inset-0 z-[500] flex items-center justify-center p-4"
+                  style={{ background: "rgba(0,0,0,0.7)" }}
+                  onClick={() => setArchiveTarget(null)}
+                >
+                  <div
+                    className="bg-[#1a1a1a] border border-white/[0.1] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <h3 className="text-base font-semibold text-white mb-2">Archive this contact?</h3>
+                    <p className="text-sm text-[#a0a0a0] mb-6 leading-relaxed">
+                      Are you sure you want to archive{" "}
+                      <span className="text-white font-medium">@{archiveTarget.username}</span>?{" "}
+                      They will be hidden from the site but kept in Airtable.
+                    </p>
+                    <div className="flex gap-3 justify-end">
+                      <button
+                        onClick={() => setArchiveTarget(null)}
+                        className="px-4 py-2 text-sm text-[#a0a0a0] bg-white/[0.06] hover:bg-white/[0.1] rounded-lg transition-colors"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => executeArchive(archiveTarget)}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90 rounded-lg transition-opacity"
+                      >
+                        Yes, archive
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
             </div>
           )}
