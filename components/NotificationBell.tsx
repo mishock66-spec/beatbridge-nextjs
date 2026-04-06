@@ -23,10 +23,11 @@ function timeAgo(iso: string) {
 }
 
 const TYPE_DOT: Record<string, string> = {
-  announcement: "bg-orange-500",
-  update:       "bg-blue-400",
-  tip:          "bg-green-400",
-  personal:     "bg-purple-400",
+  announcement:   "bg-orange-500",
+  update:         "bg-blue-400",
+  tip:            "bg-green-400",
+  personal:       "bg-purple-400",
+  collab_request: "bg-teal-400",
 };
 
 export default function NotificationBell({ userId }: { userId: string }) {

@@ -10,13 +10,15 @@ type Message = {
   type: string;
   read: boolean;
   created_at: string;
+  batch_id?: string | null;
 };
 
 const TYPE_LABEL: Record<string, { label: string; cls: string }> = {
-  announcement: { label: "Announcement", cls: "bg-orange-500/15 text-orange-400" },
-  update:       { label: "Update",        cls: "bg-blue-500/15 text-blue-400" },
-  tip:          { label: "Tip",           cls: "bg-green-500/15 text-green-400" },
-  personal:     { label: "Personal",      cls: "bg-purple-500/15 text-purple-400" },
+  announcement:   { label: "Announcement",     cls: "bg-orange-500/15 text-orange-400" },
+  update:         { label: "Update",            cls: "bg-blue-500/15 text-blue-400" },
+  tip:            { label: "Tip",               cls: "bg-green-500/15 text-green-400" },
+  personal:       { label: "Personal",          cls: "bg-purple-500/15 text-purple-400" },
+  collab_request: { label: "🤝 Collab Request", cls: "bg-teal-500/15 text-teal-400" },
 };
 
 function formatDate(iso: string) {
@@ -78,14 +80,37 @@ export default function InboxClient() {
   const [messages, setMessages]   = useState<Message[]>([]);
   const [loading, setLoading]     = useState(true);
   const [expanded, setExpanded]   = useState<string | null>(null);
+  // collabStatuses: collabRequestId → 'pending' | 'accepted' | 'declined'
+  const [collabStatuses, setCollabStatuses] = useState<Record<string, string>>({});
+  const [collabResponding, setCollabResponding] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoaded || !user?.id) return;
+
     fetch(`/api/messages?userId=${encodeURIComponent(user.id)}&limit=100`)
       .then((r) => r.json())
       .then((data) => {
-        setMessages(data.messages ?? []);
+        const msgs: Message[] = data.messages ?? [];
+        setMessages(msgs);
         setLoading(false);
+
+        // Fetch collab statuses for any collab_request messages
+        const collabIds = msgs
+          .filter((m) => m.type === "collab_request" && m.batch_id)
+          .map((m) => m.batch_id!);
+
+        if (collabIds.length > 0) {
+          fetch(`/api/collab/status?userId=${encodeURIComponent(user.id)}`)
+            .then((r) => r.json())
+            .then((statusData) => {
+              const map: Record<string, string> = {};
+              (statusData.requests ?? []).forEach((r: { id: string; status: string }) => {
+                map[r.id] = r.status;
+              });
+              setCollabStatuses(map);
+            })
+            .catch(() => null);
+        }
       })
       .catch(() => setLoading(false));
   }, [isLoaded, user?.id]);
@@ -103,6 +128,25 @@ export default function InboxClient() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ userId: user!.id }),
       }).catch(() => null);
+    }
+  }
+
+  async function handleCollabRespond(collabRequestId: string, action: "accepted" | "declined") {
+    if (!user?.id) return;
+    setCollabResponding(collabRequestId);
+    try {
+      const res = await fetch("/api/collab/respond", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ collabRequestId, action, userId: user.id }),
+      });
+      if (res.ok) {
+        setCollabStatuses((prev) => ({ ...prev, [collabRequestId]: action }));
+      }
+    } catch {
+      // ignore
+    } finally {
+      setCollabResponding(null);
     }
   }
 
@@ -142,6 +186,11 @@ export default function InboxClient() {
             {messages.map((msg) => {
               const typeInfo = TYPE_LABEL[msg.type] ?? { label: msg.type, cls: "bg-white/[0.06] text-[#707070]" };
               const isOpen = expanded === msg.id;
+              const isCollab = msg.type === "collab_request";
+              const collabId = msg.batch_id;
+              const collabStatus = collabId ? (collabStatuses[collabId] ?? "pending") : null;
+              const isResponding = collabId ? collabResponding === collabId : false;
+
               return (
                 <button
                   key={msg.id}
@@ -182,6 +231,50 @@ export default function InboxClient() {
                   {isOpen && (
                     <div className="mt-4 pt-4 border-t border-white/[0.06] text-sm text-[#a0a0a0] leading-relaxed text-left">
                       {renderBody(msg.body)}
+
+                      {/* Collab request Accept / Decline buttons */}
+                      {isCollab && collabId && collabStatus === "pending" && (
+                        <div
+                          className="mt-4 flex gap-2"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <button
+                            onClick={() => handleCollabRespond(collabId, "accepted")}
+                            disabled={isResponding}
+                            className="flex-1 py-2 text-xs font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40"
+                          >
+                            {isResponding ? "..." : "Accept"}
+                          </button>
+                          <button
+                            onClick={() => handleCollabRespond(collabId, "declined")}
+                            disabled={isResponding}
+                            className="flex-1 py-2 text-xs font-semibold text-[#a0a0a0] bg-white/[0.06] hover:bg-white/[0.1] rounded-lg transition-colors disabled:opacity-40"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      )}
+
+                      {/* Already responded */}
+                      {isCollab && collabId && collabStatus === "accepted" && (
+                        <div
+                          className="mt-4 inline-flex items-center gap-1.5 text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-lg px-3 py-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                          </svg>
+                          Accepted
+                        </div>
+                      )}
+                      {isCollab && collabId && collabStatus === "declined" && (
+                        <div
+                          className="mt-4 inline-flex items-center gap-1.5 text-xs text-[#505050] bg-white/[0.04] border border-white/[0.06] rounded-lg px-3 py-1.5"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          Declined
+                        </div>
+                      )}
                     </div>
                   )}
                 </button>

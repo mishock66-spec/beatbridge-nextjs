@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("messages")
-    .select("id, title, body, type, read, created_at")
+    .select("id, title, body, type, read, created_at, batch_id")
     .eq("user_id", userId)
     .order("created_at", { ascending: false })
     .limit(limit);
