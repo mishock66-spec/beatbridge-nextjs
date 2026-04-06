@@ -376,14 +376,17 @@ export default function ConnectionCard({
   const activeTemplate = customTemplate ?? (record.template ? cleanIceBreaker(record.template) : record.template);
   const activeFollowUp = customFollowUp ?? record.followUp;
 
-  const LINK_PLACEHOLDER_RE = /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi;
-  const BEATMAKER_PLACEHOLDER_RE = /\[BEATMAKER_NAME\]/g;
-
+  // Apply [BEATMAKER_NAME] and [LINK] substitutions.
+  // Use split/join for [BEATMAKER_NAME] — avoids any g-flag lastIndex issues with regex reuse.
   function applyPlaceholders(text: string | null | undefined): string | undefined {
     if (!text) return text ?? undefined;
     let result = text;
-    if (producerName) result = result.replace(BEATMAKER_PLACEHOLDER_RE, producerName);
-    if (listeningLink) result = result.replace(LINK_PLACEHOLDER_RE, listeningLink);
+    if (producerName) {
+      result = result.split("[BEATMAKER_NAME]").join(producerName);
+    }
+    if (listeningLink) {
+      result = result.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, listeningLink);
+    }
     return result;
   }
 
@@ -474,7 +477,18 @@ export default function ConnectionCard({
   function highlight(resolved: string | undefined) {
     if (!resolved) return "";
     let text = resolved;
-    // Highlight the filled-in link
+    // Highlight the filled-in producer name (already substituted) or prompt the placeholder
+    if (producerName) {
+      text = text.split(producerName).join(
+        `${MARK_LINK}${producerName}</mark>`
+      );
+    } else {
+      // producerName empty — highlight the placeholder itself in orange as a prompt
+      text = text.split("[BEATMAKER_NAME]").join(
+        `${MARK_PLACEHOLDER}[BEATMAKER_NAME]</mark>`
+      );
+    }
+    // Highlight the filled-in link (already substituted) or prompt the placeholder
     if (listeningLink) {
       text = text.replace(
         new RegExp(listeningLink.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
@@ -482,19 +496,7 @@ export default function ConnectionCard({
       );
     } else {
       text = text.replace(
-        LINK_PLACEHOLDER_RE,
-        (match) => `${MARK_PLACEHOLDER}${match}</mark>`
-      );
-    }
-    // Highlight the filled-in producer name
-    if (producerName) {
-      text = text.replace(
-        new RegExp(producerName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g"),
-        `${MARK_LINK}${producerName}</mark>`
-      );
-    } else {
-      text = text.replace(
-        /\[BEATMAKER_NAME\]/g,
+        /\[(?:YOUR (?:LISTENING )?)?LINK\]/gi,
         (match) => `${MARK_PLACEHOLDER}${match}</mark>`
       );
     }
