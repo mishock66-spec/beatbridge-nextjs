@@ -131,11 +131,76 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   );
 }
 
+// ─── Custom select (replaces native <select> for full dark-theme control) ─────
+
+function CustomSelect({
+  value,
+  onChange,
+  options,
+  placeholder = "— select —",
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: { value: string; label: string }[];
+  placeholder?: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
+
+  const selectedLabel = options.find((o) => o.value === value)?.label;
+
+  return (
+    <div ref={ref} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className={`w-full flex items-center justify-between bg-[#1a1a1a] border rounded-lg px-3 py-2.5 text-sm text-left transition-colors ${
+          open ? "border-orange-500" : "border-[#333] hover:border-[#444]"
+        }`}
+      >
+        <span className={selectedLabel ? "text-white" : "text-[#505050]"}>
+          {selectedLabel ?? placeholder}
+        </span>
+        <svg
+          className={`w-4 h-4 text-[#505050] flex-shrink-0 transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute z-[300] top-full left-0 right-0 mt-1 bg-[#1a1a1a] border border-[#333] rounded-lg overflow-hidden shadow-xl shadow-black/60">
+          {options.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                opt.value === value
+                  ? "bg-orange-500 text-white"
+                  : "text-[#d0d0d0] hover:bg-orange-500 hover:text-white"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const inputCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors";
 const textareaCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-y";
-// Selects need a solid background (not opacity-based) so the native option list is dark cross-browser.
-// color-scheme:dark tells the OS to render the native dropdown in dark mode.
-const selectCls = "w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors cursor-pointer [color-scheme:dark]";
 
 // ─── Plan badge ───────────────────────────────────────────────────────────────
 
@@ -403,6 +468,7 @@ export default function AdminClient({
   const [searching, setSearching] = useState(false);
   const [contactEdits, setContactEdits] = useState<Record<string, ContactEdit>>({});
   const [savingContact, setSavingContact] = useState<string | null>(null);
+  const [deletingContact, setDeletingContact] = useState<string | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ── Template regen ────────────────────────────────────────────────────────
@@ -590,6 +656,28 @@ export default function AdminClient({
 
   function getContactEdit(contact: ContactResult): ContactEdit {
     return contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+  }
+
+  async function handleDeleteContact(contact: ContactResult) {
+    if (!confirm(`Are you sure you want to delete @${contact.username}? This cannot be undone.`)) return;
+    setDeletingContact(contact.id);
+    try {
+      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: adminUserId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Delete failed");
+      }
+      setSearchResults((prev) => prev.filter((c) => c.id !== contact.id));
+      toast.success(`Contact @${contact.username} deleted ✓`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingContact(null);
+    }
   }
 
   function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
@@ -868,30 +956,30 @@ export default function AdminClient({
                   </Field>
                   <div className="grid sm:grid-cols-2 gap-4">
                     <Field label="Type">
-                      <select
-                        className={selectCls}
+                      <CustomSelect
                         value={msgForm.type}
-                        onChange={(e) => setMsgForm((f) => ({ ...f, type: e.target.value }))}
-                      >
-                        <option value="announcement">Announcement</option>
-                        <option value="update">Update</option>
-                        <option value="tip">Tip</option>
-                        <option value="personal">Personal</option>
-                      </select>
+                        onChange={(v) => setMsgForm((f) => ({ ...f, type: v }))}
+                        options={[
+                          { value: "announcement", label: "Announcement" },
+                          { value: "update",       label: "Update" },
+                          { value: "tip",          label: "Tip" },
+                          { value: "personal",     label: "Personal" },
+                        ]}
+                      />
                     </Field>
                     <Field label="Recipient">
-                      <select
-                        className={selectCls}
+                      <CustomSelect
                         value={msgForm.recipientUserId}
-                        onChange={(e) => setMsgForm((f) => ({ ...f, recipientUserId: e.target.value }))}
-                      >
-                        <option value="">All users (broadcast)</option>
-                        {users.map((u) => (
-                          <option key={u.id} value={u.id}>
-                            {u.name || u.id} {u.email !== "—" ? `(${u.email})` : ""}
-                          </option>
-                        ))}
-                      </select>
+                        onChange={(v) => setMsgForm((f) => ({ ...f, recipientUserId: v }))}
+                        placeholder="All users (broadcast)"
+                        options={[
+                          { value: "", label: "All users (broadcast)" },
+                          ...users.map((u) => ({
+                            value: u.id,
+                            label: `${u.name || u.id}${u.email !== "—" ? ` (${u.email})` : ""}`,
+                          })),
+                        ]}
+                      />
                     </Field>
                   </div>
 
@@ -1170,14 +1258,40 @@ export default function AdminClient({
                     return (
                       <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
                         <div className="flex items-start justify-between gap-3 mb-4">
-                          <div>
-                            <p className="text-sm font-semibold text-white">@{contact.username}</p>
+                          <div className="min-w-0">
+                            <a
+                              href={`https://www.instagram.com/${contact.username}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-orange-400 transition-colors group"
+                            >
+                              @{contact.username}
+                              <svg className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                              </svg>
+                            </a>
                             {contact.fullName && <p className="text-xs text-[#606060] mt-0.5">{contact.fullName}</p>}
                             <p className="text-xs text-[#505050] mt-0.5">{contact.suiviPar}</p>
                           </div>
-                          <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
-                            {contact.profileType || "—"}
-                          </span>
+                          <div className="flex items-center gap-2 flex-shrink-0">
+                            <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
+                              {contact.profileType || "—"}
+                            </span>
+                            <button
+                              onClick={() => handleDeleteContact(contact)}
+                              disabled={deletingContact === contact.id}
+                              title={`Delete @${contact.username}`}
+                              className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10 disabled:opacity-40"
+                            >
+                              {deletingContact === contact.id ? (
+                                <span className="w-3.5 h-3.5 block border-2 border-red-400 border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
+                          </div>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-3 mb-4">
                           <Field label="Followers">
@@ -1189,16 +1303,12 @@ export default function AdminClient({
                             />
                           </Field>
                           <Field label="Profile Type">
-                            <select
-                              className={selectCls}
+                            <CustomSelect
                               value={edit.profileType}
-                              onChange={(e) => setContactEdit(contact.id, { profileType: e.target.value }, contact)}
-                            >
-                              <option value="">— select type —</option>
-                              {PROFILE_TYPE_OPTIONS.map((t) => (
-                                <option key={t} value={t}>{t}</option>
-                              ))}
-                            </select>
+                              onChange={(v) => setContactEdit(contact.id, { profileType: v }, contact)}
+                              placeholder="— select type —"
+                              options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                            />
                           </Field>
                         </div>
                         <div className="flex justify-end">
