@@ -5,6 +5,7 @@ import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import { SocialLinks } from "@/components/SocialLinks";
 import AuthGateClient from "@/components/AuthGateClient";
+import { getArtistOverride } from "@/lib/artistOverrides";
 
 export const revalidate = 0;
 
@@ -18,8 +19,20 @@ const RANGES = [
   { slug: "40k-50k", label: "40K – 50K",  desc: "Large following",    premium: true  },
 ];
 
+const DEFAULTS = {
+  instagram: "https://www.instagram.com/jukewong/",
+  twitter: "",
+  description: "Producer known for his work with Wheezy and his signature melodic trap sound.",
+};
+
 export default async function JukeWongArtistPage() {
   let totalContacts = 0;
+  const override = await getArtistOverride("juke-wong").catch(() => ({}));
+  const socials: { instagram?: string; twitter?: string } = {
+    instagram: override.instagram ?? DEFAULTS.instagram,
+    ...(override.twitter || DEFAULTS.twitter ? { twitter: override.twitter ?? DEFAULTS.twitter } : {}),
+  };
+  const description = override.description ?? DEFAULTS.description;
 
   try {
     const records = await fetchAirtableRecords("Juke Wong");
@@ -56,9 +69,9 @@ export default async function JukeWongArtistPage() {
             </div>
             <h1 className="text-4xl sm:text-5xl font-black mb-1">Juke Wong</h1>
             <p className="text-gray-500 text-sm">Melodic Trap · Wheezy&apos;s Circle</p>
-            <SocialLinks socials={{ instagram: "https://www.instagram.com/jukewong/" }} />
+            <SocialLinks socials={socials} />
             <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
-              Producer known for his work with Wheezy and his signature melodic trap sound.
+              {description}
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">

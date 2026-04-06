@@ -5,6 +5,7 @@ import ArtistProgressBar from "@/components/ArtistProgressBar";
 import { SocialLinks } from "@/components/SocialLinks";
 import ExploreNetworkButton from "@/components/ExploreNetworkButton";
 import { LATEST_DROP } from "@/lib/announcements";
+import { getAllArtistOverrides } from "@/lib/artistOverrides";
 
 export const revalidate = 0;
 
@@ -197,16 +198,32 @@ function ArtistCard({
 }
 
 export default async function Artists() {
-  // Fetch total connections count + per-artist counts in parallel
+  // Fetch total connections count + per-artist counts + admin overrides in parallel
   const activeArtists = ARTISTS.filter((a) => a.suiviPar !== null);
-  const [totalConnections, ...counts] = await Promise.all([
+  const [totalConnections, artistOverrides, ...counts] = await Promise.all([
     fetchTotalConnectionsCount().catch(() => 0),
+    getAllArtistOverrides().catch(() => ({} as Record<string, { description?: string; instagram?: string; twitter?: string }>)),
     ...activeArtists.map((a) =>
       fetchAirtableCount(a.suiviPar as string | string[]).catch(() => 0)
     ),
   ]);
   const countMap = new Map<string, number>();
-  activeArtists.forEach((a, i) => countMap.set(a.name, counts[i]));
+  activeArtists.forEach((a, i) => countMap.set(a.name, (counts as number[])[i]));
+
+  // Apply admin overrides to artist data
+  const artistsWithOverrides = ARTISTS.map((a) => {
+    const ov = (artistOverrides as Record<string, { description?: string; instagram?: string; twitter?: string }>)[a.slug];
+    if (!ov) return a;
+    return {
+      ...a,
+      description: ov.description ?? a.description,
+      socials: {
+        ...a.socials,
+        ...(ov.instagram ? { instagram: ov.instagram } : {}),
+        ...(ov.twitter ? { twitter: ov.twitter } : {}),
+      },
+    };
+  });
 
   return (
     <div className="min-h-screen">
@@ -241,7 +258,7 @@ export default async function Artists() {
 
         {/* Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ARTISTS.map((artist) => (
+          {artistsWithOverrides.map((artist) => (
             <ArtistCard
               key={artist.name}
               artist={artist}

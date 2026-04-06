@@ -389,10 +389,12 @@ export default function AdminClient({
   initialBanner,
   initialVoteCandidates,
   initialSiteTexts,
+  initialArtistOverrides = {},
 }: {
   initialBanner: BannerConfig | null;
   initialVoteCandidates: VoteCandidate[];
   initialSiteTexts: Partial<SiteTexts>;
+  initialArtistOverrides?: Record<string, Partial<ArtistConfig>>;
 }) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
@@ -422,7 +424,9 @@ export default function AdminClient({
   const [savingBanner, setSavingBanner] = useState(false);
 
   // ── Artists ───────────────────────────────────────────────────────────────
-  const [artists, setArtists] = useState<ArtistConfig[]>(DEFAULT_ARTISTS);
+  const [artists, setArtists] = useState<ArtistConfig[]>(() =>
+    DEFAULT_ARTISTS.map((a) => ({ ...a, ...(initialArtistOverrides[a.slug] ?? {}) }))
+  );
   const [savingArtist, setSavingArtist] = useState<string | null>(null);
   const [loadingCounts, setLoadingCounts] = useState(false);
 

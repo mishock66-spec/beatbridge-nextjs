@@ -8,6 +8,7 @@ import DailyWarningBanner from "@/components/DailyWarningBanner";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import { SocialLinks } from "@/components/SocialLinks";
 import AuthGateClient from "@/components/AuthGateClient";
+import { getArtistOverride } from "@/lib/artistOverrides";
 
 export const revalidate = 0;
 
@@ -101,6 +102,13 @@ export default async function ArtistNetwork({
   }
 
   const meta = ARTIST_META[slug];
+  const override = await getArtistOverride(slug).catch(() => ({}));
+  const effectiveBio = override.description ?? meta.bio;
+  const effectiveSocials = {
+    ...meta.socials,
+    ...(override.instagram ? { instagram: override.instagram } : {}),
+    ...(override.twitter ? { twitter: override.twitter } : {}),
+  };
 
   let records: AirtableRecord[] = [];
   let error: string | null = null;
@@ -155,9 +163,9 @@ export default async function ArtistNetwork({
               {meta.name}
             </h1>
             <p className="text-gray-500 text-sm">{meta.subtitle}</p>
-            <SocialLinks socials={meta.socials} email={meta.email} />
+            <SocialLinks socials={effectiveSocials} email={meta.email} />
             <p className="text-gray-400 text-sm max-w-2xl leading-relaxed mt-3">
-              {meta.bio}
+              {effectiveBio}
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
