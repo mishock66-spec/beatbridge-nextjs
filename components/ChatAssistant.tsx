@@ -291,12 +291,10 @@ export default function ChatAssistant() {
       feedbackModeRef.current = false;
       setFeedbackMode(false);
       const confirmMsg: Message = { role: "assistant", content: `Done — sent to the team! 🙏` };
-      setMessages((prev) => {
-        const updated = [...prev, confirmMsg];
-        persistMessages(updated, conversationId).then((id) => {
-          if (id && !conversationId) setConversationId(id);
-        });
-        return updated;
+      const feedbackFinalMessages = [...messages, newUserMsg, confirmMsg];
+      setMessages((prev) => [...prev, confirmMsg]);
+      persistMessages(feedbackFinalMessages, conversationId).then((id) => {
+        if (id && !conversationId) setConversationId(id);
       });
       setLoading(false);
       return;
