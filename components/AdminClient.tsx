@@ -192,6 +192,7 @@ function UsersSection({
   setUserSearch,
   onRefresh,
   adminUserId: _adminUserId,
+  clerkFailed,
 }: {
   users: AdminUser[];
   loading: boolean;
@@ -199,6 +200,7 @@ function UsersSection({
   setUserSearch: (v: string) => void;
   onRefresh: () => void;
   adminUserId: string;
+  clerkFailed?: boolean;
 }) {
   const filtered = userSearch.trim()
     ? users.filter((u) =>
@@ -234,6 +236,13 @@ function UsersSection({
           </button>
         </div>
       </div>
+
+      {/* Clerk warning */}
+      {clerkFailed && (
+        <div className="mb-4 px-4 py-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl text-xs text-yellow-300">
+          Could not reach Clerk API — emails unavailable. Check that <code className="bg-white/[0.08] px-1 rounded">CLERK_SECRET_KEY</code> is set in Vercel production env.
+        </div>
+      )}
 
       {/* Search */}
       <div className="mb-4">
@@ -374,6 +383,7 @@ export default function AdminClient({
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [userSearch, setUserSearch] = useState("");
+  const [clerkFailed, setClerkFailed] = useState(false);
 
   // ── Contact search ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
@@ -427,6 +437,7 @@ export default function AdminClient({
     if (res?.ok) {
       const data = await res.json();
       setUsers(data.users ?? []);
+      setClerkFailed(data.clerkFailed ?? false);
     }
     setLoadingUsers(false);
   }, [adminUserId]);
@@ -765,6 +776,7 @@ export default function AdminClient({
               setUserSearch={setUserSearch}
               onRefresh={fetchUsers}
               adminUserId={adminUserId}
+              clerkFailed={clerkFailed}
             />
           )}
 
