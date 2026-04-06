@@ -59,6 +59,17 @@ type RegenState = {
   running: boolean;
 };
 
+type AdminUser = {
+  id: string;
+  name: string;
+  email: string;
+  plan: string;
+  subscriptionStatus: string;
+  trialStart: string | null;
+  createdAt: string;
+  dmsSent: number;
+};
+
 const PROFILE_TYPE_OPTIONS = [
   "Beatmaker/Producteur",
   "Ingé son",
@@ -77,7 +88,7 @@ type Stats = {
   dmsSentTotal: number;
 };
 
-type Section = "banner" | "artists" | "vote" | "texts" | "stats" | "contacts" | "templates";
+type Section = "stats" | "users" | "banner" | "artists" | "contacts" | "templates" | "vote" | "texts";
 
 const DEFAULT_ARTISTS: ArtistConfig[] = [
   { slug: "currensy",    name: "Curren$y",    description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
@@ -122,6 +133,175 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors";
 const textareaCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-y";
+
+// ─── Plan badge ───────────────────────────────────────────────────────────────
+
+function PlanBadge({ plan, status }: { plan: string; status: string }) {
+  const p = plan?.toLowerCase() ?? "free";
+  const s = status?.toLowerCase() ?? "";
+  if (p === "premium" || p === "lifetime") {
+    return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-300">Premium</span>;
+  }
+  if (p === "pro" || s === "trialing" || s === "active") {
+    return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-300">Pro</span>;
+  }
+  return <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-white/[0.06] text-[#707070]">Free</span>;
+}
+
+function TrialBadge({ trialStart }: { trialStart: string | null }) {
+  if (!trialStart) return <span className="text-xs text-[#505050]">N/A</span>;
+  const start = new Date(trialStart);
+  const expiry = new Date(start.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const active = expiry > new Date();
+  return active
+    ? <span className="text-xs font-medium text-green-400">Active</span>
+    : <span className="text-xs text-[#505050]">Expired</span>;
+}
+
+function formatDate(iso: string) {
+  return new Date(iso).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+}
+
+function exportCSV(users: AdminUser[]) {
+  const headers = ["#", "Name", "Email", "Plan", "Trial", "Joined", "DMs Sent"];
+  const rows = users.map((u, i) => [
+    i + 1,
+    u.name,
+    u.email,
+    u.plan ?? "free",
+    u.trialStart ? (new Date(u.trialStart).getTime() + 14 * 86400000 > Date.now() ? "Active" : "Expired") : "N/A",
+    formatDate(u.createdAt),
+    u.dmsSent,
+  ]);
+  const csv = [headers, ...rows].map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(",")).join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `beatbridge-users-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ─── Users section ────────────────────────────────────────────────────────────
+
+function UsersSection({
+  users,
+  loading,
+  userSearch,
+  setUserSearch,
+  onRefresh,
+  adminUserId: _adminUserId,
+}: {
+  users: AdminUser[];
+  loading: boolean;
+  userSearch: string;
+  setUserSearch: (v: string) => void;
+  onRefresh: () => void;
+  adminUserId: string;
+}) {
+  const filtered = userSearch.trim()
+    ? users.filter((u) =>
+        u.name.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearch.toLowerCase())
+      )
+    : users;
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-6 gap-3">
+        <h2 className="text-xl font-light tracking-[0.02em]">
+          Users
+          {users.length > 0 && (
+            <span className="ml-2 text-sm text-[#505050] font-normal">({users.length})</span>
+          )}
+        </h2>
+        <div className="flex items-center gap-2">
+          {users.length > 0 && (
+            <button
+              onClick={() => exportCSV(users)}
+              className="text-xs font-medium text-orange-400 border border-orange-500/30 hover:bg-orange-500/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Export CSV
+            </button>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={loading}
+            className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
+          >
+            {loading ? "Loading…" : "↺ Refresh"}
+          </button>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="mb-4">
+        <input
+          className={inputCls}
+          placeholder="Search by name or email…"
+          value={userSearch}
+          onChange={(e) => setUserSearch(e.target.value)}
+        />
+      </div>
+
+      {loading && users.length === 0 ? (
+        <p className="text-[#505050] text-sm">Loading users…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-[#505050] text-sm">{userSearch ? "No users match your search." : "No users yet."}</p>
+      ) : (
+        <>
+          {/* Desktop table */}
+          <div className="hidden sm:block bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-white/[0.06]">
+                  {["#", "Name", "Email", "Plan", "Trial", "Joined", "DMs"].map((h) => (
+                    <th key={h} className="px-4 py-3 text-left text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((u, i) => (
+                  <tr key={u.id} className="border-b border-white/[0.04] last:border-0 hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3 text-[#505050] text-xs">{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-white">{u.name || "—"}</td>
+                    <td className="px-4 py-3 text-[#a0a0a0] max-w-[180px] truncate">{u.email}</td>
+                    <td className="px-4 py-3"><PlanBadge plan={u.plan} status={u.subscriptionStatus} /></td>
+                    <td className="px-4 py-3"><TrialBadge trialStart={u.trialStart} /></td>
+                    <td className="px-4 py-3 text-[#707070] whitespace-nowrap">{formatDate(u.createdAt)}</td>
+                    <td className="px-4 py-3 text-[#a0a0a0] font-mono">{u.dmsSent}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Mobile cards */}
+          <div className="sm:hidden flex flex-col gap-3">
+            {filtered.map((u, i) => (
+              <div key={u.id} className="bg-white/[0.025] border border-white/[0.08] rounded-xl p-4">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <div>
+                    <p className="text-sm font-semibold text-white">{u.name || "—"}</p>
+                    <p className="text-xs text-[#606060] mt-0.5 break-all">{u.email}</p>
+                  </div>
+                  <PlanBadge plan={u.plan} status={u.subscriptionStatus} />
+                </div>
+                <div className="flex items-center gap-4 text-xs text-[#606060]">
+                  <span>#{i + 1}</span>
+                  <span>Trial: <TrialBadge trialStart={u.trialStart} /></span>
+                  <span>{formatDate(u.createdAt)}</span>
+                  <span>{u.dmsSent} DMs</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
@@ -190,6 +370,11 @@ export default function AdminClient({
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
+  // ── Users ─────────────────────────────────────────────────────────────────
+  const [users, setUsers] = useState<AdminUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+
   // ── Contact search ────────────────────────────────────────────────────────
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<ContactResult[]>([]);
@@ -231,6 +416,24 @@ export default function AdminClient({
   useEffect(() => {
     if (section === "stats") fetchStats();
   }, [section, fetchStats]);
+
+  const fetchUsers = useCallback(async () => {
+    setLoadingUsers(true);
+    const res = await fetch("/api/admin/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId: adminUserId }),
+    }).catch(() => null);
+    if (res?.ok) {
+      const data = await res.json();
+      setUsers(data.users ?? []);
+    }
+    setLoadingUsers(false);
+  }, [adminUserId]);
+
+  useEffect(() => {
+    if (section === "users") fetchUsers();
+  }, [section, fetchUsers]);
 
   // ── Fetch Airtable contact counts ──────────────────────────────────────────
   const fetchContactCounts = useCallback(async () => {
@@ -474,6 +677,7 @@ export default function AdminClient({
   // ── Nav items ──────────────────────────────────────────────────────────────
   const navItems: { id: Section; label: string; icon: string }[] = [
     { id: "stats",     label: "Stats",     icon: "📊" },
+    { id: "users",     label: "Users",     icon: "👥" },
     { id: "banner",    label: "Banner",    icon: "📢" },
     { id: "artists",   label: "Artists",   icon: "🎤" },
     { id: "contacts",  label: "Contacts",  icon: "🔍" },
@@ -550,6 +754,18 @@ export default function AdminClient({
                 <p className="text-[#505050] text-sm">Click Refresh to load.</p>
               )}
             </div>
+          )}
+
+          {/* ── USERS ─────────────────────────────────────────────────────── */}
+          {section === "users" && (
+            <UsersSection
+              users={users}
+              loading={loadingUsers}
+              userSearch={userSearch}
+              setUserSearch={setUserSearch}
+              onRefresh={fetchUsers}
+              adminUserId={adminUserId}
+            />
           )}
 
           {/* ── BANNER ────────────────────────────────────────────────────── */}
