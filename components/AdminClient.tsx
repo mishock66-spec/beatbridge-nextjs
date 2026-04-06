@@ -133,6 +133,9 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 const inputCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors";
 const textareaCls = "w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2.5 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-y";
+// Selects need a solid background (not opacity-based) so the native option list is dark cross-browser.
+// color-scheme:dark tells the OS to render the native dropdown in dark mode.
+const selectCls = "w-full bg-[#1a1a1a] border border-[#333] rounded-lg px-3 py-2.5 text-sm text-white focus:outline-none focus:border-orange-500 transition-colors cursor-pointer [color-scheme:dark]";
 
 // ─── Plan badge ───────────────────────────────────────────────────────────────
 
@@ -866,7 +869,7 @@ export default function AdminClient({
                   <div className="grid sm:grid-cols-2 gap-4">
                     <Field label="Type">
                       <select
-                        className={inputCls}
+                        className={selectCls}
                         value={msgForm.type}
                         onChange={(e) => setMsgForm((f) => ({ ...f, type: e.target.value }))}
                       >
@@ -878,7 +881,7 @@ export default function AdminClient({
                     </Field>
                     <Field label="Recipient">
                       <select
-                        className={inputCls}
+                        className={selectCls}
                         value={msgForm.recipientUserId}
                         onChange={(e) => setMsgForm((f) => ({ ...f, recipientUserId: e.target.value }))}
                       >
@@ -1187,7 +1190,7 @@ export default function AdminClient({
                           </Field>
                           <Field label="Profile Type">
                             <select
-                              className={inputCls}
+                              className={selectCls}
                               value={edit.profileType}
                               onChange={(e) => setContactEdit(contact.id, { profileType: e.target.value }, contact)}
                             >
