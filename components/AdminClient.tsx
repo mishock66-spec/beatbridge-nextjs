@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -38,6 +38,37 @@ type ArtistConfig = {
   contactCount?: number;
 };
 
+type ContactResult = {
+  id: string;
+  username: string;
+  fullName: string;
+  followers: number;
+  profileType: string;
+  suiviPar: string;
+};
+
+type ContactEdit = {
+  followers: number;
+  profileType: string;
+};
+
+type RegenState = {
+  slug: string;
+  done: number;
+  total: number;
+  running: boolean;
+};
+
+const PROFILE_TYPE_OPTIONS = [
+  "Beatmaker/Producteur",
+  "Ingé son",
+  "Manager",
+  "Artiste/Rappeur",
+  "Photographe/Vidéaste",
+  "DJ",
+  "Autre",
+];
+
 type Stats = {
   totalUsers: number;
   trialUsers: number;
@@ -46,7 +77,7 @@ type Stats = {
   dmsSentTotal: number;
 };
 
-type Section = "banner" | "artists" | "vote" | "texts" | "stats";
+type Section = "banner" | "artists" | "vote" | "texts" | "stats" | "contacts" | "templates";
 
 const DEFAULT_ARTISTS: ArtistConfig[] = [
   { slug: "currensy",    name: "Curren$y",    description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
@@ -159,6 +190,17 @@ export default function AdminClient({
   const [stats, setStats] = useState<Stats | null>(null);
   const [loadingStats, setLoadingStats] = useState(false);
 
+  // ── Contact search ────────────────────────────────────────────────────────
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<ContactResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [contactEdits, setContactEdits] = useState<Record<string, ContactEdit>>({});
+  const [savingContact, setSavingContact] = useState<string | null>(null);
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Template regen ────────────────────────────────────────────────────────
+  const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
+
   // ── Fetch vote counts ──────────────────────────────────────────────────────
   const fetchVoteCounts = useCallback(async () => {
     const res = await fetch("/api/vote/counts").catch(() => null);
@@ -222,6 +264,122 @@ export default function AdminClient({
   useEffect(() => {
     if (section === "artists") fetchContactCounts();
   }, [section, fetchContactCounts]);
+
+  // ── Contact search ────────────────────────────────────────────────────────
+  useEffect(() => {
+    if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+    if (searchQuery.length < 2) { setSearchResults([]); return; }
+    searchDebounceRef.current = setTimeout(async () => {
+      setSearching(true);
+      const res = await fetch(
+        `/api/admin/contact-search?userId=${encodeURIComponent(adminUserId)}&q=${encodeURIComponent(searchQuery)}`
+      ).catch(() => null);
+      if (res?.ok) {
+        const data = await res.json().catch(() => null);
+        if (data?.results) setSearchResults(data.results);
+      }
+      setSearching(false);
+    }, 400);
+  }, [searchQuery, adminUserId]);
+
+  async function handleSaveContact(contact: ContactResult) {
+    const edit = contactEdits[contact.id];
+    if (!edit) return;
+    setSavingContact(contact.id);
+    try {
+      const res = await fetch("/api/admin/contact-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: adminUserId,
+          recordId: contact.id,
+          followers: edit.followers,
+          profileType: edit.profileType,
+        }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      // Update in-place in results
+      setSearchResults((prev) =>
+        prev.map((c) =>
+          c.id === contact.id
+            ? { ...c, followers: edit.followers, profileType: edit.profileType }
+            : c
+        )
+      );
+      toast.success(`@${contact.username} updated`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingContact(null);
+    }
+  }
+
+  function getContactEdit(contact: ContactResult): ContactEdit {
+    return contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+  }
+
+  function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
+    setContactEdits((prev) => {
+      const base = prev[id] ?? (baseContact
+        ? { followers: baseContact.followers, profileType: baseContact.profileType }
+        : { followers: 0, profileType: "" });
+      return { ...prev, [id]: { ...base, ...patch } };
+    });
+  }
+
+  // ── Template regeneration ─────────────────────────────────────────────────
+  async function handleRegenerate(artistSlug: string, artistName: string) {
+    setRegenStates((prev) => ({
+      ...prev,
+      [artistSlug]: { slug: artistSlug, done: 0, total: 0, running: true },
+    }));
+    try {
+      const res = await fetch("/api/admin/regenerate-templates", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: adminUserId, artistSlug }),
+      });
+      if (!res.ok || !res.body) throw new Error("Request failed");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "progress") {
+              setRegenStates((prev) => ({
+                ...prev,
+                [artistSlug]: { slug: artistSlug, done: data.done, total: data.total, running: true },
+              }));
+            }
+            if (data.type === "done") {
+              setRegenStates((prev) => ({
+                ...prev,
+                [artistSlug]: { slug: artistSlug, done: data.updated, total: data.total, running: false },
+              }));
+              toast.success(`${artistName}: ${data.updated} templates regenerated`);
+            }
+            if (data.type === "error") {
+              toast.error(`${artistName}: ${data.message}`);
+              setRegenStates((prev) => ({ ...prev, [artistSlug]: { ...prev[artistSlug], running: false } }));
+            }
+          } catch {
+            // skip malformed SSE line
+          }
+        }
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Regeneration failed");
+      setRegenStates((prev) => ({ ...prev, [artistSlug]: { ...(prev[artistSlug] ?? { slug: artistSlug, done: 0, total: 0 }), running: false } }));
+    }
+  }
 
   // ── Save helpers ───────────────────────────────────────────────────────────
   async function saveConfig(key: string, value: unknown) {
@@ -315,11 +473,13 @@ export default function AdminClient({
 
   // ── Nav items ──────────────────────────────────────────────────────────────
   const navItems: { id: Section; label: string; icon: string }[] = [
-    { id: "stats",   label: "Stats",   icon: "📊" },
-    { id: "banner",  label: "Banner",  icon: "📢" },
-    { id: "artists", label: "Artists", icon: "🎤" },
-    { id: "vote",    label: "Vote",    icon: "🗳️"  },
-    { id: "texts",   label: "Texts",   icon: "✏️"  },
+    { id: "stats",     label: "Stats",     icon: "📊" },
+    { id: "banner",    label: "Banner",    icon: "📢" },
+    { id: "artists",   label: "Artists",   icon: "🎤" },
+    { id: "contacts",  label: "Contacts",  icon: "🔍" },
+    { id: "templates", label: "Templates", icon: "⚙️"  },
+    { id: "vote",      label: "Vote",      icon: "🗳️"  },
+    { id: "texts",     label: "Texts",     icon: "✏️"  },
   ];
 
   // Show nothing while Clerk initialises or if not admin
@@ -330,7 +490,7 @@ export default function AdminClient({
   return (
     <div className="min-h-screen bg-[#080808]">
       {/* Header */}
-      <div className="border-b border-white/[0.06] bg-[rgba(8,8,8,0.95)] sticky top-0 z-50">
+      <div className="border-b border-white/[0.06] bg-[rgba(8,8,8,0.95)] sticky top-14 z-40">
         <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
           <span className="text-sm font-bold text-white tracking-wide">
             BeatBridge Admin <span className="text-orange-500">⚡</span>
@@ -560,6 +720,138 @@ export default function AdminClient({
 
               <div className="flex justify-end">
                 <SaveButton onClick={handleSaveCandidates} saving={savingVote} label="Save candidates" />
+              </div>
+            </div>
+          )}
+
+          {/* ── CONTACTS ──────────────────────────────────────────────────── */}
+          {section === "contacts" && (
+            <div>
+              <h2 className="text-xl font-light tracking-[0.02em] mb-6">Contact Editor</h2>
+              <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-5">
+                <div className="relative">
+                  <input
+                    className={inputCls + " pr-10"}
+                    placeholder="Search by @username or name…"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    autoFocus
+                  />
+                  {searching && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                  )}
+                </div>
+                {searchQuery.length > 0 && searchQuery.length < 2 && (
+                  <p className="text-xs text-[#505050] mt-2">Type at least 2 characters</p>
+                )}
+              </div>
+
+              {searchResults.length > 0 && (
+                <div className="flex flex-col gap-3">
+                  {searchResults.map((contact) => {
+                    const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+                    return (
+                      <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
+                        <div className="flex items-start justify-between gap-3 mb-4">
+                          <div>
+                            <p className="text-sm font-semibold text-white">@{contact.username}</p>
+                            {contact.fullName && <p className="text-xs text-[#606060] mt-0.5">{contact.fullName}</p>}
+                            <p className="text-xs text-[#505050] mt-0.5">{contact.suiviPar}</p>
+                          </div>
+                          <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
+                            {contact.profileType || "—"}
+                          </span>
+                        </div>
+                        <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                          <Field label="Followers">
+                            <input
+                              type="number"
+                              className={inputCls}
+                              value={edit.followers}
+                              onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 }, contact)}
+                            />
+                          </Field>
+                          <Field label="Profile Type">
+                            <select
+                              className={inputCls}
+                              value={edit.profileType}
+                              onChange={(e) => setContactEdit(contact.id, { profileType: e.target.value }, contact)}
+                            >
+                              <option value="">— select type —</option>
+                              {PROFILE_TYPE_OPTIONS.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                              ))}
+                            </select>
+                          </Field>
+                        </div>
+                        <div className="flex justify-end">
+                          <SaveButton
+                            onClick={() => handleSaveContact(contact)}
+                            saving={savingContact === contact.id}
+                            label="Save contact"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
+                <p className="text-[#505050] text-sm text-center py-8">No contacts found for "{searchQuery}"</p>
+              )}
+            </div>
+          )}
+
+          {/* ── TEMPLATES ─────────────────────────────────────────────────── */}
+          {section === "templates" && (
+            <div>
+              <h2 className="text-xl font-light tracking-[0.02em] mb-2">Template Regeneration</h2>
+              <p className="text-sm text-[#505050] mb-6">Regenerates all DM templates for a specific artist using the latest template rules. Takes 30–60 seconds per artist.</p>
+              <div className="flex flex-col gap-4">
+                {DEFAULT_ARTISTS.map((a) => {
+                  const regen = regenStates[a.slug];
+                  const running = regen?.running ?? false;
+                  const pct = regen && regen.total > 0 ? Math.round((regen.done / regen.total) * 100) : 0;
+                  return (
+                    <div key={a.slug} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-white">{a.name}</p>
+                          {regen && !running && regen.done > 0 && (
+                            <p className="text-xs text-green-400 mt-0.5">✓ {regen.done}/{regen.total} templates updated</p>
+                          )}
+                          {running && regen && regen.total > 0 && (
+                            <p className="text-xs text-orange-400 mt-0.5">Regenerating… {regen.done}/{regen.total} ({pct}%)</p>
+                          )}
+                          {running && regen && regen.total === 0 && (
+                            <p className="text-xs text-[#606060] mt-0.5">Fetching records…</p>
+                          )}
+                        </div>
+                        <button
+                          onClick={() => handleRegenerate(a.slug, a.name)}
+                          disabled={running}
+                          className="flex-shrink-0 text-sm font-medium bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {running ? (
+                            <span className="flex items-center gap-2">
+                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                              Running…
+                            </span>
+                          ) : "Regenerate"}
+                        </button>
+                      </div>
+                      {running && regen && regen.total > 0 && (
+                        <div className="mt-3 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

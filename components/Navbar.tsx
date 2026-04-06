@@ -8,7 +8,9 @@ import Avatar from "@/components/Avatar";
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
 
-function NavAvatar({ userId, username }: { userId: string; username: string }) {
+const ADMIN_EMAIL = "mishock66@gmail.com";
+
+function NavAvatar({ userId, username, isAdmin }: { userId: string; username: string; isAdmin?: boolean }) {
   const { signOut } = useClerk();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -34,11 +36,23 @@ function NavAvatar({ userId, username }: { userId: string; username: string }) {
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-44 bg-[#111111] border border-white/[0.1] rounded-xl overflow-hidden shadow-xl shadow-black/40 z-50">
+        <div className="absolute right-0 top-full mt-2 w-44 bg-[#111111] border border-white/[0.1] rounded-xl overflow-hidden shadow-xl shadow-black/40 z-[200]">
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setOpen(false)}
+              className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-orange-400 hover:text-orange-300 hover:bg-white/[0.04] transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+              </svg>
+              Admin ⚡
+            </Link>
+          )}
           <Link
             href="/onboarding"
             onClick={() => setOpen(false)}
-            className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#a0a0a0] hover:text-white hover:bg-white/[0.04] transition-colors"
+            className={`flex items-center gap-2.5 px-4 py-2.5 text-sm text-[#a0a0a0] hover:text-white hover:bg-white/[0.04] transition-colors ${isAdmin ? "border-t border-white/[0.06]" : ""}`}
           >
             <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -63,6 +77,7 @@ function NavAvatar({ userId, username }: { userId: string; username: string }) {
 export default function Navbar() {
   const pathname = usePathname();
   const { isSignedIn, isLoaded, user } = useUser();
+  const isAdmin = user?.primaryEmailAddress?.emailAddress === ADMIN_EMAIL;
   const [scrolled, setScrolled] = useState(false);
 
   useEffect(() => {
@@ -74,7 +89,7 @@ export default function Navbar() {
 
   return (
     <nav
-      className={`sticky top-0 z-50 border-b transition-[background-color,border-color,backdrop-filter] duration-300 ${
+      className={`sticky top-0 z-[100] border-b transition-[background-color,border-color,backdrop-filter] duration-300 ${
         scrolled
           ? "border-white/[0.06] backdrop-blur-[20px] bg-[rgba(8,8,8,0.85)]"
           : "border-transparent bg-transparent"
@@ -225,6 +240,7 @@ export default function Navbar() {
               <NavAvatar
                 userId={user!.id}
                 username={user!.firstName ?? user!.username ?? user!.emailAddresses[0]?.emailAddress?.split("@")[0] ?? "U"}
+                isAdmin={isAdmin}
               />
             </>
           ) : (
