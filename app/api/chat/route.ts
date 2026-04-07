@@ -123,16 +123,31 @@ export async function POST(req: NextRequest) {
 - Account age: ${userStats.accountAge || "unknown"}`;
     }
 
+    // Anthropic requires the conversation to start with a user message.
+    // Strip any leading assistant messages (e.g. the client-side welcome message)
+    // before sending to the API.
+    const apiMessages = messages
+      .map((m: { role: string; content: string }) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }))
+      .filter((_, i, arr) => {
+        // Drop messages from the start until we hit the first user message
+        const firstUserIdx = arr.findIndex((m) => m.role === "user");
+        return i >= firstUserIdx;
+      });
+
+    if (apiMessages.length === 0) {
+      return NextResponse.json({ error: "No user messages provided" }, { status: 400 });
+    }
+
     const client = new Anthropic({ apiKey });
 
     const response = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1024,
       system: systemPrompt,
-      messages: messages.map((m: { role: string; content: string }) => ({
-        role: m.role as "user" | "assistant",
-        content: m.content,
-      })),
+      messages: apiMessages,
     });
 
     const content = response.content[0];
@@ -143,7 +158,11 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ reply: content.text });
   } catch (err) {
-    console.error("[chat] error:", err instanceof Error ? err.message : err);
-    return NextResponse.json({ error: "Failed to get response" }, { status: 500 });
+    // Log full error details so Vercel logs show the real cause
+    console.error("[chat] error name:", err instanceof Error ? err.name : typeof err);
+    console.error("[chat] error message:", err instanceof Error ? err.message : String(err));
+    console.error("[chat] full error:", err);
+    const message = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

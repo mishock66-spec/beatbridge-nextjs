@@ -323,8 +323,11 @@ export default function ChatAssistant() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: updatedMessages, userStats: userStats ?? undefined }),
       });
-      if (!res.ok) throw new Error("Request failed");
       const data = await res.json();
+      if (!res.ok) {
+        console.error("[chat] API error:", data?.error ?? res.status);
+        throw new Error(data?.error ?? "Request failed");
+      }
 
       const assistantMsg: Message = { role: "assistant", content: data.reply };
       const finalMessages = [...updatedMessages, assistantMsg];
