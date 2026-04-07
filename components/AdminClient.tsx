@@ -1060,6 +1060,31 @@ export default function AdminClient({
               ) : (
                 <p className="text-[#505050] text-sm">Click Refresh to load.</p>
               )}
+
+              {/* Quick Links */}
+              <div className="mt-6 bg-white/[0.03] border border-white/[0.08] rounded-xl p-5">
+                <p className="text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-3">Quick Links</p>
+                <div className="grid sm:grid-cols-2 gap-2">
+                  {[
+                    { icon: "💳", label: "Anthropic credits",  href: "https://console.anthropic.com/settings/billing" },
+                    { icon: "🗃️", label: "Airtable tokens",    href: "https://airtable.com/create/tokens" },
+                    { icon: "💳", label: "Stripe dashboard",   href: "https://dashboard.stripe.com" },
+                    { icon: "📊", label: "Vercel dashboard",   href: "https://vercel.com/mishock66-2702s-projects/beatbridge-nextjs" },
+                  ].map(({ icon, label, href }) => (
+                    <a
+                      key={href}
+                      href={href}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-white/[0.02] hover:bg-white/[0.05] border border-white/[0.05] hover:border-white/[0.1] transition-all duration-150 group"
+                    >
+                      <span className="text-base leading-none">{icon}</span>
+                      <span className="text-sm text-[#a0a0a0] group-hover:text-white transition-colors">{label}</span>
+                      <span className="ml-auto text-[#404040] group-hover:text-[#707070] text-xs transition-colors">↗</span>
+                    </a>
+                  ))}
+                </div>
+              </div>
             </div>
           )}
 
