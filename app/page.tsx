@@ -124,12 +124,12 @@ export default async function Home() {
             >
               Explore Networks →
             </Link>
-            <a
-              href="#waitlist"
+            <Link
+              href="/demo"
               className="border border-white/[0.1] text-white font-medium px-8 py-4 rounded-lg hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 text-base"
             >
-              Get Early Access
-            </a>
+              Try demo →
+            </Link>
           </div>
           {/* Stats bar */}
           <div className="hero-animate hero-delay-4 mt-10 flex flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-sm text-[#606060]">

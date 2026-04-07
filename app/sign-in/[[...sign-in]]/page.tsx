@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 
 export default function SignInPage({
@@ -17,6 +18,12 @@ export default function SignInPage({
         </div>
       )}
       <SignIn fallbackRedirectUrl="/onboarding" />
+      <p className="text-sm text-[#505050]">
+        Just browsing?{" "}
+        <Link href="/demo" className="text-orange-400 hover:text-orange-300 transition-colors font-medium">
+          Try the demo →
+        </Link>
+      </p>
     </div>
   );
 }
