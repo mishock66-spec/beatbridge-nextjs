@@ -55,9 +55,8 @@ export default async function DemoPage({
       <div className="bg-orange-500/[0.08] border-b border-orange-500/20 px-4 py-3.5">
         <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-sm text-[#a0a0a0] text-center sm:text-left">
-            <span className="text-orange-300 font-medium">👀 You&apos;re viewing a live demo</span>
-            {" "}— no account needed.{" "}
-            Sign up free to start sending DMs.
+            <span className="text-orange-300 font-medium">👀 Live demo — full access, no account needed.</span>
+            {" "}Sign up to save your progress across sessions.
           </p>
           <Link
             href="/sign-up"
