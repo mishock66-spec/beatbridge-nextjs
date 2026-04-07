@@ -89,7 +89,32 @@ type Stats = {
   dmsSentTotal: number;
 };
 
-type Section = "stats" | "users" | "messages" | "banner" | "artists" | "contacts" | "templates" | "vote" | "texts";
+type Section = "stats" | "users" | "messages" | "banner" | "artists" | "add-artist" | "contacts" | "templates" | "vote" | "texts";
+
+type AddArtistForm = {
+  artistName: string;
+  artistSlug: string;
+  instagram: string;
+  twitter: string;
+  description: string;
+  followerCount: string;
+};
+
+type AddArtistStep = {
+  step: number;
+  message: string;
+  status: "idle" | "running" | "done" | "error";
+};
+
+type AddArtistSummary = {
+  artistName: string;
+  artistSlug: string;
+  contactsImported: number;
+  autreClassified: number;
+  templatesGenerated: number;
+  photoUrl: string;
+  photoFound: boolean;
+};
 
 const DEFAULT_ARTISTS: ArtistConfig[] = [
   { slug: "currensy",    name: "Curren$y",    description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
@@ -481,6 +506,17 @@ export default function AdminClient({
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
 
+  // ── Add Artist ────────────────────────────────────────────────────────────
+  const [addArtistForm, setAddArtistForm] = useState<AddArtistForm>({
+    artistName: "", artistSlug: "", instagram: "", twitter: "", description: "", followerCount: "",
+  });
+  const [addArtistFile, setAddArtistFile] = useState<File | null>(null);
+  const addArtistFileRef = useRef<HTMLInputElement>(null);
+  const [addArtistRunning, setAddArtistRunning] = useState(false);
+  const [addArtistSteps, setAddArtistSteps] = useState<AddArtistStep[]>([]);
+  const [addArtistSummary, setAddArtistSummary] = useState<AddArtistSummary | null>(null);
+  const [addArtistError, setAddArtistError] = useState<string | null>(null);
+
   // ── Fetch vote counts ──────────────────────────────────────────────────────
   const fetchVoteCounts = useCallback(async () => {
     const res = await fetch("/api/vote/counts").catch(() => null);
@@ -843,6 +879,94 @@ export default function AdminClient({
     }
   }
 
+  // ── Add Artist pipeline ────────────────────────────────────────────────────
+  function generateSlug(name: string) {
+    return name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  }
+
+  function updateAddArtistStep(step: number, status: AddArtistStep["status"], message: string) {
+    setAddArtistSteps((prev) => {
+      const existing = prev.find((s) => s.step === step);
+      if (existing) {
+        return prev.map((s) => s.step === step ? { ...s, status, message } : s);
+      }
+      return [...prev, { step, status, message }];
+    });
+  }
+
+  async function handleAddArtist() {
+    if (!addArtistForm.artistName || !addArtistForm.artistSlug || !addArtistForm.instagram || !addArtistFile) {
+      toast.error("Please fill all required fields and upload a CSV.");
+      return;
+    }
+
+    setAddArtistRunning(true);
+    setAddArtistSteps([]);
+    setAddArtistSummary(null);
+    setAddArtistError(null);
+
+    try {
+      const fd = new FormData();
+      fd.append("userId", adminUserId);
+      fd.append("artistName", addArtistForm.artistName);
+      fd.append("artistSlug", addArtistForm.artistSlug);
+      fd.append("instagram", addArtistForm.instagram);
+      fd.append("twitter", addArtistForm.twitter);
+      fd.append("description", addArtistForm.description);
+      fd.append("followerCount", addArtistForm.followerCount || "0");
+      fd.append("file", addArtistFile);
+
+      const res = await fetch("/api/admin/add-artist", { method: "POST", body: fd });
+      if (!res.ok || !res.body) throw new Error("Request failed — check server logs");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue;
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.type === "step") {
+              updateAddArtistStep(data.step, data.status, data.message);
+            }
+            if (data.type === "done") {
+              setAddArtistSummary({
+                artistName: data.artistName,
+                artistSlug: data.artistSlug,
+                contactsImported: data.contactsImported,
+                autreClassified: data.autreClassified,
+                templatesGenerated: data.templatesGenerated,
+                photoUrl: data.photoUrl,
+                photoFound: data.photoFound,
+              });
+              toast.success(`${data.artistName} added successfully!`);
+            }
+            if (data.type === "error") {
+              setAddArtistError(data.message);
+              toast.error(data.message);
+            }
+          } catch {
+            // skip malformed SSE
+          }
+        }
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "Pipeline failed";
+      setAddArtistError(msg);
+      toast.error(msg);
+    } finally {
+      setAddArtistRunning(false);
+    }
+  }
+
   function addCandidate() {
     if (!newCandidate.slug || !newCandidate.name) return;
     setCandidates((prev) => [...prev, { ...newCandidate }]);
@@ -859,7 +983,8 @@ export default function AdminClient({
     { id: "users",     label: "Users",     icon: "👥" },
     { id: "messages",  label: "Messages",  icon: "💬" },
     { id: "banner",    label: "Banner",    icon: "📢" },
-    { id: "artists",   label: "Artists",   icon: "🎤" },
+    { id: "artists",    label: "Artists",    icon: "🎤" },
+    { id: "add-artist", label: "Add Artist +", icon: "➕" },
     { id: "contacts",  label: "Contacts",  icon: "🔍" },
     { id: "templates", label: "Templates", icon: "⚙️"  },
     { id: "vote",      label: "Vote",      icon: "🗳️"  },
@@ -1246,6 +1371,293 @@ export default function AdminClient({
               <div className="flex justify-end">
                 <SaveButton onClick={handleSaveCandidates} saving={savingVote} label="Save candidates" />
               </div>
+            </div>
+          )}
+
+          {/* ── ADD ARTIST ────────────────────────────────────────────────── */}
+          {section === "add-artist" && (
+            <div>
+              <h2 className="text-xl font-light tracking-[0.02em] mb-1">Add Artist</h2>
+              <p className="text-sm text-[#505050] mb-6">Upload an Apify CSV export and fill in the artist details. The pipeline handles everything automatically.</p>
+
+              {/* Form */}
+              {!addArtistSummary && (
+                <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-5 mb-6">
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Artist Name *">
+                      <input
+                        className={inputCls}
+                        placeholder="Metro Boomin"
+                        value={addArtistForm.artistName}
+                        disabled={addArtistRunning}
+                        onChange={(e) => {
+                          const name = e.target.value;
+                          setAddArtistForm((f) => ({
+                            ...f,
+                            artistName: name,
+                            artistSlug: f.artistSlug || generateSlug(name),
+                          }));
+                        }}
+                      />
+                    </Field>
+                    <Field label="Slug *">
+                      <input
+                        className={inputCls}
+                        placeholder="metro-boomin"
+                        value={addArtistForm.artistSlug}
+                        disabled={addArtistRunning}
+                        onChange={(e) => setAddArtistForm((f) => ({ ...f, artistSlug: e.target.value }))}
+                      />
+                    </Field>
+                    <Field label="Instagram Handle *">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#505050] text-sm">@</span>
+                        <input
+                          className={`${inputCls} pl-7`}
+                          placeholder="metroboomin"
+                          value={addArtistForm.instagram}
+                          disabled={addArtistRunning}
+                          onChange={(e) => setAddArtistForm((f) => ({ ...f, instagram: e.target.value.replace(/^@/, "") }))}
+                        />
+                      </div>
+                    </Field>
+                    <Field label="Twitter/X Handle (optional)">
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[#505050] text-sm">@</span>
+                        <input
+                          className={`${inputCls} pl-7`}
+                          placeholder="MetroBoomin"
+                          value={addArtistForm.twitter}
+                          disabled={addArtistRunning}
+                          onChange={(e) => setAddArtistForm((f) => ({ ...f, twitter: e.target.value.replace(/^@/, "") }))}
+                        />
+                      </div>
+                    </Field>
+                  </div>
+
+                  <Field label="Description">
+                    <textarea
+                      className={textareaCls}
+                      rows={2}
+                      placeholder="Brief bio for the artist page…"
+                      value={addArtistForm.description}
+                      disabled={addArtistRunning}
+                      onChange={(e) => setAddArtistForm((f) => ({ ...f, description: e.target.value }))}
+                    />
+                  </Field>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <Field label="Follower Count (used for premium gating)">
+                      <input
+                        className={inputCls}
+                        type="number"
+                        placeholder="12000000"
+                        value={addArtistForm.followerCount}
+                        disabled={addArtistRunning}
+                        onChange={(e) => setAddArtistForm((f) => ({ ...f, followerCount: e.target.value }))}
+                      />
+                    </Field>
+
+                    <Field label="CSV File * (.csv, Apify export)">
+                      <div
+                        onClick={() => !addArtistRunning && addArtistFileRef.current?.click()}
+                        className={`w-full flex items-center gap-3 bg-white/[0.03] border rounded-lg px-3 py-2.5 text-sm cursor-pointer transition-colors ${
+                          addArtistRunning ? "opacity-50 cursor-not-allowed border-white/[0.08]" : "border-white/[0.08] hover:border-orange-500/40"
+                        }`}
+                      >
+                        <span className="text-lg">📎</span>
+                        <span className={addArtistFile ? "text-white" : "text-[#505050]"}>
+                          {addArtistFile ? addArtistFile.name : "Click to choose CSV…"}
+                        </span>
+                        {addArtistFile && (
+                          <span className="ml-auto text-xs text-[#505050]">
+                            {(addArtistFile.size / 1024).toFixed(0)} KB
+                          </span>
+                        )}
+                      </div>
+                      <input
+                        ref={addArtistFileRef}
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={(e) => setAddArtistFile(e.target.files?.[0] ?? null)}
+                      />
+                    </Field>
+                  </div>
+
+                  {addArtistError && !addArtistRunning && (
+                    <div className="px-4 py-3 bg-red-500/10 border border-red-500/30 rounded-xl text-sm text-red-300">
+                      ⚠ {addArtistError}
+                    </div>
+                  )}
+
+                  <div className="flex justify-end pt-1">
+                    <button
+                      onClick={handleAddArtist}
+                      disabled={addArtistRunning || !addArtistForm.artistName || !addArtistForm.instagram || !addArtistFile}
+                      className="bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-6 py-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                    >
+                      {addArtistRunning ? (
+                        <span className="flex items-center gap-2">
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                          Processing…
+                        </span>
+                      ) : "Start Processing"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Progress UI */}
+              {addArtistSteps.length > 0 && !addArtistSummary && (
+                <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-6">
+                  <h3 className="text-sm font-semibold text-white mb-4">Pipeline Progress</h3>
+                  <div className="flex flex-col gap-3">
+                    {addArtistSteps.map((s) => (
+                      <div key={s.step} className="flex items-center gap-3">
+                        {s.status === "running" && (
+                          <span className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        )}
+                        {s.status === "done" && (
+                          <span className="text-green-400 flex-shrink-0 text-sm">✓</span>
+                        )}
+                        {s.status === "error" && (
+                          <span className="text-red-400 flex-shrink-0 text-sm">✗</span>
+                        )}
+                        <span className={`text-sm ${
+                          s.status === "running" ? "text-orange-300" :
+                          s.status === "done" ? "text-[#a0a0a0]" :
+                          s.status === "error" ? "text-red-300" : "text-[#606060]"
+                        }`}>
+                          {s.message}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Completion summary */}
+              {addArtistSummary && (
+                <div className="flex flex-col gap-4">
+                  <div className="bg-green-500/10 border border-green-500/30 rounded-2xl p-6">
+                    <h3 className="text-lg font-semibold text-green-400 mb-1">
+                      ✓ {addArtistSummary.artistName} added successfully!
+                    </h3>
+                    <p className="text-sm text-[#707070] mb-4">The pipeline completed. Here&apos;s the summary:</p>
+                    <div className="grid sm:grid-cols-2 gap-3 mb-4">
+                      <div className="bg-white/[0.04] rounded-xl px-4 py-3">
+                        <p className="text-xs text-[#505050] uppercase tracking-[0.08em] mb-1">Contacts imported</p>
+                        <p className="text-2xl font-black text-orange-500">{addArtistSummary.contactsImported.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.04] rounded-xl px-4 py-3">
+                        <p className="text-xs text-[#505050] uppercase tracking-[0.08em] mb-1">Profiles classified</p>
+                        <p className="text-2xl font-black text-orange-500">{addArtistSummary.autreClassified.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.04] rounded-xl px-4 py-3">
+                        <p className="text-xs text-[#505050] uppercase tracking-[0.08em] mb-1">DM templates generated</p>
+                        <p className="text-2xl font-black text-orange-500">{addArtistSummary.templatesGenerated.toLocaleString()}</p>
+                      </div>
+                      <div className="bg-white/[0.04] rounded-xl px-4 py-3">
+                        <p className="text-xs text-[#505050] uppercase tracking-[0.08em] mb-1">Photo</p>
+                        <p className="text-sm font-semibold">
+                          {addArtistSummary.photoFound
+                            ? <span className="text-green-400">✓ Found</span>
+                            : <span className="text-yellow-400">⚠ Using fallback</span>
+                          }
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <a
+                        href={`/artist/${addArtistSummary.artistSlug}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-orange-400 hover:text-orange-300 transition-colors"
+                      >
+                        View artist page →
+                      </a>
+                      <span className="text-[#303030]">·</span>
+                      <a
+                        href={`/dashboard`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-[#505050] hover:text-white transition-colors"
+                      >
+                        View on dashboard →
+                      </a>
+                    </div>
+                  </div>
+
+                  {/* Next steps: code snippets */}
+                  <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6">
+                    <h3 className="text-sm font-semibold text-white mb-1">Next steps — manual code updates required</h3>
+                    <p className="text-xs text-[#505050] mb-4">These code changes can&apos;t be done automatically on Vercel. Copy-paste into the files listed below, then push to main.</p>
+
+                    <div className="flex flex-col gap-4">
+                      <div>
+                        <p className="text-xs text-[#707070] mb-1.5">1. <code className="text-orange-300">lib/airtable.ts</code> — Add to ARTIST_ORDER:</p>
+                        <pre className="bg-[#0d0d0d] border border-white/[0.06] rounded-lg px-4 py-3 text-xs text-[#a0a0a0] overflow-x-auto whitespace-pre-wrap">
+{`const ARTIST_ORDER = [..., "${addArtistSummary.artistName}"];`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#707070] mb-1.5">2. <code className="text-orange-300">app/dashboard/page.tsx</code> — Add to ARTIST_METADATA:</p>
+                        <pre className="bg-[#0d0d0d] border border-white/[0.06] rounded-lg px-4 py-3 text-xs text-[#a0a0a0] overflow-x-auto whitespace-pre-wrap">
+{`"${addArtistSummary.artistName}": { slug: "${addArtistSummary.artistSlug}", photo: "/images/${addArtistSummary.artistSlug}.jpg" },`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#707070] mb-1.5">3. <code className="text-orange-300">lib/announcements.ts</code> — Set as latest drop:</p>
+                        <pre className="bg-[#0d0d0d] border border-white/[0.06] rounded-lg px-4 py-3 text-xs text-[#a0a0a0] overflow-x-auto whitespace-pre-wrap">
+{`export const LATEST_DROP = {
+  artistName: "${addArtistSummary.artistName}",
+  slug: "${addArtistSummary.artistSlug}",
+  connectionCount: ${addArtistSummary.contactsImported},
+  droppedAt: "${new Date().toISOString()}",
+  active: true,
+};`}
+                        </pre>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#707070] mb-1.5">4. Upload artist photo to <code className="text-orange-300">public/images/{addArtistSummary.artistSlug}.jpg</code></p>
+                        {addArtistSummary.photoFound && (
+                          <p className="text-xs text-[#505050]">
+                            Photo URL found: <a href={addArtistSummary.photoUrl} target="_blank" rel="noopener noreferrer" className="text-orange-400 underline break-all">{addArtistSummary.photoUrl}</a>
+                          </p>
+                        )}
+                        <p className="text-xs text-[#505050] mt-1">
+                          Download: <code className="bg-[#0d0d0d] px-1.5 py-0.5 rounded text-[#a0a0a0]">{`curl -L "${addArtistSummary.photoUrl}" -o public/images/${addArtistSummary.artistSlug}.jpg`}</code>
+                        </p>
+                      </div>
+
+                      <div>
+                        <p className="text-xs text-[#707070] mb-1.5">5. Create artist page at <code className="text-orange-300">app/artist/{addArtistSummary.artistSlug}/page.tsx</code> using an existing artist as template.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <button
+                      onClick={() => {
+                        setAddArtistSummary(null);
+                        setAddArtistSteps([]);
+                        setAddArtistError(null);
+                        setAddArtistForm({ artistName: "", artistSlug: "", instagram: "", twitter: "", description: "", followerCount: "" });
+                        setAddArtistFile(null);
+                        if (addArtistFileRef.current) addArtistFileRef.current.value = "";
+                      }}
+                      className="text-sm text-[#505050] hover:text-white transition-colors border border-white/[0.08] hover:border-white/[0.15] px-4 py-2 rounded-lg"
+                    >
+                      Add another artist
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
