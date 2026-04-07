@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 
-export const maxDuration = 60;
+export const maxDuration = 300;
 export const dynamic = "force-dynamic";
 
 function isAdmin(userId: string) {
@@ -13,20 +13,22 @@ const TABLE_ID = "tbl0nVXbK5BQnU5FM";
 const BASE_URL = `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`;
 
 const ARTIST_FILTERS: Record<string, string | string[]> = {
-  "currensy":    ["Curren$y", "CurrenSy"],
-  "harry-fraud": "Harry Fraud",
-  "wheezy":      "Wheezy",
-  "juke-wong":   "Juke Wong",
-  "southside":   "Southside",
+  "currensy":     ["Curren$y", "CurrenSy"],
+  "harry-fraud":  "Harry Fraud",
+  "wheezy":       "Wheezy",
+  "juke-wong":    "Juke Wong",
+  "southside":    "Southside",
+  "metro-boomin": "Metro Boomin",
 };
 
 const ARTIST_DISPLAY: Record<string, string> = {
-  "Wheezy": "Wheezy",
-  "Curren$y": "Curren$y",
-  "CurrenSy": "Curren$y",
-  "Harry Fraud": "Harry Fraud",
-  "Juke Wong": "Juke Wong",
-  "Southside": "Southside",
+  "Wheezy":       "Wheezy",
+  "Curren$y":     "Curren$y",
+  "CurrenSy":     "Curren$y",
+  "Harry Fraud":  "Harry Fraud",
+  "Juke Wong":    "Juke Wong",
+  "Southside":    "Southside",
+  "Metro Boomin": "Metro Boomin",
 };
 
 function getArtistName(suiviPar: string) {
@@ -107,7 +109,7 @@ function buildBioRef(notes: string, type: string, artistName: string): string | 
   }
 }
 
-function generateTemplate(record: { username: string; fullName: string; profileType: string; notes: string; suiviPar: string }): string {
+function generateTemplateLocal(record: { username: string; fullName: string; profileType: string; notes: string; suiviPar: string }): string {
   const rawName = record.fullName?.trim() || record.username.replace(/^@/, "");
   const name = rawName.includes(" ") ? rawName.split(" ")[0] : rawName;
   const notes = (record.notes || "").trim();
@@ -149,6 +151,88 @@ function generateTemplate(record: { username: string; fullName: string; profileT
   }
 }
 
+// ── Claude Haiku — parallel batch call ───────────────────────────────────────
+
+async function generateTemplatesClaude(
+  apiKey: string,
+  batch: Array<{ username: string; fullName: string; profileType: string; notes: string; suiviPar: string }>
+): Promise<string[]> {
+  const artistName = getArtistName(batch[0]?.suiviPar || "");
+
+  const items = batch.map((r, i) => {
+    const name = (r.fullName?.trim() || r.username).split(" ")[0] || r.username;
+    const type = normalizeType(r.profileType);
+    const bio = (r.notes || "").trim().slice(0, 120);
+    return `${i + 1}. name="${name}", type="${type}", bio="${bio || "N/A"}"`;
+  }).join("\n");
+
+  const prompt = `Generate ${batch.length} personalized Instagram DM openers. Artist network: ${artistName}.
+
+Rules:
+- Start each with "Hey [name], I'm [BEATMAKER_NAME], a beatmaker." — keep [BEATMAKER_NAME] as literal placeholder text, never replace it
+- Reference the bio if available and relevant
+- Adapt pitch to profile type: Producer (beat collab), Engineer (mix/master pitch), Manager (artist pitch), Artist (record pitch), Autre (general networking)
+- Always polite and respectful
+- Max 2-3 sentences total
+- NO links or URLs in the message
+- End with a short question
+
+Contacts:
+${items}
+
+Reply with EXACTLY ${batch.length} numbered templates. Format:
+1. [template text]
+2. [template text]
+No extra text.`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "claude-haiku-4-5-20251001",
+      max_tokens: batch.length * 100,
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+
+  if (!res.ok) {
+    // Fall back to local generation for this batch
+    return batch.map(generateTemplateLocal);
+  }
+
+  const data = await res.json();
+  const raw: string = data.content?.[0]?.text ?? "";
+
+  // Parse numbered response
+  const templates: string[] = new Array(batch.length).fill("");
+  const lines = raw.split("\n");
+  let currentIdx = -1;
+  let currentText = "";
+
+  for (const line of lines) {
+    const match = line.match(/^(\d+)\.\s*(.*)/);
+    if (match) {
+      if (currentIdx >= 0 && currentIdx < batch.length) {
+        templates[currentIdx] = currentText.trim();
+      }
+      currentIdx = parseInt(match[1], 10) - 1;
+      currentText = match[2];
+    } else if (currentIdx >= 0) {
+      currentText += " " + line.trim();
+    }
+  }
+  if (currentIdx >= 0 && currentIdx < batch.length) {
+    templates[currentIdx] = currentText.trim();
+  }
+
+  // Fill any blanks with local fallback
+  return templates.map((t, i) => t || generateTemplateLocal(batch[i]));
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function POST(req: NextRequest) {
@@ -165,6 +249,9 @@ export async function POST(req: NextRequest) {
     return new Response(JSON.stringify({ error: "Missing AIRTABLE_API_KEY" }), { status: 500 });
   }
 
+  const anthropicKey = process.env.ANTHROPIC_API_KEY;
+  const emptyOnly: boolean = body.emptyOnly ?? true;
+
   const filterValues = ARTIST_FILTERS[body.artistSlug];
   if (!filterValues) {
     return new Response(JSON.stringify({ error: "Unknown artist slug" }), { status: 400 });
@@ -178,23 +265,26 @@ export async function POST(req: NextRequest) {
   const stream = new ReadableStream({
     async start(controller) {
       const send = (data: object) => {
-        controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        try {
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          // stream closed
+        }
       };
 
       try {
-        // Fetch all records for this artist
+        // ── Fetch all records ──────────────────────────────────────────────────
         const records: Array<{ id: string; fields: Record<string, unknown> }> = [];
         let offset: string | null = null;
+
         do {
-          const params = new URLSearchParams({
-            filterByFormula: formula,
-            pageSize: "100",
-          });
+          const params = new URLSearchParams({ filterByFormula: formula, pageSize: "100" });
           params.append("fields[]", "Pseudo Instagram");
           params.append("fields[]", "Nom complet");
           params.append("fields[]", "Type de profil");
           params.append("fields[]", "Notes");
           params.append("fields[]", "Suivi par");
+          if (emptyOnly) params.append("fields[]", "template");
           if (offset) params.append("offset", offset);
 
           const res = await fetch(`${BASE_URL}?${params.toString()}`, {
@@ -212,29 +302,79 @@ export async function POST(req: NextRequest) {
           if (offset) await sleep(250);
         } while (offset);
 
-        // Build updates
-        const updates: Array<{ id: string; fields: Record<string, unknown> }> = [];
-        for (const record of records) {
-          const f = record.fields;
-          const username = ((f["Pseudo Instagram"] as string) || "").trim();
-          if (!username) continue;
-          const template = generateTemplate({
-            username,
-            fullName: ((f["Nom complet"] as string) || "").trim(),
-            profileType: ((f["Type de profil"] as string) || "").trim(),
-            notes: ((f["Notes"] as string) || "").trim(),
-            suiviPar: ((f["Suivi par"] as string) || "").trim(),
-          });
-          updates.push({
-            id: record.id,
-            fields: { template, follow_up: "Appreciate the reply — here it is: [LINK]" },
-          });
+        // ── Filter if emptyOnly ────────────────────────────────────────────────
+        const toProcess = emptyOnly
+          ? records.filter((r) => !((r.fields["template"] as string) || "").trim())
+          : records;
+
+        send({ type: "progress", done: 0, total: toProcess.length, emptyOnly });
+
+        if (toProcess.length === 0) {
+          send({ type: "done", updated: 0, total: records.length, skipped: records.length });
+          controller.close();
+          return;
         }
 
-        send({ type: "progress", done: 0, total: updates.length });
+        // ── Generate templates — parallel batches of 5 ────────────────────────
+        const CLAUDE_BATCH = 5;   // contacts per Claude call
+        const PARALLEL = 5;       // simultaneous Claude calls
 
-        // Batch PATCH in groups of 10
-        let done = 0;
+        // Group into Claude batches
+        const claudeBatches: Array<Array<{ id: string; username: string; fullName: string; profileType: string; notes: string; suiviPar: string }>> = [];
+        for (let i = 0; i < toProcess.length; i += CLAUDE_BATCH) {
+          claudeBatches.push(
+            toProcess.slice(i, i + CLAUDE_BATCH).map((r) => ({
+              id: r.id,
+              username: ((r.fields["Pseudo Instagram"] as string) || "").trim(),
+              fullName: ((r.fields["Nom complet"] as string) || "").trim(),
+              profileType: ((r.fields["Type de profil"] as string) || "").trim(),
+              notes: ((r.fields["Notes"] as string) || "").trim(),
+              suiviPar: ((r.fields["Suivi par"] as string) || "").trim(),
+            }))
+          );
+        }
+
+        // Collect template results: id → template string
+        const templateResults = new Map<string, string>();
+        let processedCount = 0;
+
+        // Run in groups of PARALLEL Claude batches simultaneously
+        for (let i = 0; i < claudeBatches.length; i += PARALLEL) {
+          const parallelGroup = claudeBatches.slice(i, i + PARALLEL);
+
+          const results = await Promise.all(
+            parallelGroup.map(async (batch) => {
+              try {
+                const templates = anthropicKey
+                  ? await generateTemplatesClaude(anthropicKey, batch)
+                  : batch.map(generateTemplateLocal);
+                return batch.map((r, j) => ({ id: r.id, template: templates[j] || generateTemplateLocal(r) }));
+              } catch {
+                return batch.map((r) => ({ id: r.id, template: generateTemplateLocal(r) }));
+              }
+            })
+          );
+
+          for (const groupResult of results) {
+            for (const { id, template } of groupResult) {
+              templateResults.set(id, template);
+              processedCount++;
+            }
+          }
+
+          send({ type: "progress", done: processedCount, total: toProcess.length });
+
+          // Small pause between parallel groups to respect Anthropic rate limits
+          if (i + PARALLEL < claudeBatches.length) await sleep(300);
+        }
+
+        // ── Batch PATCH to Airtable (10 per call) ─────────────────────────────
+        const updates = Array.from(templateResults.entries()).map(([id, template]) => ({
+          id,
+          fields: { template, follow_up: "Appreciate the reply — here it is: [LINK]" },
+        }));
+
+        let patchedCount = 0;
         for (let i = 0; i < updates.length; i += 10) {
           const chunk = updates.slice(i, i + 10);
           const patchRes = await fetch(BASE_URL, {
@@ -246,16 +386,21 @@ export async function POST(req: NextRequest) {
             body: JSON.stringify({ records: chunk }),
           });
           if (patchRes.ok) {
-            done += chunk.length;
-            send({ type: "progress", done, total: updates.length });
+            patchedCount += chunk.length;
           }
-          await sleep(250);
+          if (i + 10 < updates.length) await sleep(200);
         }
 
-        send({ type: "done", updated: done, total: updates.length });
+        send({
+          type: "done",
+          updated: patchedCount,
+          total: records.length,
+          skipped: records.length - toProcess.length,
+        });
       } catch (e) {
         send({ type: "error", message: String(e) });
       }
+
       controller.close();
     },
   });

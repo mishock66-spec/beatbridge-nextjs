@@ -117,11 +117,12 @@ type AddArtistSummary = {
 };
 
 const DEFAULT_ARTISTS: ArtistConfig[] = [
-  { slug: "currensy",    name: "Curren$y",    description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
-  { slug: "harry-fraud", name: "Harry Fraud", description: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap.",                            instagram: "https://www.instagram.com/harryfraud/",        twitter: "https://x.com/HarryFraud",          visible: true },
-  { slug: "wheezy",      name: "Wheezy",      description: "Atlanta's most in-demand producer. Behind Future, Gunna, Young Thug, Lil Baby's biggest records.",          instagram: "https://www.instagram.com/wheezy/",            twitter: "https://x.com/wheezy0uttahere",     visible: true },
-  { slug: "juke-wong",   name: "Juke Wong",   description: "Rising producer known for melodic trap beats.",                                                              instagram: "https://www.instagram.com/jukewong/",          twitter: "https://x.com/jukewong",            visible: true },
-  { slug: "southside",   name: "Southside",   description: "808 Mafia co-founder. Behind Travis Scott, Gucci Mane, Young Thug, Future, Migos — trap's sonic architect.",instagram: "https://www.instagram.com/808mafiaboss/",      twitter: "https://x.com/808mafiaboss",        visible: true },
+  { slug: "currensy",     name: "Curren$y",     description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
+  { slug: "harry-fraud",  name: "Harry Fraud",  description: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap.",                            instagram: "https://www.instagram.com/harryfraud/",        twitter: "https://x.com/HarryFraud",          visible: true },
+  { slug: "wheezy",       name: "Wheezy",       description: "Atlanta's most in-demand producer. Behind Future, Gunna, Young Thug, Lil Baby's biggest records.",          instagram: "https://www.instagram.com/wheezy/",            twitter: "https://x.com/wheezy0uttahere",     visible: true },
+  { slug: "juke-wong",    name: "Juke Wong",    description: "Rising producer known for melodic trap beats.",                                                              instagram: "https://www.instagram.com/jukewong/",          twitter: "https://x.com/jukewong",            visible: true },
+  { slug: "southside",    name: "Southside",    description: "808 Mafia co-founder. Behind Travis Scott, Gucci Mane, Young Thug, Future, Migos — trap's sonic architect.",instagram: "https://www.instagram.com/808mafiaboss/",      twitter: "https://x.com/808mafiaboss",        visible: true },
+  { slug: "metro-boomin", name: "Metro Boomin", description: "Atlanta's hitmaker. The architect behind Future, Drake, Travis Scott, 21 Savage — trap's most decorated producer.", instagram: "https://www.instagram.com/metroboomin/", twitter: "https://x.com/MetroBoomin",         visible: true },
 ];
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -505,6 +506,7 @@ export default function AdminClient({
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
+  const [regenMode, setRegenMode] = useState<Record<string, "all" | "empty">>({});
 
   // ── Add Artist ────────────────────────────────────────────────────────────
   const [addArtistForm, setAddArtistForm] = useState<AddArtistForm>({
@@ -746,7 +748,7 @@ export default function AdminClient({
   }
 
   // ── Template regeneration ─────────────────────────────────────────────────
-  async function handleRegenerate(artistSlug: string, artistName: string) {
+  async function handleRegenerate(artistSlug: string, artistName: string, emptyOnly: boolean) {
     setRegenStates((prev) => ({
       ...prev,
       [artistSlug]: { slug: artistSlug, done: 0, total: 0, running: true },
@@ -755,7 +757,7 @@ export default function AdminClient({
       const res = await fetch("/api/admin/regenerate-templates", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: adminUserId, artistSlug }),
+        body: JSON.stringify({ userId: adminUserId, artistSlug, emptyOnly }),
       });
       if (!res.ok || !res.body) throw new Error("Request failed");
       const reader = res.body.getReader();
@@ -1820,15 +1822,16 @@ export default function AdminClient({
           {section === "templates" && (
             <div>
               <h2 className="text-xl font-light tracking-[0.02em] mb-2">Template Regeneration</h2>
-              <p className="text-sm text-[#505050] mb-6">Regenerates all DM templates for a specific artist using the latest template rules. Takes 30–60 seconds per artist.</p>
+              <p className="text-sm text-[#505050] mb-6">Regenerates DM templates using Claude Haiku with parallel batches. ~3–5 min for 900 contacts.</p>
               <div className="flex flex-col gap-4">
                 {DEFAULT_ARTISTS.map((a) => {
                   const regen = regenStates[a.slug];
                   const running = regen?.running ?? false;
                   const pct = regen && regen.total > 0 ? Math.round((regen.done / regen.total) * 100) : 0;
+                  const mode = regenMode[a.slug] ?? "empty";
                   return (
                     <div key={a.slug} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                      <div className="flex items-center justify-between gap-4">
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-white">{a.name}</p>
                           {regen && !running && regen.done > 0 && (
@@ -1841,18 +1844,37 @@ export default function AdminClient({
                             <p className="text-xs text-[#606060] mt-0.5">Fetching records…</p>
                           )}
                         </div>
-                        <button
-                          onClick={() => handleRegenerate(a.slug, a.name)}
-                          disabled={running}
-                          className="flex-shrink-0 text-sm font-medium bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
-                        >
-                          {running ? (
-                            <span className="flex items-center gap-2">
-                              <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                              Running…
-                            </span>
-                          ) : "Regenerate"}
-                        </button>
+                        <div className="flex items-center gap-3 flex-shrink-0">
+                          {/* Mode toggle */}
+                          <div className="flex items-center bg-white/[0.04] border border-white/[0.08] rounded-lg p-0.5 gap-0.5">
+                            {(["empty", "all"] as const).map((m) => (
+                              <button
+                                key={m}
+                                onClick={() => setRegenMode((prev) => ({ ...prev, [a.slug]: m }))}
+                                disabled={running}
+                                className={`px-2.5 py-1.5 text-xs font-medium rounded-md transition-all duration-150 ${
+                                  mode === m
+                                    ? "bg-white/[0.1] text-white"
+                                    : "text-[#606060] hover:text-[#a0a0a0]"
+                                } disabled:opacity-40 disabled:cursor-not-allowed`}
+                              >
+                                {m === "empty" ? "Empty only" : "All"}
+                              </button>
+                            ))}
+                          </div>
+                          <button
+                            onClick={() => handleRegenerate(a.slug, a.name, mode === "empty")}
+                            disabled={running}
+                            className="flex-shrink-0 text-sm font-medium bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white px-4 py-2 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+                          >
+                            {running ? (
+                              <span className="flex items-center gap-2">
+                                <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                Running…
+                              </span>
+                            ) : "Regenerate"}
+                          </button>
+                        </div>
                       </div>
                       {running && regen && regen.total > 0 && (
                         <div className="mt-3 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
