@@ -143,9 +143,11 @@ function StatusPill({
 function DemoConnectionCard({
   record,
   artistSlug,
+  producerName,
 }: {
   record: AirtableRecord;
   artistSlug: string;
+  producerName: string;
 }) {
   const storageKey = `beatbridge_demo_status_${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
 
@@ -173,7 +175,10 @@ function DemoConnectionCard({
 
   function handleCopyDM() {
     if (!record.template) return;
-    navigator.clipboard.writeText(record.template).then(() => {
+    const resolved = producerName
+      ? record.template.replace(/\[BEATMAKER_NAME\]/g, producerName)
+      : record.template;
+    navigator.clipboard.writeText(resolved).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     });
@@ -195,14 +200,23 @@ function DemoConnectionCard({
   const priority = contactPriority(record);
   const ct = record.followers > 0 ? getContactTier(record.followers) : null;
 
-  const MARK_PLACEHOLDER = `<mark style="background-color:rgba(249,115,22,0.25);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
+  const MARK = `<mark style="background-color:rgba(249,115,22,0.25);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
 
   const highlightedTemplate = useMemo(() => {
     if (!record.template) return "";
-    return record.template
-      .replace(/\[BEATMAKER_NAME\]/g, `${MARK_PLACEHOLDER}[BEATMAKER_NAME]</mark>`)
-      .replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, (m) => `${MARK_PLACEHOLDER}${m}</mark>`);
-  }, [record.template]);
+    let html = record.template;
+    if (producerName) {
+      // Substitute then highlight the resolved name
+      html = html.replace(
+        /\[BEATMAKER_NAME\]/g,
+        `${MARK}${producerName}</mark>`
+      );
+    } else {
+      html = html.replace(/\[BEATMAKER_NAME\]/g, `${MARK}[BEATMAKER_NAME]</mark>`);
+    }
+    html = html.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, (m) => `${MARK}${m}</mark>`);
+    return html;
+  }, [record.template, producerName]);
 
   return (
     <div className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative">
@@ -321,6 +335,30 @@ export default function DemoNetworkClient({
 }) {
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [producerName, setProducerName] = useState("");
+
+  // Load producer name from localStorage after mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("demo_beatmaker_name");
+      if (saved) setProducerName(saved);
+    } catch {
+      // localStorage blocked
+    }
+  }, []);
+
+  function handleProducerNameChange(val: string) {
+    setProducerName(val);
+    try {
+      if (val) {
+        localStorage.setItem("demo_beatmaker_name", val);
+      } else {
+        localStorage.removeItem("demo_beatmaker_name");
+      }
+    } catch {
+      // localStorage blocked
+    }
+  }
 
   const filterTypes = useMemo(() => {
     const types = new Set<string>();
@@ -361,6 +399,25 @@ export default function DemoNetworkClient({
         <p className="text-[#a0a0a0] text-sm mt-1">
           {records.length} contacts in the {rangeLabel} range — real data, full access.
         </p>
+      </div>
+
+      {/* Producer name input */}
+      <div className="mb-8">
+        <label className="block text-xs font-medium text-[#606060] uppercase tracking-[0.1em] mb-2">
+          Personalize your DMs
+        </label>
+        <input
+          type="text"
+          value={producerName}
+          onChange={(e) => handleProducerNameChange(e.target.value)}
+          placeholder="Enter your producer name..."
+          className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 focus:bg-white/[0.05] transition-colors min-h-[44px]"
+        />
+        {producerName && (
+          <p className="text-xs text-orange-400/70 mt-1.5">
+            ✓ [BEATMAKER_NAME] replaced with &quot;{producerName}&quot; in all templates
+          </p>
+        )}
       </div>
 
       {/* Artist picker */}
@@ -487,7 +544,7 @@ export default function DemoNetworkClient({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {filtered.map((record, index) => (
             <div key={record.id} style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}>
-              <DemoConnectionCard record={record} artistSlug={currentArtistSlug} />
+              <DemoConnectionCard record={record} artistSlug={currentArtistSlug} producerName={producerName} />
             </div>
           ))}
         </div>
