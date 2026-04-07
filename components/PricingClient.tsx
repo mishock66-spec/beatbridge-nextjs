@@ -281,6 +281,9 @@ export default function PricingClient({
         <p className="text-center text-xs text-[#404040] mt-10">
           14-day free trial on all plans. No credit card required to start. Cancel anytime.
         </p>
+        <p className="text-center text-xs text-[#303030] mt-3">
+          BeatBridge stays paid to protect your access. Less users = less competition = more replies.
+        </p>
       </div>
     </div>
   );

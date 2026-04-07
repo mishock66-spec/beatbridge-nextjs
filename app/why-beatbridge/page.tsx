@@ -217,6 +217,87 @@ export default function WhyBeatBridgePage() {
           </div>
         </section>
 
+        {/* ── WHY NOT FREE ─────────────────────────────────────────── */}
+        <section className="mb-20 scroll-animate">
+          <h2 className="text-2xl sm:text-3xl font-light tracking-[0.02em] mb-3">
+            Why BeatBridge is not free
+          </h2>
+          <p className="text-[#a0a0a0] text-base leading-relaxed mb-8 max-w-2xl">
+            Most platforms grow by adding as many users as possible. We do the opposite on purpose.
+          </p>
+
+          {/* Two-column comparison */}
+          <div className="grid sm:grid-cols-2 gap-4 mb-8">
+            {/* Free platform */}
+            <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
+              <p className="text-sm font-semibold text-[#606060] mb-4 uppercase tracking-[0.08em]">Free platform</p>
+              <div className="flex flex-col gap-3">
+                {[
+                  "Thousands of beatmakers use the same list",
+                  "Contacts get spammed, stop responding",
+                  "Everyone targets the same producers & managers",
+                  "Your DM drowns in a sea of identical pitches",
+                  "High volume, near-zero response rate",
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5">
+                    <span className="text-[#404040] mt-0.5 flex-shrink-0">❌</span>
+                    <p className="text-[#606060] text-sm leading-snug">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* BeatBridge */}
+            <div className="bg-orange-500/[0.06] border border-orange-500/30 rounded-2xl p-5">
+              <p className="text-sm font-semibold text-orange-400 mb-4 uppercase tracking-[0.08em]">BeatBridge</p>
+              <div className="flex flex-col gap-3">
+                {[
+                  "Paid access keeps the network exclusive",
+                  "Fewer users = less saturation per contact",
+                  "Contacts aren't being spammed by 500 other beatmakers",
+                  "Your DM stands out because it's rare",
+                  "Lower volume, dramatically higher reply rates",
+                ].map((item) => (
+                  <div key={item} className="flex items-start gap-2.5">
+                    <span className="text-orange-400 mt-0.5 flex-shrink-0">✓</span>
+                    <p className="text-[#d0d0d0] text-sm leading-snug">{item}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Key insight */}
+          <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5 sm:p-6">
+            <p className="text-xs font-semibold text-[#505050] uppercase tracking-[0.1em] mb-4">The logic</p>
+            <div className="grid sm:grid-cols-3 gap-4">
+              {[
+                {
+                  icon: "🔒",
+                  title: "Private list, not public directory",
+                  body: "A private Rolodex stays valuable. A public database gets ignored within months.",
+                },
+                {
+                  icon: "📉",
+                  title: "Saturation kills response rates",
+                  body: "The more people DM the same contacts, the less those contacts respond. It's basic math.",
+                },
+                {
+                  icon: "🔄",
+                  title: "The opposite of most platforms",
+                  body: "Most tools grow by adding users. Our value grows the more we limit who's on it.",
+                },
+              ].map(({ icon, title, body }) => (
+                <div key={title}>
+                  <p className="text-2xl mb-2">{icon}</p>
+                  <p className="text-white text-sm font-semibold mb-1">{title}</p>
+                  <p className="text-[#707070] text-xs leading-relaxed">{body}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         {/* ── CLOSING STATEMENT ────────────────────────────────────── */}
         <section className="mb-20 scroll-animate">
           <div className="bg-white/[0.025] border border-orange-500/[0.15] rounded-2xl p-6 sm:p-8 text-center">
