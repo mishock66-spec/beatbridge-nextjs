@@ -72,8 +72,9 @@ function detectFeedback(text: string): { triggered: boolean; type: string } {
 function TypingIndicator() {
   return (
     <div className="flex items-end gap-2 mb-3">
-      <div className="w-6 h-6 rounded-full bg-orange-500/20 flex items-center justify-center flex-shrink-0 text-[10px]">
-        ✦
+      <div className="w-6 h-6 rounded-full bg-gradient-to-br from-[#f97316] to-[#f85c00] flex items-center justify-center flex-shrink-0 overflow-hidden">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/icons/icon-512.png" alt="BeatBridge" className="w-4 h-4 rounded-full object-cover" />
       </div>
       <div className="bg-white/[0.06] border border-white/[0.08] rounded-2xl rounded-bl-sm px-3.5 py-2.5 flex items-center gap-1">
         <span className="w-1.5 h-1.5 rounded-full bg-gray-400 animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -413,8 +414,9 @@ export default function ChatAssistant() {
             ) : (
               <>
                 <div className="flex items-center gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#f97316] to-[#f85c00] flex items-center justify-center text-xs font-bold text-white flex-shrink-0">
-                    ✦
+                  <div className="w-7 h-7 rounded-full bg-gradient-to-br from-[#f97316] to-[#f85c00] flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src="/icons/icon-512.png" alt="BeatBridge" className="w-5 h-5 rounded-full object-cover" />
                   </div>
                   <p className="text-sm font-semibold text-white leading-tight">BeatBridge Assistant</p>
                 </div>
