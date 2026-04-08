@@ -15,30 +15,31 @@ async function fireNotification(title: string, body: string) {
     return;
   }
 
-  // Chrome blocks new Notification() when a service worker is active.
-  // Use reg.showNotification() when a SW is registered; fall back otherwise.
+  const opts: NotificationOptions = {
+    body,
+    icon: "/icons/icon-512.png",
+    badge: "/icons/icon-512.png",
+    tag: "dm-session",
+  };
+
+  // Try SW showNotification with a 1-second timeout, then fall back to new Notification()
   if ("serviceWorker" in navigator) {
+    const swTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("SW timeout")), 1000)
+    );
     try {
-      const reg = await navigator.serviceWorker.ready;
-      console.log("[DMSession] Firing via ServiceWorkerRegistration.showNotification");
-      await reg.showNotification(title, {
-        body,
-        icon: "/icons/icon-512.png",
-        badge: "/icons/icon-512.png",
-        tag: "dm-session",
-      } as NotificationOptions);
+      const reg = await Promise.race([navigator.serviceWorker.ready, swTimeout]);
+      await (reg as ServiceWorkerRegistration).showNotification(title, opts);
+      console.log("[DMSession] Fired via ServiceWorkerRegistration.showNotification");
       return;
     } catch (e) {
-      console.warn("[DMSession] SW showNotification failed, falling back to new Notification():", e);
+      console.warn("[DMSession] SW showNotification failed or timed out — falling back to new Notification():", e);
     }
   }
 
-  // Fallback for browsers without SW (Firefox, Safari)
+  // Fallback: direct Notification constructor (Firefox, Safari, or when SW times out)
   console.log("[DMSession] Firing via new Notification()");
-  const n = new Notification(title, {
-    body,
-    icon: "/icons/icon-512.png",
-  });
+  const n = new Notification(title, { body, icon: "/icons/icon-512.png" });
   n.onclick = () => window.focus();
 }
 
