@@ -228,6 +228,9 @@ interface DMHistoryItem {
   status: string;
 }
 
+// Statuses that indicate a DM was sent at some point
+const DM_SENT_STATUSES = ["DM sent", "Replied", "Not interested"];
+
 function useDMHistory(userId: string | undefined, open: boolean) {
   const [items, setItems] = useState<DMHistoryItem[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -247,42 +250,29 @@ function useDMHistory(userId: string | undefined, open: boolean) {
   async function fetchPage(p: number) {
     if (!supabase || !userId) return;
     const from = p * PAGE_SIZE;
-    const { data: activity, error } = await supabase
-      .from("dm_activity")
-      .select("contact_id, created_at")
+
+    // Read from dm_status — it has username, artist_slug, status, updated_at per contact
+    const { data: rows, error } = await supabase
+      .from("dm_status")
+      .select("contact_id, username, artist_slug, status, updated_at")
       .eq("user_id", userId)
-      .eq("action", "sent")
-      .order("created_at", { ascending: false })
+      .in("status", DM_SENT_STATUSES)
+      .order("updated_at", { ascending: false })
       .range(from, from + PAGE_SIZE);
 
-    if (error) { console.error("[useDMHistory] activity error:", error); setLoaded(true); return; }
-    if (!activity || activity.length === 0) { setLoaded(true); setHasMore(false); return; }
+    if (error) { console.error("[useDMHistory] dm_status error:", error); setLoaded(true); return; }
+    if (!rows || rows.length === 0) { setLoaded(true); setHasMore(false); return; }
 
-    setHasMore(activity.length === PAGE_SIZE + 1);
-    const rows = activity.slice(0, PAGE_SIZE);
-    const contactIds = rows.map((r) => r.contact_id);
+    setHasMore(rows.length === PAGE_SIZE + 1);
+    const visible = rows.slice(0, PAGE_SIZE);
 
-    const { data: statuses } = await supabase
-      .from("dm_status")
-      .select("contact_id, status")
-      .eq("user_id", userId)
-      .in("contact_id", contactIds);
-
-    const statusMap: Record<string, string> = {};
-    for (const s of statuses ?? []) statusMap[s.contact_id] = s.status;
-
-    const mapped: DMHistoryItem[] = rows.map((row) => {
-      const [slug, ...rest] = row.contact_id.split("_");
-      const username = rest.join("_");
-      const artistName = SLUG_TO_ARTIST[slug] ?? slug;
-      return {
-        contactId: row.contact_id,
-        artistName,
-        username,
-        sentAt: row.created_at,
-        status: statusMap[row.contact_id] ?? "DM sent",
-      };
-    });
+    const mapped: DMHistoryItem[] = visible.map((row) => ({
+      contactId:  row.contact_id,
+      artistName: SLUG_TO_ARTIST[row.artist_slug] ?? row.artist_slug,
+      username:   row.username,
+      sentAt:     row.updated_at,
+      status:     row.status,
+    }));
 
     setItems((prev) => p === 0 ? mapped : [...prev, ...mapped]);
     setPage(p);
