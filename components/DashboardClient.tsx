@@ -222,6 +222,7 @@ const SLUG_TO_ARTIST: Record<string, string> = {
 
 interface DMHistoryItem {
   contactId: string;
+  artistSlug: string;
   artistName: string;
   username: string;
   sentAt: string;
@@ -230,6 +231,18 @@ interface DMHistoryItem {
 
 // Statuses that indicate a DM was sent at some point
 const DM_SENT_STATUSES = ["DM sent", "Replied", "Not interested"];
+
+function formatHistoryDate(ts: string): string {
+  // Supabase returns "2026-04-08 14:32:00.000" — normalize to ISO for parsing
+  const d = new Date(ts.includes("T") ? ts : ts.replace(" ", "T"));
+  return d.toLocaleString("en-US", {
+    month: "short",
+    day:   "numeric",
+    hour:  "2-digit",
+    minute:"2-digit",
+    hour12: false,
+  });
+}
 
 function useDMHistory(userId: string | undefined, open: boolean) {
   const [items, setItems] = useState<DMHistoryItem[]>([]);
@@ -251,7 +264,6 @@ function useDMHistory(userId: string | undefined, open: boolean) {
     if (!supabase || !userId) return;
     const from = p * PAGE_SIZE;
 
-    // Read from dm_status — it has username, artist_slug, status, updated_at per contact
     const { data: rows, error } = await supabase
       .from("dm_status")
       .select("contact_id, username, artist_slug, status, updated_at")
@@ -268,6 +280,7 @@ function useDMHistory(userId: string | undefined, open: boolean) {
 
     const mapped: DMHistoryItem[] = visible.map((row) => ({
       contactId:  row.contact_id,
+      artistSlug: row.artist_slug,
       artistName: SLUG_TO_ARTIST[row.artist_slug] ?? row.artist_slug,
       username:   row.username,
       sentAt:     row.updated_at,
@@ -279,9 +292,104 @@ function useDMHistory(userId: string | undefined, open: boolean) {
     setLoaded(true);
   }
 
+  async function updateItemStatus(item: DMHistoryItem, newStatus: ContactStatus) {
+    // Optimistic update — remove from list if reverting to "To contact"
+    if (newStatus === "To contact") {
+      setItems((prev) => prev.filter((i) => i.contactId !== item.contactId));
+    } else {
+      setItems((prev) =>
+        prev.map((i) => i.contactId === item.contactId ? { ...i, status: newStatus } : i)
+      );
+    }
+    if (!supabase || !userId) return;
+    const { error } = await supabase.from("dm_status").upsert(
+      {
+        user_id:     userId,
+        artist_slug: item.artistSlug,
+        username:    item.username,
+        contact_id:  item.contactId,
+        status:      newStatus,
+        updated_at:  new Date().toISOString(),
+      },
+      { onConflict: "user_id,contact_id" }
+    );
+    if (error) console.error("[DMHistory] status update error:", error);
+  }
+
   function loadMore() { fetchPage(page + 1); }
 
-  return { items, loaded, hasMore, loadMore };
+  return { items, loaded, hasMore, loadMore, updateItemStatus };
+}
+
+// ─── HistoryStatusBadge ───────────────────────────────────────────────────────
+
+const HISTORY_STATUS_OPTIONS: { value: ContactStatus; emoji: string; label: string }[] = [
+  { value: "To contact",     emoji: "🔵", label: "To contact"     },
+  { value: "DM sent",        emoji: "📤", label: "DM sent"        },
+  { value: "Replied",        emoji: "✅", label: "Replied"         },
+  { value: "Not interested", emoji: "❌", label: "Not interested"  },
+];
+
+const HISTORY_STATUS_STYLE: Record<string, { text: string; bg: string }> = {
+  "DM sent":        { text: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
+  "Replied":        { text: "text-green-400",  bg: "bg-green-500/10  border-green-500/20"  },
+  "Not interested": { text: "text-gray-500",   bg: "bg-white/[0.03]  border-white/[0.08]"  },
+  "To contact":     { text: "text-gray-600",   bg: "bg-transparent   border-transparent"   },
+};
+
+function HistoryStatusBadge({
+  item,
+  onUpdate,
+}: {
+  item: DMHistoryItem;
+  onUpdate: (item: DMHistoryItem, s: ContactStatus) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    }
+    if (open) document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  const style = HISTORY_STATUS_STYLE[item.status] ?? HISTORY_STATUS_STYLE["To contact"];
+  const opt   = HISTORY_STATUS_OPTIONS.find((o) => o.value === item.status);
+
+  return (
+    <div ref={ref} className="relative flex-shrink-0">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap transition-all hover:opacity-80 ${style.text} ${style.bg}`}
+      >
+        {opt?.emoji} {item.status === "DM sent" ? "Sent" : item.status === "Not interested" ? "No" : item.status}
+      </button>
+
+      {open && (
+        <div className="absolute right-0 bottom-full mb-1.5 z-30 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[148px]">
+          {HISTORY_STATUS_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              onClick={() => { onUpdate(item, o.value); setOpen(false); }}
+              className={`w-full text-left text-xs px-3 py-2.5 hover:bg-white/[0.06] transition-colors flex items-center gap-2 ${
+                o.value === item.status ? "text-orange-400" : "text-gray-300"
+              }`}
+            >
+              <span>{o.emoji}</span>
+              <span>{o.label}</span>
+              {o.value === item.status && (
+                <svg className="w-3 h-3 ml-auto flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -294,7 +402,7 @@ const STATUS_COLOR: Record<string, string> = {
 // ─── DMHistoryPanel ───────────────────────────────────────────────────────────
 
 function DMHistoryPanel({ userId }: { userId: string }) {
-  const { items, loaded, hasMore, loadMore } = useDMHistory(userId, true);
+  const { items, loaded, hasMore, loadMore, updateItemStatus } = useDMHistory(userId, true);
 
   if (!loaded) {
     return (
@@ -311,10 +419,10 @@ function DMHistoryPanel({ userId }: { userId: string }) {
   return (
     <div>
       {/* Table header */}
-      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-2 pb-2 border-b border-[#1f1f1f] mb-1">
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 gap-y-0 px-2 pb-2 border-b border-[#1f1f1f] mb-1">
         <p className="text-[10px] text-gray-600 uppercase tracking-wider">Contact</p>
         <p className="text-[10px] text-gray-600 uppercase tracking-wider hidden sm:block">Network</p>
-        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Date</p>
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Date &amp; time</p>
         <p className="text-[10px] text-gray-600 uppercase tracking-wider">Status</p>
       </div>
 
@@ -324,19 +432,24 @@ function DMHistoryPanel({ userId }: { userId: string }) {
         {items.map((item, i) => (
           <div
             key={`${item.contactId}-${i}`}
-            className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-2 py-2.5 rounded-lg hover:bg-white/[0.02] transition-colors"
+            className="grid grid-cols-[1fr_auto_auto_auto] gap-x-3 items-center px-2 py-2 rounded-lg hover:bg-white/[0.02] transition-colors"
           >
+            {/* Contact */}
             <div className="min-w-0">
               <p className="text-xs font-medium text-white truncate">@{item.username}</p>
-              <p className="text-[10px] text-gray-600 sm:hidden">{item.artistName}</p>
+              <p className="text-[10px] text-gray-600 sm:hidden truncate">{item.artistName}</p>
             </div>
-            <p className="text-xs text-gray-500 hidden sm:block flex-shrink-0">{item.artistName}</p>
-            <p className="text-[10px] text-gray-600 flex-shrink-0 tabular-nums">
-              {new Date(item.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+
+            {/* Network — desktop only */}
+            <p className="text-xs text-gray-500 hidden sm:block flex-shrink-0 truncate max-w-[80px]">{item.artistName}</p>
+
+            {/* Date + time */}
+            <p className="text-[10px] text-gray-600 flex-shrink-0 tabular-nums whitespace-nowrap">
+              {formatHistoryDate(item.sentAt)}
             </p>
-            <span className={`text-[10px] font-semibold flex-shrink-0 ${STATUS_COLOR[item.status] ?? "text-gray-500"}`}>
-              {item.status === "DM sent" ? "Sent" : item.status === "Not interested" ? "No" : item.status}
-            </span>
+
+            {/* Editable status badge */}
+            <HistoryStatusBadge item={item} onUpdate={updateItemStatus} />
           </div>
         ))}
       </div>
