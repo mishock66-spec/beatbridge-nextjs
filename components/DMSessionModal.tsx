@@ -9,6 +9,7 @@ type ContactStatus = "To contact" | "DM sent" | "Replied" | "Not interested";
 type Phase = "notify_prompt" | "setup" | "in_progress" | "break" | "summary";
 
 function fireNotification(title: string, body: string) {
+  console.log("[DMSession] fireNotification called — permission:", typeof Notification !== "undefined" ? Notification.permission : "unavailable");
   if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
   const n = new Notification(title, {
     body,
@@ -107,6 +108,7 @@ export default function DMSessionModal({
   const [copied, setCopied] = useState(false);
   const [countdown, setCountdown] = useState<number | null>(null);
   const [isSafetyBreak, setIsSafetyBreak] = useState(false);
+  const [timerExpired, setTimerExpired] = useState(false);
 
   const currentContact = (phase === "in_progress" || phase === "break")
     ? queue[currentIdx] ?? null
@@ -121,23 +123,23 @@ export default function DMSessionModal({
     return () => clearInterval(id);
   }, [phase]);
 
+  // Fire notification when timer hits 0 — do NOT auto-advance, wait for user click
   useEffect(() => {
-    if (phase === "break" && countdown === 0) {
-      if (isSafetyBreak) {
-        fireNotification(
-          "✅ BeatBridge — Safety break complete!",
-          "You can now continue your DM session."
-        );
-      } else {
-        fireNotification(
-          "⏱ BeatBridge — Time to send your next DM!",
-          "Your 5-minute break is over. Next contact is ready."
-        );
-      }
-      setCountdown(null);
-      setPhase("in_progress");
+    if (phase !== "break" || countdown !== 0 || timerExpired) return;
+    console.log("[DMSession] Timer hit 0 — firing notification, isSafetyBreak:", isSafetyBreak);
+    if (isSafetyBreak) {
+      fireNotification(
+        "✅ BeatBridge — Safety break complete!",
+        "You can now continue your DM session."
+      );
+    } else {
+      fireNotification(
+        "⏱ BeatBridge — Time to send your next DM!",
+        "Your 5-minute break is over. Next contact is ready."
+      );
     }
-  }, [phase, countdown, isSafetyBreak]);
+    setTimerExpired(true);
+  }, [phase, countdown, isSafetyBreak, timerExpired]);
 
   // ── Auto-copy template when entering a contact ────────────────────────────
   useEffect(() => {
@@ -186,6 +188,7 @@ export default function DMSessionModal({
     if (nextIdx >= queue.length) { setPhase("summary"); return; }
 
     setCurrentIdx(nextIdx);
+    setTimerExpired(false);
 
     // Safety break every HOURLY_DM_LIMIT DMs
     if (newSent % HOURLY_DM_LIMIT === 0) {
@@ -210,6 +213,7 @@ export default function DMSessionModal({
 
   function skipBreak() {
     setCountdown(null);
+    setTimerExpired(false);
     setPhase("in_progress");
   }
 
@@ -468,7 +472,7 @@ export default function DMSessionModal({
         )}
 
         {/* Break state */}
-        {phase === "break" ? (
+        {phase === "break" && !timerExpired ? (
           <div className="text-center py-4">
             {isSafetyBreak ? (
               <>
@@ -491,8 +495,13 @@ export default function DMSessionModal({
             </button>
           </div>
         ) : (
-          /* In-progress actions */
+          /* In-progress actions (also shown when timer expires in break phase) */
           <div className="space-y-3">
+            {timerExpired && (
+              <p className="text-xs text-green-400 text-center font-medium pb-1">
+                ✅ Break over — ready to send your next DM
+              </p>
+            )}
             {/* Open Instagram */}
             <button
               onClick={() => currentContact && openInstagramDM(currentContact.username)}
