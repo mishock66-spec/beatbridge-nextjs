@@ -370,7 +370,8 @@ export default function ChatAssistant() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
           </svg>
         ) : (
-          <span className="text-xl leading-none">✦</span>
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src="/icons/icon-512.png" alt="BeatBridge" className="w-8 h-8 rounded-full object-cover" />
         )}
         {!open && (
           <span className="absolute inset-0 rounded-full bg-orange-500/40 animate-ping" style={{ animationDuration: "2s" }} />
