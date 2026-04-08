@@ -193,15 +193,25 @@ export default function DMSessionModal({
     const newSent = sentInSession + 1;
     const newTotal = dmSentCount + 1;
 
-    // Persist to Supabase (fire-and-forget)
+    // Persist to Supabase
     if (supabase && isSignedIn && user) {
-      supabase.from("dm_status").upsert(
+      const { error: statusErr } = await supabase.from("dm_status").upsert(
         { user_id: user.id, artist_slug: artistSlug, username: currentContact.username.replace("@", ""), contact_id: contactId, status: "DM sent", updated_at: new Date().toISOString() },
         { onConflict: "user_id,contact_id" }
-      ).then(() => {});
-      supabase.from("dm_activity").insert(
-        { user_id: user.id, contact_id: contactId, action: "sent", dm_sent_at: new Date().toISOString() }
-      ).then(() => {});
+      );
+      if (statusErr) console.error("[DMSession] dm_status upsert error:", statusErr);
+
+      const { error: actErr } = await supabase.from("dm_activity").insert(
+        { user_id: user.id, contact_id: contactId, action: "sent" }
+      );
+      if (actErr) console.error("[DMSession] dm_activity insert error:", actErr);
+
+      // Award points (same as ConnectionCard → "DM sent" flow)
+      fetch("/api/points/award", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, contactId, followers: currentContact.followers }),
+      }).catch(() => {});
     }
 
     onMarkSent(contactId);

@@ -209,6 +209,160 @@ function StatCard({
   );
 }
 
+// ─── useDMHistory ─────────────────────────────────────────────────────────────
+
+const SLUG_TO_ARTIST: Record<string, string> = {
+  "currensy":    "Curren$y",
+  "harry-fraud": "Harry Fraud",
+  "wheezy":      "Wheezy",
+  "juke-wong":   "Juke Wong",
+  "southside":   "Southside",
+  "metro-boomin":"Metro Boomin",
+};
+
+interface DMHistoryItem {
+  contactId: string;
+  artistName: string;
+  username: string;
+  sentAt: string;
+  status: string;
+}
+
+function useDMHistory(userId: string | undefined, open: boolean) {
+  const [items, setItems] = useState<DMHistoryItem[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(false);
+  const PAGE_SIZE = 50;
+
+  useEffect(() => {
+    if (!open || !userId || !supabase) {
+      if (!open) { setLoaded(false); setItems([]); setPage(0); }
+      return;
+    }
+    setLoaded(false);
+    fetchPage(0);
+  }, [open, userId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchPage(p: number) {
+    if (!supabase || !userId) return;
+    const from = p * PAGE_SIZE;
+    const { data: activity, error } = await supabase
+      .from("dm_activity")
+      .select("contact_id, dm_sent_at, created_at")
+      .eq("user_id", userId)
+      .eq("action", "sent")
+      .order("created_at", { ascending: false })
+      .range(from, from + PAGE_SIZE);
+
+    if (error) { console.error("[useDMHistory] activity error:", error); setLoaded(true); return; }
+    if (!activity || activity.length === 0) { setLoaded(true); setHasMore(false); return; }
+
+    setHasMore(activity.length === PAGE_SIZE + 1);
+    const rows = activity.slice(0, PAGE_SIZE);
+    const contactIds = rows.map((r) => r.contact_id);
+
+    const { data: statuses } = await supabase
+      .from("dm_status")
+      .select("contact_id, status")
+      .eq("user_id", userId)
+      .in("contact_id", contactIds);
+
+    const statusMap: Record<string, string> = {};
+    for (const s of statuses ?? []) statusMap[s.contact_id] = s.status;
+
+    const mapped: DMHistoryItem[] = rows.map((row) => {
+      const [slug, ...rest] = row.contact_id.split("_");
+      const username = rest.join("_");
+      const artistName = SLUG_TO_ARTIST[slug] ?? slug;
+      return {
+        contactId: row.contact_id,
+        artistName,
+        username,
+        sentAt: row.dm_sent_at ?? row.created_at,
+        status: statusMap[row.contact_id] ?? "DM sent",
+      };
+    });
+
+    setItems((prev) => p === 0 ? mapped : [...prev, ...mapped]);
+    setPage(p);
+    setLoaded(true);
+  }
+
+  function loadMore() { fetchPage(page + 1); }
+
+  return { items, loaded, hasMore, loadMore };
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  "DM sent":        "text-orange-400",
+  "Replied":        "text-green-400",
+  "Not interested": "text-gray-500",
+  "To contact":     "text-gray-600",
+};
+
+// ─── DMHistoryPanel ───────────────────────────────────────────────────────────
+
+function DMHistoryPanel({ userId }: { userId: string }) {
+  const { items, loaded, hasMore, loadMore } = useDMHistory(userId, true);
+
+  if (!loaded) {
+    return (
+      <div className="space-y-1.5">
+        {[1,2,3,4].map((n) => <div key={n} className="h-10 bg-white/[0.03] rounded-xl animate-pulse" />)}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return <p className="text-sm text-gray-600 text-center py-4">No DMs sent yet.</p>;
+  }
+
+  return (
+    <div>
+      {/* Table header */}
+      <div className="grid grid-cols-[1fr_auto_auto_auto] gap-2 px-2 pb-2 border-b border-[#1f1f1f] mb-1">
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Contact</p>
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider hidden sm:block">Network</p>
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Date</p>
+        <p className="text-[10px] text-gray-600 uppercase tracking-wider">Status</p>
+      </div>
+
+      <div className="space-y-0.5 max-h-72 overflow-y-auto pr-1"
+        style={{ scrollbarWidth: "thin", scrollbarColor: "#333 transparent" }}
+      >
+        {items.map((item, i) => (
+          <div
+            key={`${item.contactId}-${i}`}
+            className="grid grid-cols-[1fr_auto_auto_auto] gap-2 items-center px-2 py-2.5 rounded-lg hover:bg-white/[0.02] transition-colors"
+          >
+            <div className="min-w-0">
+              <p className="text-xs font-medium text-white truncate">@{item.username}</p>
+              <p className="text-[10px] text-gray-600 sm:hidden">{item.artistName}</p>
+            </div>
+            <p className="text-xs text-gray-500 hidden sm:block flex-shrink-0">{item.artistName}</p>
+            <p className="text-[10px] text-gray-600 flex-shrink-0 tabular-nums">
+              {new Date(item.sentAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+            </p>
+            <span className={`text-[10px] font-semibold flex-shrink-0 ${STATUS_COLOR[item.status] ?? "text-gray-500"}`}>
+              {item.status === "DM sent" ? "Sent" : item.status === "Not interested" ? "No" : item.status}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {hasMore && (
+        <button
+          onClick={loadMore}
+          className="w-full mt-2 text-xs text-orange-400 hover:text-orange-300 transition-colors py-2 text-center border-t border-[#1f1f1f]"
+        >
+          Load more
+        </button>
+      )}
+    </div>
+  );
+}
+
 // ─── ArtistContactList ────────────────────────────────────────────────────────
 
 type FilterTab = "All" | ContactStatus;
@@ -537,7 +691,7 @@ function useDailyDMData(userId: string | undefined) {
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("action", "sent")
-        .gte("dm_sent_at", todayStart.toISOString()),
+        .gte("created_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
         .select("instagram_account_age")
@@ -1059,6 +1213,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
   const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
   const welcomeStats = useWelcomeStats(user?.id);
   const [showAgeModal, setShowAgeModal] = useState(false);
+  const [showDMHistory, setShowDMHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
   const [followerFilter, setFollowerFilter] = useState("");
   const [instagramUrl, setInstagramUrl] = useState<string | null>(null);
@@ -1232,26 +1387,50 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
         <ProfileChecklist />
 
         {/* Stats row */}
-        {mounted && (
-          <div className="grid grid-cols-3 gap-3 mb-10">
-            <StatCard
-              label="DMs Sent"
-              value={totalDMsSent}
-              sub={`out of ${totalAll} contacts`}
-              accent="#f97316"
-            />
-            <StatCard
-              label="Replies"
-              value={totalReplied}
-              sub={totalDMsSent > 0 ? `from ${totalDMsSent} DMs sent` : "no DMs sent yet"}
-              accent="#22c55e"
-            />
-            <StatCard
-              label="Response Rate"
-              value={totalDMsSent > 0 ? `${responseRate}%` : "—"}
-              sub={totalDMsSent > 0 ? "replies ÷ DMs sent" : "send some DMs first"}
-              accent={responseRate >= 20 ? "#22c55e" : responseRate > 0 ? "#f97316" : undefined}
-            />
+        {(mounted || welcomeStats !== null) && (
+          <div className="mb-10">
+            <div className="grid grid-cols-3 gap-3 mb-3">
+              {/* DMs Sent (total) — reads from dm_activity, clickable for history */}
+              <div
+                className="bg-[#111111] border border-[#1f1f1f] rounded-2xl p-5 flex flex-col gap-1 cursor-pointer hover:border-orange-500/30 hover:-translate-y-0.5 transition-all duration-200 col-span-1"
+                onClick={() => setShowDMHistory((v) => !v)}
+              >
+                <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">DMs Sent</p>
+                <p className="text-3xl font-black" style={{ color: "#f97316" }}>
+                  {welcomeStats !== null ? welcomeStats.dmsSentTotal : "…"}
+                </p>
+                <p className="text-xs text-gray-600">total DMs sent</p>
+                <p className="text-[10px] text-orange-500/50 mt-0.5">{showDMHistory ? "▲ hide history" : "▼ view history"}</p>
+              </div>
+              <StatCard
+                label="Replies"
+                value={mounted ? totalReplied : "…"}
+                sub={mounted && totalDMsSent > 0 ? `from ${totalDMsSent} DMs sent` : "no DMs sent yet"}
+                accent="#22c55e"
+              />
+              <StatCard
+                label="Response Rate"
+                value={mounted && totalDMsSent > 0 ? `${responseRate}%` : "—"}
+                sub={mounted && totalDMsSent > 0 ? "replies ÷ DMs sent" : "send some DMs first"}
+                accent={responseRate >= 20 ? "#22c55e" : responseRate > 0 ? "#f97316" : undefined}
+              />
+            </div>
+
+            {/* DM History Panel — full width below stats grid */}
+            {showDMHistory && user?.id && (
+              <div className="bg-[#111111] border border-orange-500/20 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">DM History</p>
+                  <button
+                    onClick={() => setShowDMHistory(false)}
+                    className="text-xs text-[#505050] hover:text-white transition-colors"
+                  >
+                    ✕ close
+                  </button>
+                </div>
+                <DMHistoryPanel userId={user.id} />
+              </div>
+            )}
           </div>
         )}
 

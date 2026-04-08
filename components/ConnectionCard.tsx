@@ -342,6 +342,19 @@ export default function ConnectionCard({
         duration: 3000,
         style: { border: "1px solid rgba(249,115,22,0.5)" },
       });
+      // Award points for sending a DM (non-blocking, guard prevents double-award per contact)
+      fetch("/api/points/award", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, contactId, followers: record.followers }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.pointsEarned) {
+            toast(`+${data.pointsEarned} pts! ${data.emoji} ${data.label} contact outreach`, { duration: 3000, style: { border: "1px solid rgba(249,115,22,0.4)" } });
+          }
+        })
+        .catch(() => {});
     } else if (next === "Replied" && prev !== "Replied") {
       import("canvas-confetti").then(({ default: confetti }) => {
         confetti({ particleCount: 150, spread: 80, origin: { y: 0.6 }, colors: ["#f97316", "#ffffff", "#111111"] });
