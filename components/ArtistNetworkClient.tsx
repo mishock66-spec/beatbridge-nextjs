@@ -6,8 +6,10 @@ import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard, { type ContactStatus } from "@/components/ConnectionCard";
 import StickyDMBar from "@/components/StickyDMBar";
+import DMSessionModal from "@/components/DMSessionModal";
 import { supabase } from "@/lib/supabase";
 import type { AccountAge } from "@/lib/dmLimits";
+import { getDmLimit } from "@/lib/dmLimits";
 
 const CURRENSY_DM_PRIORITY_ORDER = [
   "themixed_hippie",
@@ -94,6 +96,7 @@ export default function ArtistNetworkClient({
   const [accountAge, setAccountAge] = useState<AccountAge | null>(null);
   const [userPlan, setUserPlan] = useState<string>("free");
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [showSession, setShowSession] = useState(false);
 
   useEffect(() => {
     if (!artistSlug || !supabase) { setStatusMap({}); setDataLoaded(true); return; }
@@ -225,6 +228,16 @@ export default function ArtistNetworkClient({
     []
   );
 
+  // Session callback — updates statusMap and counter when a contact is marked sent
+  const handleSessionMarkSent = useCallback((contactId: string) => {
+    setStatusMap((prev) => {
+      if (!prev) return { [contactId]: { status: "DM sent" as ContactStatus } };
+      const existing = prev[contactId] ?? {};
+      return { ...prev, [contactId]: { ...existing, status: "DM sent" as ContactStatus } };
+    });
+    setDmSentCount((c) => c + 1);
+  }, []);
+
   const priorityList = dmPriorityOrder ?? CURRENSY_DM_PRIORITY_ORDER;
 
   const priorityMap = useMemo(() => {
@@ -321,6 +334,22 @@ export default function ArtistNetworkClient({
           Edit your profile →
         </Link>
       </div>
+
+      {/* DM Session button — signed-in users only, after data loads */}
+      {isSignedIn && dataLoaded && (
+        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3">
+          <button
+            onClick={() => setShowSession(true)}
+            className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-3 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all duration-200 min-h-[44px]"
+          >
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z" />
+            </svg>
+            Start DM Session
+          </button>
+          <p className="text-xs text-[#505050]">Auto-copy templates · 5 min cooldowns · safety timers</p>
+        </div>
+      )}
 
       {/* Filters + Search */}
       <div className="sticky top-14 z-40 bg-[rgba(8,8,8,0.92)] backdrop-blur-[20px] py-4 mb-8 border-b border-white/[0.05]">
@@ -445,6 +474,21 @@ export default function ArtistNetworkClient({
           dmSentCount={dmSentCount}
           accountAge={accountAge}
           loaded={dataLoaded}
+        />
+      )}
+
+      {/* DM Session modal */}
+      {showSession && artistSlug && (
+        <DMSessionModal
+          records={records}
+          statusMap={statusMap}
+          producerName={producerName}
+          listeningLink={listeningLink}
+          dmSentCount={dmSentCount}
+          dailyLimit={getDmLimit(accountAge)}
+          artistSlug={artistSlug}
+          onClose={() => setShowSession(false)}
+          onMarkSent={handleSessionMarkSent}
         />
       )}
     </>
