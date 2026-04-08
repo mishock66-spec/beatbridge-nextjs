@@ -168,7 +168,9 @@ function StatusPill({
   onChange: (s: ContactStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ bottom: 0, left: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -180,12 +182,24 @@ function StatusPill({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({
+        bottom: window.innerHeight - rect.top + 6,
+        left: rect.left,
+      });
+    }
+    setOpen((o) => !o);
+  }
+
   const style = STATUS_STYLE[status];
 
   return (
     <div ref={ref} className="relative">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={handleToggle}
         className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80"
         style={style.pill}
       >
@@ -206,7 +220,10 @@ function StatusPill({
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1.5 left-0 z-20 bg-[#0d0d0d] border border-white/[0.1] rounded-xl overflow-hidden shadow-2xl min-w-[150px]">
+        <div
+          className="fixed z-[9999] bg-[#0d0d0d] border border-white/[0.1] rounded-xl overflow-hidden shadow-2xl min-w-[150px]"
+          style={{ bottom: pos.bottom, left: pos.left }}
+        >
           {CONTACT_STATUSES.map((s) => {
             const st = STATUS_STYLE[s];
             return (

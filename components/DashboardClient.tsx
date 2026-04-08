@@ -345,7 +345,9 @@ function HistoryStatusBadge({
   onUpdate: (item: DMHistoryItem, s: ContactStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ bottom: 0, right: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -355,20 +357,35 @@ function HistoryStatusBadge({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({
+        bottom: window.innerHeight - rect.top + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((o) => !o);
+  }
+
   const style = HISTORY_STATUS_STYLE[item.status] ?? HISTORY_STATUS_STYLE["To contact"];
   const opt   = HISTORY_STATUS_OPTIONS.find((o) => o.value === item.status);
 
   return (
     <div ref={ref} className="relative flex-shrink-0">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={handleToggle}
         className={`text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap transition-all hover:opacity-80 ${style.text} ${style.bg}`}
       >
         {opt?.emoji} {item.status === "DM sent" ? "Sent" : item.status === "Not interested" ? "No" : item.status}
       </button>
 
       {open && (
-        <div className="absolute right-0 bottom-full mb-1.5 z-30 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[148px]">
+        <div
+          className="fixed z-[9999] bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[148px]"
+          style={{ bottom: pos.bottom, right: pos.right }}
+        >
           {HISTORY_STATUS_OPTIONS.map((o) => (
             <button
               key={o.value}
