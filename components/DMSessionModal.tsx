@@ -6,7 +6,17 @@ import { supabase } from "@/lib/supabase";
 import type { AirtableRecord } from "@/lib/airtable";
 
 type ContactStatus = "To contact" | "DM sent" | "Replied" | "Not interested";
-type Phase = "setup" | "in_progress" | "break" | "summary";
+type Phase = "notify_prompt" | "setup" | "in_progress" | "break" | "summary";
+
+function fireNotification(title: string, body: string) {
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+  const n = new Notification(title, {
+    body,
+    icon: "/icons/icon-512.png",
+    badge: "/icons/icon-512.png",
+  });
+  n.onclick = () => window.focus();
+}
 
 const TIMER_NORMAL_SEC = 5 * 60;   // 5-minute cooldown between DMs
 const TIMER_SAFETY_SEC = 15 * 60;  // 15-minute break every 10 DMs
@@ -82,6 +92,13 @@ export default function DMSessionModal({
 
   // ── State ─────────────────────────────────────────────────────────────────
   const [phase, setPhase] = useState<Phase>("setup");
+
+  // Show notification opt-in prompt if permission hasn't been decided yet
+  useEffect(() => {
+    if (typeof Notification !== "undefined" && Notification.permission === "default") {
+      setPhase("notify_prompt");
+    }
+  }, []);
   const [selected, setSelected] = useState<Set<string>>(defaultSelected);
   const [queue, setQueue] = useState<AirtableRecord[]>([]);
   const [currentIdx, setCurrentIdx] = useState(0);
@@ -106,10 +123,21 @@ export default function DMSessionModal({
 
   useEffect(() => {
     if (phase === "break" && countdown === 0) {
+      if (isSafetyBreak) {
+        fireNotification(
+          "✅ BeatBridge — Safety break complete!",
+          "You can now continue your DM session."
+        );
+      } else {
+        fireNotification(
+          "⏱ BeatBridge — Time to send your next DM!",
+          "Your 5-minute break is over. Next contact is ready."
+        );
+      }
       setCountdown(null);
       setPhase("in_progress");
     }
-  }, [phase, countdown]);
+  }, [phase, countdown, isSafetyBreak]);
 
   // ── Auto-copy template when entering a contact ────────────────────────────
   useEffect(() => {
@@ -190,6 +218,39 @@ export default function DMSessionModal({
   const estimatedMin = selectedList.length * 5;
   const atDailyLimit = dmSentCount >= dailyLimit;
   const progress = queue.length > 0 ? Math.round((currentIdx / queue.length) * 100) : 0;
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NOTIFY PROMPT PHASE
+  // ═══════════════════════════════════════════════════════════════════════════
+  if (phase === "notify_prompt") {
+    return (
+      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+        <div className="bg-[#0e0e0e] border border-white/[0.1] rounded-2xl w-full max-w-sm shadow-2xl px-8 py-10 text-center">
+          <div className="text-5xl mb-5">🔔</div>
+          <h2 className="text-lg font-semibold text-white mb-2">Stay on track</h2>
+          <p className="text-sm text-[#a0a0a0] leading-relaxed mb-8">
+            Get a browser notification when your cooldown timer ends — so you can step away and come back at the right moment.
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              onClick={() => {
+                Notification.requestPermission().finally(() => setPhase("setup"));
+              }}
+              className="w-full bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white font-semibold py-3 rounded-xl hover:opacity-90 transition-opacity min-h-[44px]"
+            >
+              Enable notifications
+            </button>
+            <button
+              onClick={() => setPhase("setup")}
+              className="w-full border border-white/[0.1] text-[#a0a0a0] font-medium py-3 rounded-xl hover:border-white/[0.2] hover:text-white transition-all min-h-[44px] text-sm"
+            >
+              Skip
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ═══════════════════════════════════════════════════════════════════════════
   // SETUP PHASE
