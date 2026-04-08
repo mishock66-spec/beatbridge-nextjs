@@ -519,11 +519,12 @@ function useWelcomeStats(userId: string | undefined) {
     if (!userId) return;
 
     Promise.all([
+      // Count unique contacts a DM was ever sent to (same source as history panel)
       supabase
-        .from("dm_activity")
+        .from("dm_status")
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
-        .eq("action", "sent"),
+        .in("status", ["DM sent", "Replied", "Not interested"]),
       supabase
         .from("dm_status")
         .select("id", { count: "exact", head: true })
@@ -681,7 +682,7 @@ function useDailyDMData(userId: string | undefined) {
         .select("id", { count: "exact", head: true })
         .eq("user_id", userId)
         .eq("action", "sent")
-        .gte("created_at", todayStart.toISOString()),
+        .gte("dm_sent_at", todayStart.toISOString()),
       supabase
         .from("user_profiles")
         .select("instagram_account_age")
