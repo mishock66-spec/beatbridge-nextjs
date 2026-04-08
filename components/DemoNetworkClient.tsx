@@ -5,6 +5,8 @@ import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
 import { replyProbability, contactPriority } from "@/lib/scoreContact";
 import { getContactTier } from "@/lib/contactTier";
+import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
+import ScoringDisclaimer from "@/components/ScoringDisclaimer";
 
 const TYPE_COLORS: Record<string, string> = {
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
@@ -533,6 +535,9 @@ export default function DemoNetworkClient({
           </div>
         </div>
       </div>
+
+      <InstagramSafetyGuide />
+      <ScoringDisclaimer />
 
       {/* Cards grid */}
       {filtered.length === 0 ? (
