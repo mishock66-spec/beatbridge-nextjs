@@ -244,7 +244,7 @@ function formatHistoryDate(ts: string): string {
   });
 }
 
-function useDMHistory(userId: string | undefined, open: boolean) {
+function useDMHistory(userId: string | undefined, open: boolean, onCountChange?: (delta: number) => void) {
   const [items, setItems] = useState<DMHistoryItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(0);
@@ -293,7 +293,15 @@ function useDMHistory(userId: string | undefined, open: boolean) {
   }
 
   async function updateItemStatus(item: DMHistoryItem, newStatus: ContactStatus) {
-    // Optimistic update — remove from list if reverting to "To contact"
+    const prevStatus = item.status;
+    const wasActive = DM_SENT_STATUSES.includes(prevStatus);
+    const willBeActive = DM_SENT_STATUSES.includes(newStatus);
+
+    // Optimistic counter update
+    if (wasActive && !willBeActive) onCountChange?.(-1);
+    else if (!wasActive && willBeActive) onCountChange?.(1);
+
+    // Optimistic list update — remove row if reverting to "To contact"
     if (newStatus === "To contact") {
       setItems((prev) => prev.filter((i) => i.contactId !== item.contactId));
     } else {
@@ -418,8 +426,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 // ─── DMHistoryPanel ───────────────────────────────────────────────────────────
 
-function DMHistoryPanel({ userId }: { userId: string }) {
-  const { items, loaded, hasMore, loadMore, updateItemStatus } = useDMHistory(userId, true);
+function DMHistoryPanel({ userId, onCountChange }: { userId: string; onCountChange?: (delta: number) => void }) {
+  const { items, loaded, hasMore, loadMore, updateItemStatus } = useDMHistory(userId, true, onCountChange);
 
   if (!loaded) {
     return (
@@ -1333,6 +1341,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
   const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
   const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
   const welcomeStats = useWelcomeStats(user?.id);
+  const [localDmsSentTotal, setLocalDmsSentTotal] = useState<number | null>(null);
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [showDMHistory, setShowDMHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
@@ -1363,6 +1372,17 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       setShowAgeModal(true);
     }
   }, [dailyLoaded, isSignedIn, accountAge]);
+
+  // Seed local counter from server-fetched value (once)
+  useEffect(() => {
+    if (welcomeStats !== null && localDmsSentTotal === null) {
+      setLocalDmsSentTotal(welcomeStats.dmsSentTotal);
+    }
+  }, [welcomeStats]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  function handleHistoryCountChange(delta: number) {
+    setLocalDmsSentTotal((prev) => Math.max(0, (prev ?? 0) + delta));
+  }
 
   if (!isLoaded) {
     return (
@@ -1518,7 +1538,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
               >
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">DMs Sent</p>
                 <p className="text-3xl font-black" style={{ color: "#f97316" }}>
-                  {welcomeStats !== null ? welcomeStats.dmsSentTotal : "…"}
+                  {localDmsSentTotal !== null ? localDmsSentTotal : welcomeStats !== null ? welcomeStats.dmsSentTotal : "…"}
                 </p>
                 <p className="text-xs text-gray-600">total DMs sent</p>
                 <p className="text-[10px] text-orange-500/50 mt-0.5">{showDMHistory ? "▲ hide history" : "▼ view history"}</p>
@@ -1526,7 +1546,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
               <StatCard
                 label="Replies"
                 value={mounted ? totalReplied : "…"}
-                sub={welcomeStats && welcomeStats.dmsSentTotal > 0 ? `from ${welcomeStats.dmsSentTotal} DMs sent` : "no DMs sent yet"}
+                sub={(localDmsSentTotal ?? welcomeStats?.dmsSentTotal ?? 0) > 0 ? `from ${localDmsSentTotal ?? welcomeStats?.dmsSentTotal} DMs sent` : "no DMs sent yet"}
                 accent="#22c55e"
               />
               <StatCard
@@ -1549,7 +1569,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                     ✕ close
                   </button>
                 </div>
-                <DMHistoryPanel userId={user.id} />
+                <DMHistoryPanel userId={user.id} onCountChange={handleHistoryCountChange} />
               </div>
             )}
           </div>
