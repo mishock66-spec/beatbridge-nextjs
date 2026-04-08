@@ -134,8 +134,9 @@ export default function ArtistNetworkClient({
         .single(),
     ])
       .then(([statusRes, countRes, profileRes]) => {
-        console.log("dm_status fetch result:", statusRes.data, "error:", statusRes.error);
-        console.log("DM activity fetch result:", { count: countRes.count, error: countRes.error });
+        if (statusRes.error) console.error("[ArtistNetwork] dm_status error:", statusRes.error);
+        if (countRes.error) console.error("[ArtistNetwork] dm_activity error:", countRes.error);
+        if (profileRes.error && profileRes.error.code !== "PGRST116") console.error("[ArtistNetwork] user_profiles error:", profileRes.error);
         const map: Record<string, StatusEntry> = {};
         if (statusRes.data) {
           statusRes.data.forEach((row) => {
@@ -171,7 +172,7 @@ export default function ArtistNetworkClient({
           if (profileLink) setListeningLink(profileLink);
         }
       })
-      .catch(() => { setStatusMap({}); })
+      .catch((err) => { console.error("[ArtistNetwork] Promise.all threw:", err); setStatusMap({}); })
       .finally(() => setDataLoaded(true));
   }, [isLoaded, isSignedIn, user, artistSlug]);
 

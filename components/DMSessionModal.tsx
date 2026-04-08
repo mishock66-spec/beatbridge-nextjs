@@ -8,13 +8,36 @@ import type { AirtableRecord } from "@/lib/airtable";
 type ContactStatus = "To contact" | "DM sent" | "Replied" | "Not interested";
 type Phase = "notify_prompt" | "setup" | "in_progress" | "break" | "summary";
 
-function fireNotification(title: string, body: string) {
-  console.log("[DMSession] fireNotification called — permission:", typeof Notification !== "undefined" ? Notification.permission : "unavailable");
-  if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
+async function fireNotification(title: string, body: string) {
+  console.log("[DMSession] fireNotification reached — permission:", typeof Notification !== "undefined" ? Notification.permission : "unavailable");
+  if (typeof Notification === "undefined" || Notification.permission !== "granted") {
+    console.log("[DMSession] Notification blocked — permission not granted");
+    return;
+  }
+
+  // Chrome blocks new Notification() when a service worker is active.
+  // Use reg.showNotification() when a SW is registered; fall back otherwise.
+  if ("serviceWorker" in navigator) {
+    try {
+      const reg = await navigator.serviceWorker.ready;
+      console.log("[DMSession] Firing via ServiceWorkerRegistration.showNotification");
+      await reg.showNotification(title, {
+        body,
+        icon: "/icons/icon-512.png",
+        badge: "/icons/icon-512.png",
+        tag: "dm-session",
+      } as NotificationOptions);
+      return;
+    } catch (e) {
+      console.warn("[DMSession] SW showNotification failed, falling back to new Notification():", e);
+    }
+  }
+
+  // Fallback for browsers without SW (Firefox, Safari)
+  console.log("[DMSession] Firing via new Notification()");
   const n = new Notification(title, {
     body,
     icon: "/icons/icon-512.png",
-    badge: "/icons/icon-512.png",
   });
   n.onclick = () => window.focus();
 }
