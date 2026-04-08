@@ -41,10 +41,18 @@ export default async function DemoPage({
 
   let records: AirtableRecord[] = [];
   try {
-    records = await fetchAirtableRecords(
+    const raw = await fetchAirtableRecords(
       artist.airtableFilter as string | string[],
       { min: range.min, max: range.max }
     );
+    // Deduplicate by Instagram username — some contacts appear twice in Airtable
+    const seen = new Set<string>();
+    records = raw.filter((r) => {
+      const handle = r.username.replace("@", "").toLowerCase();
+      if (!handle || seen.has(handle)) return false;
+      seen.add(handle);
+      return true;
+    });
   } catch {
     // silently fail — DemoNetworkClient handles empty state
   }
