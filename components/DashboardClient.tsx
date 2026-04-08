@@ -132,7 +132,9 @@ function StatusPill({
   onChange: (s: ContactStatus) => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState({ bottom: 0, right: 0 });
   const ref = useRef<HTMLDivElement>(null);
+  const btnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     function handleOutside(e: MouseEvent) {
@@ -142,12 +144,24 @@ function StatusPill({
     return () => document.removeEventListener("mousedown", handleOutside);
   }, [open]);
 
+  function handleToggle() {
+    if (!open && btnRef.current) {
+      const rect = btnRef.current.getBoundingClientRect();
+      setPos({
+        bottom: window.innerHeight - rect.top + 6,
+        right: window.innerWidth - rect.right,
+      });
+    }
+    setOpen((o) => !o);
+  }
+
   const style = STATUS_STYLE[status];
 
   return (
     <div ref={ref} className="relative flex-shrink-0">
       <button
-        onClick={() => setOpen((o) => !o)}
+        ref={btnRef}
+        onClick={handleToggle}
         className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80 whitespace-nowrap"
         style={style.pill}
       >
@@ -159,7 +173,10 @@ function StatusPill({
       </button>
 
       {open && (
-        <div className="absolute bottom-full mb-1.5 right-0 z-20 bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[152px]">
+        <div
+          className="fixed z-[9999] bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[152px]"
+          style={{ bottom: pos.bottom, right: pos.right }}
+        >
           {CONTACT_STATUSES.map((s) => {
             const st = STATUS_STYLE[s];
             return (
