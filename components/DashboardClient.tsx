@@ -249,7 +249,7 @@ function useDMHistory(userId: string | undefined, open: boolean) {
     const from = p * PAGE_SIZE;
     const { data: activity, error } = await supabase
       .from("dm_activity")
-      .select("contact_id, dm_sent_at, created_at")
+      .select("contact_id, created_at")
       .eq("user_id", userId)
       .eq("action", "sent")
       .order("created_at", { ascending: false })
@@ -279,7 +279,7 @@ function useDMHistory(userId: string | undefined, open: boolean) {
         contactId: row.contact_id,
         artistName,
         username,
-        sentAt: row.dm_sent_at ?? row.created_at,
+        sentAt: row.created_at,
         status: statusMap[row.contact_id] ?? "DM sent",
       };
     });
@@ -1405,7 +1405,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
               <StatCard
                 label="Replies"
                 value={mounted ? totalReplied : "…"}
-                sub={mounted && totalDMsSent > 0 ? `from ${totalDMsSent} DMs sent` : "no DMs sent yet"}
+                sub={welcomeStats && welcomeStats.dmsSentTotal > 0 ? `from ${welcomeStats.dmsSentTotal} DMs sent` : "no DMs sent yet"}
                 accent="#22c55e"
               />
               <StatCard
