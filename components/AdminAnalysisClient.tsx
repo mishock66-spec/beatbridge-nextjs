@@ -57,9 +57,12 @@ export default function AdminAnalysisClient() {
   const [analyzedFieldExists, setAnalyzedFieldExists] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
 
-  // Filters
+  // Filters — queue builder
   const [filterArtist, setFilterArtist] = useState("");
   const [filterType, setFilterType] = useState("Autre");
+
+  // Filters — analyzed contacts section
+  const [analyzedFilterArtist, setAnalyzedFilterArtist] = useState("");
   const [filterBio, setFilterBio] = useState<"all" | "has-bio" | "no-bio">("all");
   const [filterAnalyzed, setFilterAnalyzed] = useState<"all" | "analyzed" | "not-analyzed">("not-analyzed");
   const [maxContacts, setMaxContacts] = useState(50);
@@ -181,6 +184,19 @@ export default function AdminAnalysisClient() {
 
     return result.slice(0, maxContacts);
   }, [contacts, filterArtist, filterType, filterBio, filterAnalyzed, maxContacts]);
+
+  // Analyzed contacts list (sorted alphabetically, filtered by artist)
+  const analyzedContacts = useMemo(() => {
+    let result = contacts.filter((c) => c.analyzed);
+    if (analyzedFilterArtist) {
+      if (analyzedFilterArtist === "Curren$y") {
+        result = result.filter((c) => c.suiviPar === "Curren$y" || c.suiviPar === "CurrenSy");
+      } else {
+        result = result.filter((c) => c.suiviPar === analyzedFilterArtist);
+      }
+    }
+    return result.slice().sort((a, b) => a.username.localeCompare(b.username));
+  }, [contacts, analyzedFilterArtist]);
 
   function buildContactPayload() {
     return selectedContacts.map((c) => ({
@@ -555,7 +571,7 @@ export default function AdminAnalysisClient() {
           </div>
         </section>
 
-        {/* ── SECTION 3 — Results tracker ─────────────────────────────────────── */}
+        {/* ── SECTION 3 — Results tracker ──────────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Results tracker</h2>
           <p className="text-sm text-[#606060] mb-6">Live stats from Airtable.</p>
@@ -614,6 +630,74 @@ export default function AdminAnalysisClient() {
                   );
                 })}
               </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── SECTION 4 — Analyzed Contacts ───────────────────────────────────── */}
+        <section>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-1">
+            <div>
+              <h2 className="text-xl font-light tracking-[0.02em]">✅ Analyzed Contacts</h2>
+              <p className="text-sm text-[#606060] mt-1">
+                {loading ? "Loading…" : `${totalAnalyzed.toLocaleString()} contacts analyzed`}
+              </p>
+            </div>
+            <select
+              value={analyzedFilterArtist}
+              onChange={(e) => setAnalyzedFilterArtist(e.target.value)}
+              className={selectCls + " sm:w-44"}
+            >
+              <option value="">All artists</option>
+              {ARTISTS.map((a) => <option key={a} value={a}>{a}</option>)}
+            </select>
+          </div>
+
+          {loading ? (
+            <p className="text-sm text-[#505050] mt-4">Loading contacts…</p>
+          ) : analyzedContacts.length === 0 ? (
+            <div className="mt-4 bg-white/[0.025] border border-white/[0.08] rounded-2xl px-6 py-10 text-center">
+              <p className="text-[#505050] text-sm">No contacts analyzed yet. Run a session to get started.</p>
+            </div>
+          ) : (
+            <div className="mt-4 bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
+              {analyzedContacts.map((c, idx) => (
+                <div
+                  key={c.id}
+                  className={`flex items-center gap-3 px-4 py-3 ${
+                    idx < analyzedContacts.length - 1 ? "border-b border-white/[0.05]" : ""
+                  } hover:bg-white/[0.03] transition-colors`}
+                >
+                  {/* Username */}
+                  <a
+                    href={`https://www.instagram.com/${c.username.replace(/^@/, "")}/`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm font-mono text-orange-400 hover:text-orange-300 transition-colors w-36 truncate flex-shrink-0"
+                  >
+                    @{c.username.replace(/^@/, "")}
+                  </a>
+
+                  {/* Artist */}
+                  <span className="text-xs text-[#606060] w-24 truncate flex-shrink-0">
+                    {c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar || "—"}
+                  </span>
+
+                  {/* Profile type */}
+                  <span className="text-xs text-[#a0a0a0] flex-1 truncate">
+                    {c.profileType || "—"}
+                  </span>
+
+                  {/* Template badge */}
+                  {c.template ? (
+                    <span className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
+                      has template
+                    </span>
+                  ) : (
+                    <span className="flex-shrink-0 text-xs text-[#404040]">no template</span>
+                  )}
+                </div>
+              ))}
             </div>
           )}
         </section>
