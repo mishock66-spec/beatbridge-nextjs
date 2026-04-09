@@ -19,6 +19,7 @@ import ProfileChecklist from "@/components/ProfileChecklist";
 import StickyDMBar from "@/components/StickyDMBar";
 import MutualContactsWidget from "@/components/MutualContactsWidget";
 import { getUserRank } from "@/lib/contactTier";
+import { DMStatusProvider, useDMStatus } from "@/contexts/DMStatusContext";
 
 interface ArtistData {
   slug: string;
@@ -57,70 +58,6 @@ const TYPE_COLORS: Record<string, string> = {
   Other: "bg-gray-500/20 text-gray-300 border-gray-500/30",
 };
 
-// ─── status hook (read + write) ────────────────────────────────────────────────
-
-function useStatusState(artists: ArtistData[], userId: string | undefined) {
-  const [statuses, setStatuses] = useState<Record<string, ContactStatus>>({});
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    const all: Record<string, ContactStatus> = {};
-    artists.forEach((artist) => {
-      artist.records.forEach((record) => {
-        all[statusStorageKey(artist.slug, record.username)] = "To contact";
-      });
-    });
-
-    if (!userId || !supabase) {
-      setStatuses(all);
-      setMounted(true);
-      return;
-    }
-
-    supabase
-      .from("dm_status")
-      .select("artist_slug, username, status")
-      .eq("user_id", userId)
-      .then(({ data }) => {
-        if (data) {
-          data.forEach((row) => {
-            const key = statusStorageKey(row.artist_slug, row.username);
-            if (CONTACT_STATUSES.includes(row.status as ContactStatus)) {
-              all[key] = row.status as ContactStatus;
-            }
-          });
-        }
-        setStatuses(all);
-        setMounted(true);
-      })
-      .catch(() => {
-        setStatuses(all);
-        setMounted(true);
-      });
-  }, [artists, userId]);
-
-  async function updateStatus(artistSlug: string, username: string, next: ContactStatus) {
-    const key = statusStorageKey(artistSlug, username);
-    setStatuses((prev) => ({ ...prev, [key]: next }));
-    if (!userId || !supabase) return;
-    const contactId = `${artistSlug}_${username.replace("@", "").toLowerCase()}`;
-    console.log("Upserting status:", { user_id: userId, contact_id: contactId, status: next });
-    const { data, error } = await supabase.from("dm_status").upsert(
-      {
-        user_id:     userId,
-        artist_slug: artistSlug,
-        username:    username.replace("@", ""),
-        contact_id:  contactId,
-        status:      next,
-        updated_at:  new Date().toISOString(),
-      },
-      { onConflict: "user_id,contact_id" }
-    );
-    console.log("Upsert result:", { data, error });
-  }
-
-  return { statuses, mounted, updateStatus };
-}
 
 // ─── StatusPill (inline, same logic as ConnectionCard) ─────────────────────────
 
@@ -261,7 +198,8 @@ function formatHistoryDate(ts: string): string {
   });
 }
 
-function useDMHistory(userId: string | undefined, open: boolean, onCountChange?: (delta: number) => void) {
+function useDMHistory(userId: string | undefined, open: boolean) {
+  const { updateStatus: globalUpdateStatus } = useDMStatus();
   const [items, setItems] = useState<DMHistoryItem[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [page, setPage] = useState(0);
@@ -309,15 +247,7 @@ function useDMHistory(userId: string | undefined, open: boolean, onCountChange?:
     setLoaded(true);
   }
 
-  async function updateItemStatus(item: DMHistoryItem, newStatus: ContactStatus) {
-    const prevStatus = item.status;
-    const wasActive = DM_SENT_STATUSES.includes(prevStatus);
-    const willBeActive = DM_SENT_STATUSES.includes(newStatus);
-
-    // Optimistic counter update
-    if (wasActive && !willBeActive) onCountChange?.(-1);
-    else if (!wasActive && willBeActive) onCountChange?.(1);
-
+  function updateItemStatus(item: DMHistoryItem, newStatus: ContactStatus) {
     // Optimistic list update — remove row if reverting to "To contact"
     if (newStatus === "To contact") {
       setItems((prev) => prev.filter((i) => i.contactId !== item.contactId));
@@ -326,19 +256,8 @@ function useDMHistory(userId: string | undefined, open: boolean, onCountChange?:
         prev.map((i) => i.contactId === item.contactId ? { ...i, status: newStatus } : i)
       );
     }
-    if (!supabase || !userId) return;
-    const { error } = await supabase.from("dm_status").upsert(
-      {
-        user_id:     userId,
-        artist_slug: item.artistSlug,
-        username:    item.username,
-        contact_id:  item.contactId,
-        status:      newStatus,
-        updated_at:  new Date().toISOString(),
-      },
-      { onConflict: "user_id,contact_id" }
-    );
-    if (error) console.error("[DMHistory] status update error:", error);
+    // Delegate Supabase write + global state update to shared context
+    globalUpdateStatus(item.artistSlug, item.username, newStatus);
   }
 
   function loadMore() { fetchPage(page + 1); }
@@ -443,8 +362,8 @@ const STATUS_COLOR: Record<string, string> = {
 
 // ─── DMHistoryPanel ───────────────────────────────────────────────────────────
 
-function DMHistoryPanel({ userId, onCountChange }: { userId: string; onCountChange?: (delta: number) => void }) {
-  const { items, loaded, hasMore, loadMore, updateItemStatus } = useDMHistory(userId, true, onCountChange);
+function DMHistoryPanel({ userId }: { userId: string }) {
+  const { items, loaded, hasMore, loadMore, updateItemStatus } = useDMHistory(userId, true);
 
   if (!loaded) {
     return (
@@ -523,19 +442,14 @@ function applyFollowerFilter(followers: number, followerFilter: string): boolean
 
 function ArtistContactList({
   artist,
-  statuses,
-  updateStatus,
-  mounted,
   typeFilter,
   followerFilter,
 }: {
   artist: ArtistData;
-  statuses: Record<string, ContactStatus>;
-  updateStatus: (slug: string, username: string, s: ContactStatus) => void;
-  mounted: boolean;
   typeFilter: string;
   followerFilter: string;
 }) {
+  const { statuses, mounted, updateStatus } = useDMStatus();
   const [activeTab, setActiveTab] = useState<FilterTab>("All");
 
   // Apply global type + follower filters first, then local status tab
@@ -1226,19 +1140,14 @@ function FilterDropdown({
 
 function ArtistSection({
   artist,
-  statuses,
-  updateStatus,
-  mounted,
   typeFilter,
   followerFilter,
 }: {
   artist: ArtistData;
-  statuses: Record<string, ContactStatus>;
-  updateStatus: (slug: string, username: string, s: ContactStatus) => void;
-  mounted: boolean;
   typeFilter: string;
   followerFilter: string;
 }) {
+  const { statuses, mounted } = useDMStatus();
   const [expanded, setExpanded] = useState(() => {
     if (typeof window === "undefined") return false;
     return sessionStorage.getItem(`dashboard_expanded_${artist.slug}`) === "1";
@@ -1323,9 +1232,6 @@ function ArtistSection({
           <div className="pt-2">
             <ArtistContactList
               artist={artist}
-              statuses={statuses}
-              updateStatus={updateStatus}
-              mounted={mounted}
               typeFilter={typeFilter}
               followerFilter={followerFilter}
             />
@@ -1337,6 +1243,15 @@ function ArtistSection({
 }
 
 // ─── DashboardClient ──────────────────────────────────────────────────────────
+
+export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
+  const { user } = useUser();
+  return (
+    <DMStatusProvider artists={artists} userId={user?.id}>
+      <DashboardContent artists={artists} />
+    </DMStatusProvider>
+  );
+}
 
 const TYPE_FILTER_OPTIONS = [
   "Producer",
@@ -1352,13 +1267,12 @@ const TYPE_FILTER_OPTIONS = [
 
 const FOLLOWER_FILTER_OPTIONS = ["500 – 5K", "5K – 20K", "20K – 50K", "50K+"];
 
-export default function DashboardClient({ artists }: { artists: ArtistData[] }) {
+function DashboardContent({ artists }: { artists: ArtistData[] }) {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
-  const { statuses, mounted, updateStatus } = useStatusState(artists, user?.id);
+  const { statuses, mounted } = useDMStatus();
   const { count: dailyCount, accountAge, loaded: dailyLoaded, saveAccountAge } = useDailyDMData(user?.id);
   const welcomeStats = useWelcomeStats(user?.id);
-  const [localDmsSentTotal, setLocalDmsSentTotal] = useState<number | null>(null);
   const [showAgeModal, setShowAgeModal] = useState(false);
   const [showDMHistory, setShowDMHistory] = useState(false);
   const [typeFilter, setTypeFilter] = useState("");
@@ -1389,17 +1303,6 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
       setShowAgeModal(true);
     }
   }, [dailyLoaded, isSignedIn, accountAge]);
-
-  // Seed local counter from server-fetched value (once)
-  useEffect(() => {
-    if (welcomeStats !== null && localDmsSentTotal === null) {
-      setLocalDmsSentTotal(welcomeStats.dmsSentTotal);
-    }
-  }, [welcomeStats]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  function handleHistoryCountChange(delta: number) {
-    setLocalDmsSentTotal((prev) => Math.max(0, (prev ?? 0) + delta));
-  }
 
   if (!isLoaded) {
     return (
@@ -1555,7 +1458,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
               >
                 <p className="text-xs text-gray-500 uppercase tracking-wider font-medium">DMs Sent</p>
                 <p className="text-3xl font-black" style={{ color: "#f97316" }}>
-                  {localDmsSentTotal !== null ? localDmsSentTotal : welcomeStats !== null ? welcomeStats.dmsSentTotal : "…"}
+                  {mounted ? totalDMsSent : welcomeStats !== null ? welcomeStats.dmsSentTotal : "…"}
                 </p>
                 <p className="text-xs text-gray-600">total DMs sent</p>
                 <p className="text-[10px] text-orange-500/50 mt-0.5">{showDMHistory ? "▲ hide history" : "▼ view history"}</p>
@@ -1563,7 +1466,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
               <StatCard
                 label="Replies"
                 value={mounted ? totalReplied : "…"}
-                sub={(localDmsSentTotal ?? welcomeStats?.dmsSentTotal ?? 0) > 0 ? `from ${localDmsSentTotal ?? welcomeStats?.dmsSentTotal} DMs sent` : "no DMs sent yet"}
+                sub={mounted && totalDMsSent > 0 ? `from ${totalDMsSent} DMs sent` : "no DMs sent yet"}
                 accent="#22c55e"
               />
               <StatCard
@@ -1586,7 +1489,7 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
                     ✕ close
                   </button>
                 </div>
-                <DMHistoryPanel userId={user.id} onCountChange={handleHistoryCountChange} />
+                <DMHistoryPanel userId={user.id} />
               </div>
             )}
           </div>
@@ -1630,9 +1533,6 @@ export default function DashboardClient({ artists }: { artists: ArtistData[] }) 
           <ArtistSection
             key={artist.slug}
             artist={artist}
-            statuses={statuses}
-            updateStatus={updateStatus}
-            mounted={mounted}
             typeFilter={typeFilter}
             followerFilter={followerFilter}
           />
