@@ -128,16 +128,18 @@ const ARTIST_RANGES: Record<string, RangeDef[]> = {
   ],
 };
 
-function getDupRecordLink(r: ContactFull): { href: string; label: string } | null {
+function getDupRecordInfo(r: ContactFull, position?: number): { href: string | null; label: string } {
+  const artistLabel = r.suiviPar || "unknown artist";
   const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
-  if (!slug) return null;
+  if (!slug) return { href: null, label: artistLabel };
   const ranges = ARTIST_RANGES[slug];
-  if (!ranges) return null;
+  if (!ranges) return { href: null, label: artistLabel };
   const range = ranges.find((rng) => r.followers >= rng.min && r.followers <= rng.max);
-  if (!range) return null;
+  if (!range) return { href: null, label: artistLabel };
+  const pos = position != null ? ` · #${position}` : "";
   return {
     href: `/artist/${slug}/${range.slug}`,
-    label: `${r.suiviPar} · ${range.label}`,
+    label: `${r.suiviPar} · ${range.label}${pos}`,
   };
 }
 
@@ -596,6 +598,9 @@ export default function AdminClient({
   const [dupGroups, setDupGroups] = useState<DupGroup[]>([]);
   const [dupDeleteProgress, setDupDeleteProgress] = useState({ done: 0, total: 0 });
   const [dupDeletedCount, setDupDeletedCount] = useState(0);
+  const [dupPositionMap, setDupPositionMap] = useState<Record<string, number>>({});
+  const [dupConfirmGroup, setDupConfirmGroup] = useState<string | null>(null);
+  const [dupDeletingGroup, setDupDeletingGroup] = useState<string | null>(null);
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
@@ -851,6 +856,26 @@ export default function AdminClient({
         byUsername.get(r.username)!.push(r);
       }
 
+      // Build position map: recordId → 1-indexed position within (artist, range), sorted by followers desc
+      const byArtistRange = new Map<string, ContactFull[]>();
+      for (const r of records) {
+        const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
+        if (!slug) continue;
+        const ranges = ARTIST_RANGES[slug];
+        if (!ranges) continue;
+        const range = ranges.find((rng) => r.followers >= rng.min && r.followers <= rng.max);
+        if (!range) continue;
+        const key = `${slug}::${range.slug}`;
+        if (!byArtistRange.has(key)) byArtistRange.set(key, []);
+        byArtistRange.get(key)!.push(r);
+      }
+      const posMap: Record<string, number> = {};
+      for (const group of byArtistRange.values()) {
+        const sorted = [...group].sort((a, b) => b.followers - a.followers);
+        sorted.forEach((r, i) => { posMap[r.id] = i + 1; });
+      }
+      setDupPositionMap(posMap);
+
       const groups: DupGroup[] = Array.from(byUsername.entries())
         .filter(([, recs]) => recs.length >= 2)
         .map(([username, recs]) => {
@@ -904,6 +929,30 @@ export default function AdminClient({
     setDupGroups([]);
     setDupScanState("done");
     toast.success(`Deleted ${done} duplicate records ✓`);
+  }
+
+  async function handleDeleteSingleDup(group: DupGroup) {
+    const toDelete = group.records.filter((r) => r.id !== group.keepId);
+    if (!toDelete.length) return;
+    setDupDeletingGroup(group.username);
+    setDupConfirmGroup(null);
+    try {
+      const res = await fetch("/api/admin/contacts/bulk-delete", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: adminUserId, recordIds: toDelete.map((r) => r.id) }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Delete failed");
+      }
+      setDupGroups((prev) => prev.filter((g) => g.username !== group.username));
+      toast.success(`Duplicate @${group.username} deleted ✓`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDupDeletingGroup(null);
+    }
   }
 
   function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
@@ -1901,23 +1950,59 @@ export default function AdminClient({
                   <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
                     {dupGroups.map((g) => (
                       <div key={g.username} className="bg-white/[0.03] rounded-xl px-3 py-2.5 border border-white/[0.05]">
-                        <div className="flex items-center gap-2 mb-1.5">
-                          <span className="text-xs font-semibold text-orange-400">@{g.username}</span>
+                        {/* Group header: @username + record count + per-group delete */}
+                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+                          <a
+                            href={`https://www.instagram.com/${g.username}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-orange-400 hover:underline"
+                          >
+                            @{g.username}
+                          </a>
                           <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
+                          {dupConfirmGroup === g.username ? (
+                            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
+                              <span className="text-[10px] text-[#808080]">Delete duplicate for @{g.username}?</span>
+                              <button
+                                onClick={() => handleDeleteSingleDup(g)}
+                                className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors"
+                              >
+                                Yes, delete
+                              </button>
+                              <button
+                                onClick={() => setDupConfirmGroup(null)}
+                                className="text-[10px] text-[#606060] hover:text-[#a0a0a0] transition-colors"
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => setDupConfirmGroup(g.username)}
+                              disabled={dupDeletingGroup === g.username}
+                              className="ml-auto text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors disabled:opacity-40 whitespace-nowrap"
+                            >
+                              {dupDeletingGroup === g.username ? (
+                                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />Deleting…</span>
+                              ) : "🗑️ Remove duplicate"}
+                            </button>
+                          )}
                         </div>
+                        {/* Records */}
                         <div className="flex flex-col gap-1">
                           {g.records.map((r) => {
-                            const dupLink = getDupRecordLink(r);
+                            const info = getDupRecordInfo(r, dupPositionMap[r.id]);
                             return (
-                            <div key={r.id} className={`flex items-center gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
-                              {r.id === g.keepId ? "✓ keep" : "✗ delete"}
-                              <span className="not-italic no-underline text-[#505050]">
-                                {dupLink ? (
-                                  <a href={dupLink.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/70 hover:text-orange-400 hover:underline no-underline">{dupLink.label}</a>
-                                ) : (r.suiviPar || "unknown artist")}
-                                {r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
-                              </span>
-                            </div>
+                              <div key={r.id} className={`flex items-center gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
+                                {r.id === g.keepId ? "✓ keep" : "✗ delete"}
+                                <span className="not-italic no-underline text-[#505050]">
+                                  {info.href ? (
+                                    <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/70 hover:text-orange-400 hover:underline no-underline">{info.label}</a>
+                                  ) : info.label}
+                                  {r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
+                                </span>
+                              </div>
                             );
                           })}
                         </div>
