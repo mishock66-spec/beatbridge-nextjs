@@ -187,7 +187,7 @@ export default function AdminAnalysisClient() {
                   },
                   {
                     n: 2,
-                    text: "Close Chrome completely",
+                    text: "Your main Chrome stays open — the script uses its own profile",
                     code: null,
                   },
                   {
@@ -424,7 +424,7 @@ export default function AdminAnalysisClient() {
               {[
                 { n: 1, text: "Click \"▶ Start Analysis Session\" above to download the queue file", note: null },
                 { n: 2, text: "Move the file to the scripts folder", note: "C:\\Users\\crayx\\beatbridge-nextjs\\scripts\\analysis-queue.json" },
-                { n: 3, text: "Close Chrome completely", note: "Chrome must be fully closed — it locks its profile directory" },
+                { n: 3, text: "The analyzer uses its own separate Chrome profile — your main Chrome stays open normally", note: "First run only: log into Instagram when prompted, then press Enter" },
                 { n: 4, text: "Open Claude Code terminal and run the script", note: "node scripts/instagram-analyzer.js" },
                 { n: 5, text: "Chrome will open automatically and start analyzing profiles", note: "Random delays between profiles — do not close Chrome while running" },
                 { n: 6, text: "Results are saved to Airtable automatically", note: "Fields updated: Type de profil, template, Notes (bio appended), analyzed ✓" },
