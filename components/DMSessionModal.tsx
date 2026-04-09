@@ -15,6 +15,7 @@ async function fireNotification(title: string, body: string) {
     return;
   }
 
+  // tag:"dm-session" ensures both attempts collapse into one notification on the OS
   const opts: NotificationOptions = {
     body,
     icon: "/icons/icon-512.png",
@@ -22,7 +23,7 @@ async function fireNotification(title: string, body: string) {
     tag: "dm-session",
   };
 
-  // Try SW showNotification with a 1-second timeout, then fall back to new Notification()
+  // Attempt 1: SW showNotification (required on Chrome, Android)
   if ("serviceWorker" in navigator) {
     const swTimeout = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("SW timeout")), 1000)
@@ -31,16 +32,21 @@ async function fireNotification(title: string, body: string) {
       const reg = await Promise.race([navigator.serviceWorker.ready, swTimeout]);
       await (reg as ServiceWorkerRegistration).showNotification(title, opts);
       console.log("[DMSession] Fired via ServiceWorkerRegistration.showNotification");
-      return;
     } catch (e) {
-      console.warn("[DMSession] SW showNotification failed or timed out — falling back to new Notification():", e);
+      console.warn("[DMSession] SW showNotification failed or timed out:", e);
     }
   }
 
-  // Fallback: direct Notification constructor (Firefox, Safari, or when SW times out)
-  console.log("[DMSession] Firing via new Notification()");
-  const n = new Notification(title, { body, icon: "/icons/icon-512.png" });
-  n.onclick = () => window.focus();
+  // Attempt 2: direct Notification constructor — always try (works on Firefox/Safari,
+  // and acts as guarantee if SW silently dropped the notification on Chrome/Windows).
+  // The shared tag deduplicates if both succeed on the same platform.
+  try {
+    const n = new Notification(title, opts);
+    n.onclick = () => window.focus();
+    console.log("[DMSession] Fired via new Notification()");
+  } catch (e) {
+    console.warn("[DMSession] new Notification() failed:", e);
+  }
 }
 
 const TIMER_NORMAL_SEC = 5 * 60;   // 5-minute cooldown between DMs
