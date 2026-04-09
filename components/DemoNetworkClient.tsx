@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import StatusDropdown from "@/components/ui/StatusDropdown";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
@@ -63,54 +63,45 @@ function DemoConnectionCard({
   record,
   artistSlug,
   producerName,
+  expanded: externalExpanded,
+  onExpandChange,
 }: {
   record: AirtableRecord;
   artistSlug: string;
   producerName: string;
+  expanded?: boolean;
+  onExpandChange?: (v: boolean) => void;
 }) {
   const storageKey = `beatbridge_demo_status_${artistSlug}_${record.username.replace("@", "").toLowerCase()}`;
+  const username = record.username.replace("@", "");
 
   const [status, setStatus] = useState<ContactStatus>("To contact");
   const [copied, setCopied] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
 
-  // Hydrate status from localStorage after mount
+  const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
+  function toggleExpand() {
+    const next = !isExpanded;
+    if (onExpandChange) onExpandChange(next);
+    else setInternalExpanded(next);
+  }
+
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey) as ContactStatus | null;
       if (saved && CONTACT_STATUSES.includes(saved)) setStatus(saved);
-    } catch {
-      // localStorage blocked
-    }
+    } catch { /* localStorage blocked */ }
   }, [storageKey]);
 
   function handleStatusChange(next: ContactStatus) {
     setStatus(next);
-    try {
-      localStorage.setItem(storageKey, next);
-    } catch {
-      // localStorage blocked
-    }
+    try { localStorage.setItem(storageKey, next); } catch { /* blocked */ }
   }
 
   function handleCopyDM() {
     if (!record.template) return;
-    const resolved = producerName
-      ? record.template.replace(/\[BEATMAKER_NAME\]/g, producerName)
-      : record.template;
-    navigator.clipboard.writeText(resolved).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    });
-  }
-
-  function handleSendDM() {
-    const handle = record.username.replace("@", "");
-    openExternal(`https://ig.me/m/${handle}`);
-  }
-
-  function handleOpenProfile() {
-    const handle = record.username.replace("@", "");
-    openExternal(record.profileUrl || `https://www.instagram.com/${handle}/`);
+    const resolved = producerName ? record.template.replace(/\[BEATMAKER_NAME\]/g, producerName) : record.template;
+    navigator.clipboard.writeText(resolved).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   }
 
   const typeColor = TYPE_COLORS[record.profileType] ?? TYPE_COLORS.Other;
@@ -120,99 +111,82 @@ function DemoConnectionCard({
   const ct = record.followers > 0 ? getContactTier(record.followers) : null;
 
   const MARK = `<mark style="background-color:rgba(249,115,22,0.25);color:rgb(251,146,60);border-radius:3px;padding:0 3px;font-weight:600;">`;
-
   const highlightedTemplate = useMemo(() => {
     if (!record.template) return "";
     let html = record.template;
-    if (producerName) {
-      // Substitute then highlight the resolved name
-      html = html.replace(
-        /\[BEATMAKER_NAME\]/g,
-        `${MARK}${producerName}</mark>`
-      );
-    } else {
-      html = html.replace(/\[BEATMAKER_NAME\]/g, `${MARK}[BEATMAKER_NAME]</mark>`);
-    }
+    html = producerName
+      ? html.replace(/\[BEATMAKER_NAME\]/g, `${MARK}${producerName}</mark>`)
+      : html.replace(/\[BEATMAKER_NAME\]/g, `${MARK}[BEATMAKER_NAME]</mark>`);
     html = html.replace(/\[(?:YOUR (?:LISTENING )?)?LINK\]/gi, (m) => `${MARK}${m}</mark>`);
     return html;
   }, [record.template, producerName]);
 
   return (
-    <div className="bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative">
-      {/* Top-right badges */}
-      <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
-          {record.profileType}
-        </span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${priority.classes}`}>
-          {priority.symbol} {priority.label}
-        </span>
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${reply.classes}`}>
-          {reply.symbol} {reply.label}
-        </span>
-      </div>
+    <div className={`bg-white/[0.025] border rounded-xl transition-all duration-200 relative overflow-visible
+      ${isExpanded ? "border-l-[3px] border-l-orange-500 border-white/[0.08]" : "border-white/[0.08] hover:border-white/[0.15]"}`}
+    >
+      {/* ── COLLAPSED ROW ── */}
+      <div className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none min-h-[60px]" onClick={toggleExpand}>
+        <div className="w-8 h-8 bg-white/[0.05] rounded-lg flex items-center justify-center text-sm flex-shrink-0">{emoji}</div>
 
-      {/* Header */}
-      <div className="flex items-start gap-3">
-        <div className="w-14 h-14 bg-white/[0.05] rounded-xl flex items-center justify-center text-2xl flex-shrink-0">
-          {emoji}
-        </div>
-        <div className="flex-1 min-w-0 pr-24">
-          <p className="font-semibold text-white truncate">{record.fullName || record.username}</p>
-          <button
-            onClick={handleOpenProfile}
-            className="text-orange-400 text-sm hover:underline text-left"
-          >
-            @{record.username.replace("@", "")}
-          </button>
-          {record.followers > 0 && (
-            <p className="text-xs text-gray-500 mt-0.5">{formatFollowers(record.followers)} followers</p>
-          )}
-          {ct && (
-            <p className="text-[11px] text-gray-600 mt-0.5">
-              {ct.emoji} {ct.label} · {ct.points} pts if they reply
-            </p>
-          )}
-        </div>
-      </div>
-
-      {/* Bio */}
-      {record.description && (
-        <p className="text-[#a0a0a0] text-sm leading-relaxed">{record.description}</p>
-      )}
-
-      {/* Step 1 — Ice Breaker */}
-      {record.template && (
-        <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
-          <span className="text-xs font-bold text-orange-400 uppercase tracking-[0.08em]">
-            Step 1 — Ice Breaker
-          </span>
-          <p className="text-[#505050] text-[11px] mt-1 mb-2">Send this first — no link</p>
-
-          <p
-            className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap mb-3"
-            dangerouslySetInnerHTML={{ __html: highlightedTemplate }}
-          />
-
-          <div className="flex flex-col sm:flex-row gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap leading-tight">
+            <p className="text-sm font-semibold text-white truncate max-w-[140px] sm:max-w-none">{record.fullName || `@${username}`}</p>
             <button
-              onClick={handleCopyDM}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]"
-            >
-              {copied ? "✓ Copied!" : "Copy DM"}
-            </button>
-            <button
-              onClick={handleSendDM}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]"
-            >
-              Send DM →
-            </button>
+              onClick={(e) => { e.stopPropagation(); openExternal(record.profileUrl || `https://instagram.com/${username}`); }}
+              className="text-orange-400 text-xs hover:underline flex-shrink-0"
+            >@{username}</button>
+            {record.followers > 0 && <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)}</span>}
           </div>
         </div>
-      )}
 
-      {/* Status pill — fully functional, localStorage */}
-      <StatusDropdown status={status} onChange={handleStatusChange} />
+        <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          <span className={`hidden md:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>{record.profileType}</span>
+          <span className={`hidden lg:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${priority.classes}`}>{priority.symbol} {priority.label}</span>
+          <StatusDropdown status={status} onChange={handleStatusChange} />
+          <button
+            onClick={(e) => { e.stopPropagation(); openExternal(`https://ig.me/m/${username}`); }}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap min-h-[32px]"
+          >Send DM →</button>
+        </div>
+
+        <svg className={`w-4 h-4 text-gray-600 flex-shrink-0 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+
+      {/* ── EXPANDED PANEL ── */}
+      <div style={{ display: "grid", gridTemplateRows: isExpanded ? "1fr" : "0fr", transition: "grid-template-rows 0.3s ease" }}>
+        <div style={{ overflow: "hidden" }}>
+          <div className="px-4 pb-5 pt-3 flex flex-col gap-4 border-t border-white/[0.06]">
+            <div className="flex items-center gap-3 flex-wrap">
+              {record.followers > 0 && <span className="text-xs text-gray-600">{formatFollowers(record.followers)} followers</span>}
+              {ct && <span className="text-[11px] text-gray-600">{ct.emoji} {ct.label} · {ct.points} pts if they reply</span>}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${reply.classes}`}>{reply.symbol} {reply.label}</span>
+            </div>
+
+            {record.description && <p className="text-[#a0a0a0] text-sm leading-relaxed">{record.description}</p>}
+
+            {record.template && (
+              <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
+                <span className="text-xs font-bold text-orange-400 uppercase tracking-[0.08em]">Step 1 — Ice Breaker</span>
+                <p className="text-[#505050] text-[11px] mt-1 mb-2">Send this first — no link</p>
+                <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap mb-3" dangerouslySetInnerHTML={{ __html: highlightedTemplate }} />
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button onClick={handleCopyDM}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]">
+                    {copied ? "✓ Copied!" : "Copy DM"}
+                  </button>
+                  <button onClick={() => openExternal(`https://ig.me/m/${username}`)}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]">
+                    Send DM →
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
@@ -255,6 +229,7 @@ export default function DemoNetworkClient({
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [producerName, setProducerName] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   // Load producer name from localStorage after mount
   useEffect(() => {
@@ -456,20 +431,47 @@ export default function DemoNetworkClient({
       <InstagramSafetyGuide />
       <ScoringDisclaimer />
 
-      {/* Cards grid */}
+      {/* Cards list */}
       {filtered.length === 0 ? (
         <div className="text-center py-16 text-[#505050]">
           <p className="text-lg mb-2">No contacts found</p>
           <p className="text-sm">Try a different filter or follower range.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filtered.map((record, index) => (
-            <div key={record.id} style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}>
-              <DemoConnectionCard record={record} artistSlug={currentArtistSlug} producerName={producerName} />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="flex justify-end mb-2">
+            <button
+              onClick={() => {
+                const allExpanded = filtered.every((r) => expandedIds.has(r.id));
+                if (allExpanded) setExpandedIds(new Set());
+                else setExpandedIds(new Set(filtered.map((r) => r.id)));
+              }}
+              className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-3 py-1.5 rounded-lg border border-white/[0.06] hover:border-orange-500/30"
+            >
+              ↕ {filtered.every((r) => expandedIds.has(r.id)) ? "Collapse all" : "Expand all"}
+            </button>
+          </div>
+          <div className="flex flex-col gap-2">
+            {filtered.map((record, index) => (
+              <div key={record.id} style={{ animationDelay: `${Math.min(index * 50, 400)}ms` }}>
+                <DemoConnectionCard
+                  record={record}
+                  artistSlug={currentArtistSlug}
+                  producerName={producerName}
+                  expanded={expandedIds.has(record.id)}
+                  onExpandChange={(v) =>
+                    setExpandedIds((prev) => {
+                      const next = new Set(prev);
+                      if (v) next.add(record.id);
+                      else next.delete(record.id);
+                      return next;
+                    })
+                  }
+                />
+              </div>
+            ))}
+          </div>
+        </>
       )}
 
       {/* CTA footer */}

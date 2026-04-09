@@ -174,6 +174,8 @@ export default function ConnectionCard({
   onStatusChange,
   userPlan = "free",
   originalIndex = 0,
+  expanded: externalExpanded,
+  onExpandChange,
 }: {
   record: AirtableRecord;
   listeningLink: string;
@@ -186,6 +188,8 @@ export default function ConnectionCard({
   onStatusChange?: (contactId: string, next: ContactStatus, prev: ContactStatus) => void;
   userPlan?: string;
   originalIndex?: number;
+  expanded?: boolean;
+  onExpandChange?: (v: boolean) => void;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
@@ -202,6 +206,15 @@ export default function ConnectionCard({
   const [isGenerating, setIsGenerating] = useState(false);
   const [cardGlow, setCardGlow] = useState<"orange" | "green" | null>(null);
   const [showFire, setShowFire] = useState(false);
+  const [internalExpanded, setInternalExpanded] = useState(false);
+
+  const isExpanded = externalExpanded !== undefined ? externalExpanded : internalExpanded;
+
+  function toggleExpand() {
+    const next = !isExpanded;
+    if (onExpandChange) onExpandChange(next);
+    else setInternalExpanded(next);
+  }
 
   async function handleStatusChange(next: ContactStatus) {
     if (!artistSlug || !isSignedIn || !user) return;
@@ -440,10 +453,15 @@ export default function ConnectionCard({
     return html;
   }, [resolvedFollowUp, producerName, listeningLink]);
 
+  const username = record.username.replace("@", "");
+  const ct = record.followers > 0 ? getContactTier(record.followers) : null;
+
   return (
     <div
-      className={`bg-white/[0.025] backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-4 hover:border-white/[0.15] hover:-translate-y-0.5 transition-all duration-200 hover:shadow-xl hover:shadow-black/30 relative${cardGlow === "orange" ? " card-glow-orange" : cardGlow === "green" ? " card-glow-green" : ""}`}
-      style={{ willChange: "transform" }}
+      className={`bg-white/[0.025] border rounded-xl transition-all duration-200 relative overflow-visible
+        ${isExpanded ? "border-l-[3px] border-l-orange-500 border-white/[0.08]" : "border-white/[0.08] hover:border-white/[0.15]"}
+        ${cardGlow === "orange" ? " card-glow-orange" : cardGlow === "green" ? " card-glow-green" : ""}
+      `}
     >
       {/* Fire burst particles */}
       {showFire && (
@@ -455,236 +473,227 @@ export default function ConnectionCard({
             { left: "65%", delay: "120ms" },
             { left: "78%", delay: "60ms" },
           ].map((p, i) => (
-            <span
-              key={i}
-              className="fire-particle"
-              style={{ left: p.left, bottom: "50%", animationDelay: p.delay }}
-            >
-              🔥
-            </span>
+            <span key={i} className="fire-particle" style={{ left: p.left, bottom: "50%", animationDelay: p.delay }}>🔥</span>
           ))}
         </>
       )}
-      {/* DM priority badge — top left */}
-      {dmPriority !== undefined && (
-        <span className="absolute top-4 left-4 z-10 group">
-          <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white cursor-default">
-            DM #{dmPriority}
-          </span>
-          <span className="pointer-events-none absolute left-0 top-full mt-1.5 w-max max-w-[180px] rounded-lg bg-gray-900 border border-orange-500/20 px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
-            Priority based on follower count — easier to reach
-          </span>
-        </span>
-      )}
-      {/* Top-right badges: type + priority + reply probability */}
-      <div className="absolute top-4 right-4 flex flex-col items-end gap-1">
-        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
-          {record.profileType}
-        </span>
-        <span className={`group relative text-xs font-medium px-2 py-0.5 rounded-full border cursor-default ${priority.classes}`}>
-          {priority.symbol} {priority.label}
-          <span className="pointer-events-none absolute right-0 top-full mt-1.5 z-20 w-max max-w-[160px] rounded-lg bg-gray-900 border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
-            {priority.tooltip}
-          </span>
-        </span>
-        <span className={`group relative text-xs font-medium px-2 py-0.5 rounded-full border cursor-default ${reply.classes}`}>
-          {reply.symbol} {reply.label}
-          <span className="pointer-events-none absolute right-0 top-full mt-1.5 z-20 w-max max-w-[160px] rounded-lg bg-gray-900 border border-white/[0.08] px-2.5 py-1.5 text-[11px] text-gray-300 leading-snug opacity-0 group-hover:opacity-100 transition-opacity duration-150 shadow-lg">
-            {reply.tooltip}
-          </span>
-        </span>
-      </div>
 
-      {/* Header */}
-      <div className={`flex items-start gap-3${dmPriority !== undefined ? " mt-5" : ""}`}>
-        <TypeEmoji profileType={record.profileType} />
-        <div className="flex-1 min-w-0 pr-24">
-          <p className="font-semibold text-white truncate">{record.fullName}</p>
-          <button
-            onClick={() => {
-              openExternalUrl(record.profileUrl || `https://instagram.com/${record.username.replace("@", "")}`);
-            }}
-            className="text-orange-400 text-sm hover:underline text-left"
-          >
-            @{record.username.replace("@", "")}
-          </button>
-          {record.followers > 0 && (
-            <p className="text-xs text-gray-500 mt-0.5">
-              {formatFollowers(record.followers)} followers
-            </p>
-          )}
-          {record.followers > 0 && (() => {
-            const ct = getContactTier(record.followers);
-            return (
-              <p className="text-[11px] text-gray-600 mt-0.5">
-                {ct.emoji} {ct.label} · {ct.points} pts if they reply
-              </p>
-            );
-          })()}
+      {/* ── COLLAPSED ROW — always visible, click to expand ── */}
+      <div
+        className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none min-h-[60px]"
+        onClick={toggleExpand}
+      >
+        {/* 32px type emoji */}
+        <div className="w-8 h-8 bg-white/[0.05] rounded-lg flex items-center justify-center text-sm flex-shrink-0">
+          {getTypeEmoji(record.profileType)}
         </div>
-      </div>
 
-      {/* Description */}
-      {record.description && (
-        <DescriptionWithEmailGate description={record.description} isSignedIn={!!isSignedIn} />
-      )}
-
-      {/* STEP 1 — Ice Breaker */}
-      {(record.template || customTemplate) && (
-        <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
-          <div className="flex items-center justify-between mb-1">
-            <div>
-              <span className="text-xs font-bold text-orange-400 uppercase tracking-[0.08em]">Step 1 — Ice Breaker</span>
-              {customTemplate !== null && isSignedIn && (
-                <span className="ml-2 text-orange-400/50 text-xs">(edited)</span>
-              )}
-            </div>
-            {!isEditing && isSignedIn && (
-              <button onClick={handleEditClick} className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10">Edit</button>
-            )}
-          </div>
-          <p className="text-[#505050] text-[11px] mb-2">Send this first — no link</p>
-
-          {isSignedIn && isEditing ? (
-            <div className="flex flex-col gap-2">
-              <textarea value={draftTemplate} onChange={(e) => setDraftTemplate(e.target.value)} rows={5}
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y" />
-              <div className="flex gap-2">
-                <button onClick={handleSave} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity">Save</button>
-                <button onClick={handleReset} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
-              </div>
-            </div>
-          ) : (
-            <div className="relative mb-3">
-              <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
-                style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
-                dangerouslySetInnerHTML={{ __html: highlightedTemplate }} />
-              {!isSignedIn && (
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <Link href="/sign-in" className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors">Sign in to view</Link>
-                </div>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button onClick={handleCopyDM} disabled={!activeTemplate}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95">
-              {copied ? "✓ Copied!" : "Copy DM"}
-            </button>
+        {/* Name + handle + followers */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-1.5 flex-wrap leading-tight">
+            <p className="text-sm font-semibold text-white truncate max-w-[140px] sm:max-w-none">{record.fullName}</p>
             <button
-              onClick={() => {
-                openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`);
-              }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
-              Send DM →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* STEP 2 — Follow-up (visible whenever status is "Replied", any casing) */}
-      {status.toLowerCase() === "replied" && (
-        <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-green-500/[0.06] rounded-xl p-3.5 border border-green-500/20">
-          <p className="text-sm font-semibold text-green-400 mb-1">🎉 They replied! Now send your link:</p>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs font-bold text-green-400/70 uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
-            {!isEditingFollowUp && isSignedIn && (
-              <button onClick={() => { setDraftFollowUp(activeFollowUp ?? ""); setIsEditingFollowUp(true); }}
-                className="text-xs text-gray-500 hover:text-green-400 transition-colors px-1.5 py-0.5 rounded hover:bg-green-400/10">Edit</button>
-            )}
-          </div>
-
-          {isSignedIn && isEditingFollowUp ? (
-            <div className="flex flex-col gap-2 mt-2">
-              <textarea value={draftFollowUp} onChange={(e) => setDraftFollowUp(e.target.value)} rows={3}
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-green-500/50 resize-y" />
-              <div className="flex gap-2">
-                <button onClick={() => { setCustomFollowUp(draftFollowUp); setIsEditingFollowUp(false); }}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-green-600 text-white hover:opacity-90 transition-opacity">Save</button>
-                <button onClick={() => { setCustomFollowUp(null); setDraftFollowUp(""); setIsEditingFollowUp(false); }}
-                  className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
-              </div>
-            </div>
-          ) : (
-            <div className="relative mt-2 mb-3">
-              {activeFollowUp ? (
-                <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
-                  dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
-              ) : (
-                <p className="text-[#505050] text-xs italic">
-                  No follow-up template — click Edit to write yours.
-                </p>
-              )}
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row gap-2">
-            <button
-              onClick={() => {
-                if (!isSignedIn) { toast("Sign in to copy DM templates", { icon: "🔒" }); return; }
-                if (!resolvedFollowUp) return;
-                navigator.clipboard.writeText(resolvedFollowUp).then(() => { setCopiedFollowUp(true); setTimeout(() => setCopiedFollowUp(false), 2000); toast.success("Follow-up copied ✓"); });
-              }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-green-600/80 text-white hover:bg-green-600 hover:scale-[1.02] transition-all duration-200 active:scale-95">
-              {copiedFollowUp ? "✓ Copied!" : "Copy Follow-up"}
-            </button>
-            <button
-              onClick={() => { openExternalUrl(`https://ig.me/m/${record.username.replace("@", "")}`); }}
-              className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
-              Send DM →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* AI DM Generation — gated by plan */}
-      {isSignedIn && (() => {
-        const canGenerate =
-          userPlan === "premium" ||
-          userPlan === "lifetime" ||
-          (userPlan === "pro" && originalIndex < 50);
-
-        if (!canGenerate) {
-          const msg =
-            userPlan === "pro"
-              ? "✨ Upgrade to Premium for all contacts"
-              : "✨ Upgrade to Pro for AI generation";
-          return (
-            <Link
-              href="/pricing"
-              className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/60 hover:border-orange-500/40 hover:text-orange-400/80 transition-all duration-200 flex items-center justify-center gap-2"
+              onClick={(e) => { e.stopPropagation(); openExternalUrl(record.profileUrl || `https://instagram.com/${username}`); }}
+              className="text-orange-400 text-xs hover:underline flex-shrink-0"
             >
-              {msg}
-            </Link>
-          );
-        }
-
-        return (
-          <button onClick={handleGenerateDM} disabled={isGenerating}
-            className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
-            {isGenerating ? (
-              <><span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />Generating...</>
-            ) : "✨ Generate my DM"}
-          </button>
-        );
-      })()}
-
-      {/* No template fallback — only when no Airtable template AND no AI-generated DM */}
-      {record.profileUrl && !record.template && !customTemplate && (
-        <button onClick={() => { openExternalUrl(record.profileUrl); }}
-          className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center">
-          Open Instagram
-        </button>
-      )}
-
-      {/* Status selector — signed in only */}
-      {artistSlug && isSignedIn && (
-        <div className="flex items-center gap-2 mt-auto pt-3 border-t border-white/[0.06]">
-          <span className="text-xs text-[#505050] uppercase tracking-[0.08em]">Status:</span>
-          <StatusDropdown status={status} onChange={handleStatusChange} />
+              @{username}
+            </button>
+            {record.followers > 0 && (
+              <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)}</span>
+            )}
+          </div>
         </div>
-      )}
+
+        {/* Badges + interactive actions — stopProp wrapper */}
+        <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+          {dmPriority !== undefined && (
+            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white hidden sm:inline-flex">#{dmPriority}</span>
+          )}
+          <span className={`hidden md:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
+            {record.profileType}
+          </span>
+          <span className={`hidden lg:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${priority.classes}`}>
+            {priority.symbol} {priority.label}
+          </span>
+          {artistSlug && isSignedIn && (
+            <StatusDropdown status={status} onChange={handleStatusChange} />
+          )}
+          <button
+            onClick={(e) => { e.stopPropagation(); openExternalUrl(`https://ig.me/m/${username}`); }}
+            className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap min-h-[32px]"
+          >
+            Send DM →
+          </button>
+        </div>
+
+        {/* Chevron — participates in card toggle */}
+        <svg
+          className={`w-4 h-4 text-gray-600 flex-shrink-0 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}
+          fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+
+      {/* ── EXPANDED PANEL — animated with grid-template-rows trick ── */}
+      <div style={{ display: "grid", gridTemplateRows: isExpanded ? "1fr" : "0fr", transition: "grid-template-rows 0.3s ease" }}>
+        <div style={{ overflow: "hidden" }}>
+          <div className="px-4 pb-5 pt-3 flex flex-col gap-4 border-t border-white/[0.06]">
+
+            {/* Follower tier + reply probability row */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {record.followers > 0 && (
+                <span className="text-xs text-gray-600">
+                  {formatFollowers(record.followers)} followers
+                </span>
+              )}
+              {ct && (
+                <span className="text-[11px] text-gray-600">{ct.emoji} {ct.label} · {ct.points} pts if they reply</span>
+              )}
+              <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${reply.classes}`}>
+                {reply.symbol} {reply.label}
+              </span>
+              {dmPriority !== undefined && (
+                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white sm:hidden">DM #{dmPriority}</span>
+              )}
+            </div>
+
+            {/* Description */}
+            {record.description && (
+              <DescriptionWithEmailGate description={record.description} isSignedIn={!!isSignedIn} />
+            )}
+
+            {/* STEP 1 — Ice Breaker */}
+            {(record.template || customTemplate) && (
+              <div className="bg-white/[0.02] rounded-xl p-3.5 border border-white/[0.06]">
+                <div className="flex items-center justify-between mb-1">
+                  <div>
+                    <span className="text-xs font-bold text-orange-400 uppercase tracking-[0.08em]">Step 1 — Ice Breaker</span>
+                    {customTemplate !== null && isSignedIn && (
+                      <span className="ml-2 text-orange-400/50 text-xs">(edited)</span>
+                    )}
+                  </div>
+                  {!isEditing && isSignedIn && (
+                    <button onClick={handleEditClick} className="text-xs text-gray-500 hover:text-orange-400 transition-colors px-1.5 py-0.5 rounded hover:bg-orange-400/10">Edit</button>
+                  )}
+                </div>
+                <p className="text-[#505050] text-[11px] mb-2">Send this first — no link</p>
+
+                {isSignedIn && isEditing ? (
+                  <div className="flex flex-col gap-2">
+                    <textarea value={draftTemplate} onChange={(e) => setDraftTemplate(e.target.value)} rows={5}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-orange-500/50 resize-y" />
+                    <div className="flex gap-2">
+                      <button onClick={handleSave} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity">Save</button>
+                      <button onClick={handleReset} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative mb-3">
+                    <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap"
+                      style={!isSignedIn ? { filter: "blur(4px)", pointerEvents: "none", userSelect: "none" } : undefined}
+                      dangerouslySetInnerHTML={{ __html: highlightedTemplate }} />
+                    {!isSignedIn && (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Link href="/sign-in" className="text-xs font-bold bg-orange-500 text-black px-3 py-1.5 rounded-full hover:bg-orange-400 transition-colors">Sign in to view</Link>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button onClick={handleCopyDM} disabled={!activeTemplate}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] active:scale-95">
+                    {copied ? "✓ Copied!" : "Copy DM"}
+                  </button>
+                  <button
+                    onClick={() => openExternalUrl(`https://ig.me/m/${username}`)}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+                    Send DM →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2 — Follow-up */}
+            {status.toLowerCase() === "replied" && (
+              <div className="animate-in fade-in slide-in-from-top-2 duration-300 bg-green-500/[0.06] rounded-xl p-3.5 border border-green-500/20">
+                <p className="text-sm font-semibold text-green-400 mb-1">🎉 They replied! Now send your link:</p>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs font-bold text-green-400/70 uppercase tracking-[0.08em]">Step 2 — Follow-up</span>
+                  {!isEditingFollowUp && isSignedIn && (
+                    <button onClick={() => { setDraftFollowUp(activeFollowUp ?? ""); setIsEditingFollowUp(true); }}
+                      className="text-xs text-gray-500 hover:text-green-400 transition-colors px-1.5 py-0.5 rounded hover:bg-green-400/10">Edit</button>
+                  )}
+                </div>
+                {isSignedIn && isEditingFollowUp ? (
+                  <div className="flex flex-col gap-2 mt-2">
+                    <textarea value={draftFollowUp} onChange={(e) => setDraftFollowUp(e.target.value)} rows={3}
+                      className="w-full bg-white/[0.03] border border-white/[0.08] rounded-lg px-3 py-2 text-[#d0d0d0] text-xs leading-relaxed focus:outline-none focus:border-green-500/50 resize-y" />
+                    <div className="flex gap-2">
+                      <button onClick={() => { setCustomFollowUp(draftFollowUp); setIsEditingFollowUp(false); }}
+                        className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-green-600 text-white hover:opacity-90 transition-opacity">Save</button>
+                      <button onClick={() => { setCustomFollowUp(null); setDraftFollowUp(""); setIsEditingFollowUp(false); }}
+                        className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-white/[0.2] hover:text-white transition-colors">Reset</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="relative mt-2 mb-3">
+                    {activeFollowUp ? (
+                      <p className="text-gray-300 text-xs leading-relaxed whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: highlightedFollowUp }} />
+                    ) : (
+                      <p className="text-[#505050] text-xs italic">No follow-up template — click Edit to write yours.</p>
+                    )}
+                  </div>
+                )}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={() => {
+                      if (!isSignedIn) { toast("Sign in to copy DM templates", { icon: "🔒" }); return; }
+                      if (!resolvedFollowUp) return;
+                      navigator.clipboard.writeText(resolvedFollowUp).then(() => { setCopiedFollowUp(true); setTimeout(() => setCopiedFollowUp(false), 2000); toast.success("Follow-up copied ✓"); });
+                    }}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-green-600/80 text-white hover:bg-green-600 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+                    {copiedFollowUp ? "✓ Copied!" : "Copy Follow-up"}
+                  </button>
+                  <button
+                    onClick={() => openExternalUrl(`https://ig.me/m/${username}`)}
+                    className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
+                    Send DM →
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* AI DM Generation */}
+            {isSignedIn && (() => {
+              const canGenerate = userPlan === "premium" || userPlan === "lifetime" || (userPlan === "pro" && originalIndex < 50);
+              if (!canGenerate) {
+                return (
+                  <Link href="/pricing"
+                    className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/60 hover:border-orange-500/40 hover:text-orange-400/80 transition-all duration-200 flex items-center justify-center gap-2">
+                    {userPlan === "pro" ? "✨ Upgrade to Premium for all contacts" : "✨ Upgrade to Pro for AI generation"}
+                  </Link>
+                );
+              }
+              return (
+                <button onClick={handleGenerateDM} disabled={isGenerating}
+                  className="w-full text-xs font-medium py-2 px-3 rounded-lg border border-orange-500/20 text-orange-400/80 hover:border-orange-500/50 hover:text-orange-400 hover:bg-orange-500/5 transition-all duration-200 flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed">
+                  {isGenerating ? (<><span className="w-3 h-3 border border-orange-400 border-t-transparent rounded-full animate-spin flex-shrink-0" />Generating...</>) : "✨ Generate my DM"}
+                </button>
+              );
+            })()}
+
+            {/* No template fallback */}
+            {record.profileUrl && !record.template && !customTemplate && (
+              <button onClick={() => openExternalUrl(record.profileUrl)}
+                className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:border-orange-500/40 hover:text-orange-400 hover:scale-[1.02] transition-all duration-200 active:scale-95 text-center">
+                Open Instagram
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -82,6 +82,7 @@ export default function ArtistNetworkClient({
   const { isLoaded, isSignedIn, user } = useUser();
   const [activeFilter, setActiveFilter] = useState("All");
   const [search, setSearch] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [listeningLink, setListeningLink] = useState("");
   const [producerName, setProducerName] = useState("");
 
@@ -413,19 +414,37 @@ export default function ArtistNetworkClient({
         </div>
       )}
 
-      {/* Results count */}
+      {/* Results count + expand-all toggle */}
       {!loading && (
-        <p className="text-[#505050] text-sm mb-6">
-          Showing{" "}
-          <span className="text-[#a0a0a0] font-medium">{filtered.length}</span>{" "}
-          connection{filtered.length !== 1 ? "s" : ""}
-          {activeFilter !== "All" && ` · ${activeFilter}`}
-          {search && ` · "${search}"`}
-        </p>
+        <div className="flex items-center justify-between mb-4">
+          <p className="text-[#505050] text-sm">
+            Showing{" "}
+            <span className="text-[#a0a0a0] font-medium">{filtered.length}</span>{" "}
+            connection{filtered.length !== 1 ? "s" : ""}
+            {activeFilter !== "All" && ` · ${activeFilter}`}
+            {search && ` · "${search}"`}
+          </p>
+          {filtered.length > 0 && (
+            <button
+              onClick={() => {
+                const allExpanded = filtered.every((r) => expandedIds.has(r.id));
+                if (allExpanded) {
+                  setExpandedIds(new Set());
+                } else {
+                  setExpandedIds(new Set(filtered.map((r) => r.id)));
+                }
+              }}
+              className="text-xs text-gray-500 hover:text-orange-400 transition-colors border border-white/[0.06] hover:border-orange-500/30 px-2.5 py-1 rounded-lg flex items-center gap-1.5"
+            >
+              <span>↕</span>
+              {filtered.every((r) => expandedIds.has(r.id)) ? "Collapse all" : "Expand all"}
+            </button>
+          )}
+        </div>
       )}
 
-      {/* Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+      {/* List */}
+      <div className="flex flex-col gap-2">
         {loading || (isSignedIn && !dataLoaded)
           ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
           : filtered.map((record, index) => {
@@ -437,8 +456,8 @@ export default function ArtistNetworkClient({
                 <div
                   key={record.id}
                   style={{
-                    animation: "fadeInUp 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
-                    animationDelay: `${Math.min(index * 50, 400)}ms`,
+                    animation: "fadeInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+                    animationDelay: `${Math.min(index * 30, 300)}ms`,
                   }}
                 >
                   <ConnectionCard
@@ -453,6 +472,12 @@ export default function ArtistNetworkClient({
                     onStatusChange={handleCardStatusChange}
                     userPlan={userPlan}
                     originalIndex={originalIndexMap.get(record.id) ?? 0}
+                    expanded={expandedIds.has(record.id)}
+                    onExpandChange={(v) => setExpandedIds((prev) => {
+                      const next = new Set(prev);
+                      if (v) next.add(record.id); else next.delete(record.id);
+                      return next;
+                    })}
                   />
                 </div>
               );
