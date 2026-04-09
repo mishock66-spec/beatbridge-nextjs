@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
@@ -637,11 +637,34 @@ export default function AdminClient({
   const [dupDeletingGroup, setDupDeletingGroup] = useState<string | null>(null);
   const [dupFilterTab, setDupFilterTab] = useState<DupGroupType | "all">("same-network");
 
-  // ── Airtable-only contacts ────────────────────────────────────────────────
+  // ── Airtable-only contacts (legacy — kept for compat) ────────────────────
   const [airtableOnly, setAirtableOnly] = useState<ContactFull[]>([]);
   const [airtableOnlyLoaded, setAirtableOnlyLoaded] = useState(false);
   const [airtableOnlyLoading, setAirtableOnlyLoading] = useState(false);
   const [airtableOnlyFilter, setAirtableOnlyFilter] = useState("");
+
+  // ── Contacts tab navigation ───────────────────────────────────────────────
+  const [contactTab, setContactTab] = useState<"all" | "duplicates" | "airtable-only">("all");
+
+  // ── All Contacts (shared bulk load) ──────────────────────────────────────
+  const [allContacts, setAllContacts] = useState<ContactFull[]>([]);
+  const [allContactsLoaded, setAllContactsLoaded] = useState(false);
+  const [allContactsLoading, setAllContactsLoading] = useState(false);
+  const [contactSearch, setContactSearch] = useState("");
+  const [contactFilterArtist, setContactFilterArtist] = useState("");
+  const [contactFilterType, setContactFilterType] = useState("");
+  const [contactFilterTemplate, setContactFilterTemplate] = useState("");
+  const [contactFilterRange, setContactFilterRange] = useState("");
+  const [expandedContactEdit, setExpandedContactEdit] = useState<string | null>(null);
+  const [deleteTargetFull, setDeleteTargetFull] = useState<ContactFull | null>(null);
+
+  // ── Airtable-only extra filters ────────────────────────────────────────
+  const [airtableOnlyFilterType, setAirtableOnlyFilterType] = useState("");
+  const [airtableOnlyFilterTemplate, setAirtableOnlyFilterTemplate] = useState("");
+  const [airtableOnlySort, setAirtableOnlySort] = useState("followers-desc");
+
+  // ── Duplicates: expandable groups + manual keep override ─────────────────
+  const [dupExpandedGroups, setDupExpandedGroups] = useState<Set<string>>(new Set());
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
@@ -813,6 +836,14 @@ export default function AdminClient({
     return () => document.removeEventListener("keydown", onKey);
   }, [deleteTarget]);
 
+  // Auto-load all contacts when switching to All Contacts or Airtable-only tab
+  useEffect(() => {
+    if (section === "contacts" && (contactTab === "all" || contactTab === "airtable-only")) {
+      handleLoadAllContacts();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section, contactTab]);
+
   async function handleSaveContact(contact: ContactResult) {
     const edit = contactEdits[contact.id];
     if (!edit) return;
@@ -911,7 +942,7 @@ export default function AdminClient({
         byArtistRange.get(key)!.push(r);
       }
       const posMap: Record<string, number> = {};
-      for (const group of byArtistRange.values()) {
+      for (const group of Array.from(byArtistRange.values())) {
         const sorted = [...group].sort((a, b) => b.followers - a.followers);
         sorted.forEach((r, i) => { posMap[r.id] = i + 1; });
       }
@@ -1027,6 +1058,87 @@ export default function AdminClient({
     } finally {
       setAirtableOnlyLoading(false);
     }
+  }
+
+  async function handleLoadAllContacts(forceRefresh = false) {
+    if (!forceRefresh && (allContactsLoaded || allContactsLoading)) return;
+    setAllContactsLoading(true);
+    if (forceRefresh) setAllContactsLoaded(false);
+    try {
+      const res = await fetch(`/api/admin/contacts?userId=${encodeURIComponent(adminUserId)}`);
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const data = await res.json();
+      setAllContacts(data.records ?? []);
+      setAllContactsLoaded(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fetch failed");
+    } finally {
+      setAllContactsLoading(false);
+    }
+  }
+
+  async function handleSaveContactFull(contact: ContactFull) {
+    const edit = contactEdits[contact.id];
+    if (!edit) return;
+    setSavingContact(contact.id);
+    try {
+      const res = await fetch("/api/admin/contact-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: adminUserId,
+          recordId: contact.id,
+          followers: edit.followers,
+          profileType: edit.profileType,
+        }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      setAllContacts((prev) =>
+        prev.map((c) => c.id === contact.id ? { ...c, followers: edit.followers, profileType: edit.profileType } : c)
+      );
+      setExpandedContactEdit(null);
+      toast.success(`@${contact.username} updated`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingContact(null);
+    }
+  }
+
+  async function executeDeleteFull(contact: ContactFull) {
+    setDeleteTargetFull(null);
+    setDeletingContact(contact.id);
+    try {
+      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: adminUserId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Delete failed");
+      }
+      setAllContacts((prev) => prev.filter((c) => c.id !== contact.id));
+      toast.success(`@${contact.username} deleted ✓`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDeletingContact(null);
+    }
+  }
+
+  function handleSetKeep(groupUsername: string, recordId: string) {
+    setDupGroups((prev) =>
+      prev.map((g) => (g.username === groupUsername ? { ...g, keepId: recordId } : g))
+    );
+  }
+
+  function toggleDupGroup(username: string) {
+    setDupExpandedGroups((prev) => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username); else next.add(username);
+      return next;
+    });
   }
 
   function exportAirtableOnlyCSV(contacts: ContactFull[]) {
@@ -2009,420 +2121,550 @@ export default function AdminClient({
           )}
 
           {/* ── CONTACTS ──────────────────────────────────────────────────── */}
-          {section === "contacts" && (
+          {section === "contacts" && (() => {
+            // ── computed values for All Contacts tab ──────────────────────
+            const FOLLOWER_RANGES: Record<string, [number, number]> = {
+              "0-500":   [0, 499],
+              "500-5K":  [500, 4999],
+              "5K-10K":  [5000, 9999],
+              "10K-20K": [10000, 19999],
+              "20K-50K": [20000, 49999],
+              "50K+":    [50000, Infinity],
+            };
+            const filteredAllContacts = allContacts.filter((r) => {
+              if (contactSearch.trim()) {
+                const q = contactSearch.toLowerCase();
+                if (!r.username.includes(q) && !r.fullName.toLowerCase().includes(q)) return false;
+              }
+              if (contactFilterArtist && r.suiviPar !== contactFilterArtist) return false;
+              if (contactFilterType && r.profileType !== contactFilterType) return false;
+              if (contactFilterTemplate === "has" && !r.hasTemplate) return false;
+              if (contactFilterTemplate === "none" && r.hasTemplate) return false;
+              if (contactFilterRange) {
+                const [min, max] = FOLLOWER_RANGES[contactFilterRange] ?? [0, Infinity];
+                if (r.followers < min || r.followers > max) return false;
+              }
+              return true;
+            });
+
+            // ── computed values for Airtable-only tab ─────────────────────
+            const airtableOnlyBase = allContacts.filter((r) => !isOnSite(r));
+            const filteredAirtableOnly = airtableOnlyBase.filter((r) => {
+              if (airtableOnlyFilter && r.suiviPar !== airtableOnlyFilter) return false;
+              if (airtableOnlyFilterType && r.profileType !== airtableOnlyFilterType) return false;
+              if (airtableOnlyFilterTemplate === "has" && !r.hasTemplate) return false;
+              if (airtableOnlyFilterTemplate === "none" && r.hasTemplate) return false;
+              return true;
+            }).sort((a, b) => {
+              if (airtableOnlySort === "followers-asc") return a.followers - b.followers;
+              if (airtableOnlySort === "artist-az") return (a.suiviPar || "").localeCompare(b.suiviPar || "");
+              return b.followers - a.followers; // default: followers desc
+            });
+
+            const selectCls = "text-xs bg-white/[0.04] border border-white/[0.08] text-[#a0a0a0] px-2.5 py-2 rounded-lg focus:outline-none focus:border-white/[0.2] cursor-pointer";
+
+            return (
             <div>
-              <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
-                <h2 className="text-xl font-light tracking-[0.02em]">Contact Editor</h2>
-                <div className="flex items-center gap-2 flex-wrap">
+              {/* ── Tab navigation ────────────────────────────────────────── */}
+              <div className="flex gap-0 mb-6 border-b border-white/[0.06]">
+                {([
+                  { id: "all" as const,           label: "All Contacts" },
+                  { id: "duplicates" as const,    label: "🔍 Find Duplicates" },
+                  { id: "airtable-only" as const, label: "📦 Airtable-only" },
+                ]).map((tab) => (
                   <button
-                    onClick={handleFindDuplicates}
-                    disabled={dupScanState === "scanning" || dupScanState === "deleting"}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                    key={tab.id}
+                    onClick={() => setContactTab(tab.id)}
+                    className={`text-sm font-medium px-4 py-2.5 border-b-2 transition-all whitespace-nowrap ${
+                      contactTab === tab.id
+                        ? "border-orange-500 text-orange-400"
+                        : "border-transparent text-[#606060] hover:text-[#a0a0a0]"
+                    }`}
                   >
-                    {dupScanState === "scanning" ? (
-                      <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Scanning…</>
-                    ) : "🔍 Find Duplicates"}
+                    {tab.label}
                   </button>
-                  <button
-                    onClick={handleFetchAirtableOnly}
-                    disabled={airtableOnlyLoading}
-                    className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                  >
-                    {airtableOnlyLoading ? (
-                      <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Loading…</>
-                    ) : airtableOnlyLoaded ? "↻ Airtable-only" : "📦 Airtable-only"}
-                  </button>
-                </div>
+                ))}
               </div>
 
-              {/* ── Duplicate scan results ─────────────────────────────────── */}
-              {dupScanState === "found" && dupGroups.length === 0 && (
-                <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3 mb-6">
-                  <p className="text-sm text-green-400">✓ No duplicate usernames found across all contacts.</p>
-                </div>
-              )}
-
-              {dupScanState === "found" && dupGroups.length > 0 && (
-                <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5 mb-6">
-                  {/* Header */}
-                  <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
-                    <div>
-                      <p className="text-sm font-semibold text-white">
-                        Found {dupGroups.reduce((s, g) => s + g.records.length - 1, 0)} duplicates across {dupGroups.length} usernames
-                      </p>
-                      <p className="text-xs text-[#606060] mt-0.5">
-                        One record per username will be kept (the one with the most complete data).
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => handleDeleteDuplicateGroups(
-                        dupFilterTab === "all" ? dupGroups
-                        : dupGroups.filter((g) => g.type === dupFilterTab)
+              {/* ──────────────────────────────────────────────────────────── */}
+              {/* ALL CONTACTS TAB                                            */}
+              {/* ──────────────────────────────────────────────────────────── */}
+              {contactTab === "all" && (
+                <div>
+                  {/* Search + filters */}
+                  <div className="flex flex-col gap-3 mb-5">
+                    <div className="relative">
+                      <input
+                        className={inputCls + " pr-10"}
+                        placeholder="Search by @username or name…"
+                        value={contactSearch}
+                        onChange={(e) => setContactSearch(e.target.value)}
+                        autoFocus
+                      />
+                      {allContactsLoading && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
                       )}
-                      className="text-xs font-semibold px-3 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors whitespace-nowrap"
-                    >
-                      🗑️ Remove all {dupFilterTab === "same-network" ? "same-network" : dupFilterTab === "cross-network" ? "cross-network" : ""} duplicates
-                    </button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <select value={contactFilterArtist} onChange={(e) => setContactFilterArtist(e.target.value)} className={selectCls}>
+                        <option value="">All artists</option>
+                        {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                      <select value={contactFilterType} onChange={(e) => setContactFilterType(e.target.value)} className={selectCls}>
+                        <option value="">All types</option>
+                        {["Beatmaker/Producteur","Artiste/Rappeur","DJ","Label","Manager","Ingé son","Studio","Autre"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <select value={contactFilterTemplate} onChange={(e) => setContactFilterTemplate(e.target.value)} className={selectCls}>
+                        <option value="">All templates</option>
+                        <option value="has">Has template</option>
+                        <option value="none">No template</option>
+                      </select>
+                      <select value={contactFilterRange} onChange={(e) => setContactFilterRange(e.target.value)} className={selectCls}>
+                        <option value="">All followers</option>
+                        {["0-500","500-5K","5K-10K","10K-20K","20K-50K","50K+"].map((r) => <option key={r} value={r}>{r.replace("-"," – ")}</option>)}
+                      </select>
+                    </div>
                   </div>
 
-                  {/* Filter tabs */}
-                  <div className="flex gap-1.5 mb-4 flex-wrap">
-                    {(["same-network", "cross-network", "all"] as const).map((tab) => {
-                      const count = tab === "all" ? dupGroups.length
-                        : dupGroups.filter((g) => g.type === tab).length;
-                      const label = tab === "same-network" ? `⚠️ Same network (${count})`
-                        : tab === "cross-network" ? `ℹ️ Cross-network (${count})`
-                        : `All (${count})`;
-                      const isActive = dupFilterTab === tab;
-                      return (
-                        <button
-                          key={tab}
-                          onClick={() => setDupFilterTab(tab)}
-                          className={`text-[11px] font-medium px-3 py-1 rounded-full border transition-all ${
-                            isActive
-                              ? tab === "same-network"
-                                ? "bg-red-500/20 border-red-500/50 text-red-300"
-                                : tab === "cross-network"
-                                ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
-                                : "bg-white/10 border-white/20 text-white"
-                              : "bg-transparent border-white/[0.08] text-[#606060] hover:text-[#a0a0a0] hover:border-white/[0.15]"
-                          }`}
-                        >
-                          {label}
-                        </button>
-                      );
-                    })}
-                  </div>
+                  {allContactsLoading && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-[#606060] py-12">
+                      <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Loading contacts…
+                    </div>
+                  )}
 
-                  {/* Group list */}
-                  <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
-                    {dupGroups
-                      .filter((g) => dupFilterTab === "all" || g.type === dupFilterTab)
-                      .map((g) => (
-                      <div
-                        key={g.username}
-                        className={`rounded-xl px-3 py-2.5 border ${
-                          g.type === "same-network"
-                            ? "bg-red-500/[0.04] border-red-500/20 border-l-2 border-l-red-500/50"
-                            : "bg-white/[0.03] border-white/[0.05]"
-                        }`}
-                      >
-                        {/* Group header */}
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                          <a
-                            href={`https://www.instagram.com/${g.username}/`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-semibold text-orange-400 hover:underline"
-                          >
-                            @{g.username}
-                          </a>
-                          <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
-                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border ${
-                            g.type === "same-network"
-                              ? "bg-red-500/10 border-red-500/30 text-red-400/80"
-                              : "bg-blue-500/10 border-blue-500/30 text-blue-400/80"
-                          }`}>
-                            {g.type === "same-network" ? "⚠️ same network" : "ℹ️ cross-network"}
-                          </span>
-                          {dupConfirmGroup === g.username ? (
-                            <div className="flex items-center gap-1.5 ml-auto flex-wrap">
-                              <span className="text-[10px] text-[#808080]">Delete duplicate for @{g.username}?</span>
-                              <button
-                                onClick={() => handleDeleteSingleDup(g)}
-                                className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors"
-                              >
-                                Yes, delete
-                              </button>
-                              <button
-                                onClick={() => setDupConfirmGroup(null)}
-                                className="text-[10px] text-[#606060] hover:text-[#a0a0a0] transition-colors"
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          ) : (
-                            <button
-                              onClick={() => setDupConfirmGroup(g.username)}
-                              disabled={dupDeletingGroup === g.username}
-                              className="ml-auto text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors disabled:opacity-40 whitespace-nowrap"
-                            >
-                              {dupDeletingGroup === g.username ? (
-                                <span className="flex items-center gap-1">
-                                  <span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
-                                  Deleting…
-                                </span>
-                              ) : "🗑️ Remove duplicate"}
-                            </button>
+                  {!allContactsLoading && allContactsLoaded && (
+                    <>
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-xs text-[#505050]">
+                          Showing <span className="text-[#a0a0a0]">{Math.min(filteredAllContacts.length, 100)}</span>
+                          {filteredAllContacts.length > 100 && ` of ${filteredAllContacts.length}`} contacts
+                          {allContacts.length > filteredAllContacts.length && (
+                            <span className="text-[#404040]"> (filtered from {allContacts.length})</span>
                           )}
-                        </div>
-                        {/* Records */}
-                        <div className="flex flex-col gap-1.5">
-                          {g.records.map((r) => {
-                            const info = getDupRecordInfo(r, dupPositionMap[r.id]);
-                            const onSite = isOnSite(r);
-                            return (
-                              <div key={r.id} className={`flex items-start gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
-                                <span className="flex-shrink-0 mt-px">{r.id === g.keepId ? "✓ keep" : "✗ delete"}</span>
-                                <span className="not-italic no-underline text-[#505050] flex items-center gap-1.5 flex-wrap">
-                                  {info.href ? (
-                                    <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/70 hover:text-orange-400 hover:underline no-underline">{info.label}</a>
-                                  ) : info.label}
-                                  <span className={`text-[9px] font-medium px-1.5 py-px rounded-full border flex-shrink-0 ${
-                                    onSite
-                                      ? "bg-green-500/10 border-green-500/20 text-green-400/80"
-                                      : "bg-yellow-500/10 border-yellow-500/20 text-yellow-500/70"
-                                  }`}>
-                                    {onSite ? "✅ On site" : "⚠️ Airtable only"}
-                                  </span>
-                                  {r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
+                        </p>
+                        <button onClick={() => handleLoadAllContacts(true)} className="text-xs text-[#505050] hover:text-orange-400 transition-colors">↺ Refresh</button>
+                      </div>
+
+                      <div className="flex flex-col gap-3">
+                        {filteredAllContacts.slice(0, 100).map((contact) => {
+                          const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+                          const isExpanded = expandedContactEdit === contact.id;
+                          return (
+                            <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
+                              {/* Compact row */}
+                              <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
+                                <a
+                                  href={`https://www.instagram.com/${contact.username}/`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="text-sm font-semibold text-orange-400 hover:underline flex-shrink-0"
+                                >
+                                  @{contact.username}
+                                </a>
+                                {contact.fullName && <span className="text-xs text-[#a0a0a0] truncate max-w-[120px]">{contact.fullName}</span>}
+                                <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.suiviPar || "—"}</span>
+                                <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
+                                {contact.profileType && <span className="text-[11px] text-[#606060] hidden sm:inline flex-shrink-0">{contact.profileType}</span>}
+                                <span className={`text-[10px] px-1.5 py-px rounded-full border flex-shrink-0 ${contact.hasTemplate ? "bg-green-500/10 border-green-500/20 text-green-400/70" : "bg-white/[0.04] border-white/[0.06] text-[#404040]"}`}>
+                                  {contact.hasTemplate ? "template ✓" : "no template"}
                                 </span>
+                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                                  <button
+                                    onClick={() => setExpandedContactEdit(isExpanded ? null : contact.id)}
+                                    className="text-[11px] px-2 py-1 rounded-lg border border-white/[0.08] text-[#606060] hover:text-white hover:border-white/[0.2] transition-colors"
+                                  >
+                                    {isExpanded ? "▾ Close" : "✏️ Edit"}
+                                  </button>
+                                  <button
+                                    onClick={() => setDeleteTargetFull(contact)}
+                                    disabled={deletingContact === contact.id}
+                                    className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
+                                  >
+                                    {deletingContact === contact.id ? (
+                                      <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    )}
+                                  </button>
+                                </div>
                               </div>
-                            );
-                          })}
-                        </div>
+
+                              {/* Expandable edit panel */}
+                              {isExpanded && (
+                                <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
+                                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                                    <Field label="Followers">
+                                      <input type="number" className={inputCls} value={edit.followers}
+                                        onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 })} />
+                                    </Field>
+                                    <Field label="Profile Type">
+                                      <CustomSelect
+                                        value={edit.profileType}
+                                        onChange={(v) => setContactEdit(contact.id, { profileType: v })}
+                                        placeholder="— select type —"
+                                        options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                                      />
+                                    </Field>
+                                  </div>
+                                  <div className="flex justify-end">
+                                    <SaveButton onClick={() => handleSaveContactFull(contact)} saving={savingContact === contact.id} label="Save contact" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {filteredAllContacts.length > 100 && (
+                          <p className="text-xs text-[#505050] text-center py-3">
+                            Showing first 100 of {filteredAllContacts.length}. Use filters to narrow down.
+                          </p>
+                        )}
+                        {filteredAllContacts.length === 0 && (
+                          <p className="text-[#505050] text-sm text-center py-8">No contacts match your filters.</p>
+                        )}
                       </div>
-                    ))}
-                    {dupGroups.filter((g) => dupFilterTab === "all" || g.type === dupFilterTab).length === 0 && (
-                      <p className="text-xs text-[#505050] text-center py-4">No duplicates in this category.</p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {dupScanState === "deleting" && (
-                <div className="bg-white/[0.025] border border-white/[0.08] rounded-xl px-4 py-4 mb-6">
-                  <div className="flex items-center gap-3 mb-2">
-                    <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                    <p className="text-sm text-white">Deleting duplicates… {dupDeleteProgress.done}/{dupDeleteProgress.total}</p>
-                  </div>
-                  <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
-                    <div
-                      className="h-full bg-orange-500 rounded-full transition-all duration-300"
-                      style={{ width: `${dupDeleteProgress.total > 0 ? (dupDeleteProgress.done / dupDeleteProgress.total) * 100 : 0}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {dupScanState === "done" && (
-                <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3 mb-6 flex items-center justify-between gap-3">
-                  <p className="text-sm text-green-400">✓ Deleted {dupDeletedCount} duplicate records.</p>
-                  <button onClick={() => setDupScanState("idle")} className="text-xs text-[#606060] hover:text-[#a0a0a0]">Dismiss</button>
-                </div>
-              )}
-
-              {/* ── Airtable-only contacts ──────────────────────────────────── */}
-              {airtableOnlyLoaded && (() => {
-                const filteredAirtableOnly = airtableOnlyFilter
-                  ? airtableOnly.filter((r) => r.suiviPar === airtableOnlyFilter)
-                  : airtableOnly;
-                return (
-                  <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl mb-6 overflow-hidden">
-                    {/* Panel header */}
-                    <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
-                      <div>
-                        <p className="text-sm font-semibold text-white">
-                          📦 Airtable-only contacts
-                        </p>
-                        <p className="text-xs text-[#606060] mt-0.5">
-                          <span className="text-white">{filteredAirtableOnly.length}</span> contacts in Airtable not shown on site
-                          {airtableOnlyFilter && <span> for {airtableOnlyFilter}</span>}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2 flex-wrap">
-                        {/* Artist filter */}
-                        <select
-                          value={airtableOnlyFilter}
-                          onChange={(e) => setAirtableOnlyFilter(e.target.value)}
-                          className="text-xs bg-white/[0.05] border border-white/[0.08] text-[#a0a0a0] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-white/[0.2] cursor-pointer"
-                        >
-                          <option value="">All artists</option>
-                          {["Wheezy", "Curren$y", "Harry Fraud", "Juke Wong", "Southside", "Metro Boomin"].map((a) => (
-                            <option key={a} value={a}>{a}</option>
-                          ))}
-                        </select>
-                        {/* Export CSV */}
-                        <button
-                          onClick={() => exportAirtableOnlyCSV(filteredAirtableOnly)}
-                          disabled={filteredAirtableOnly.length === 0}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 transition-all disabled:opacity-40 whitespace-nowrap"
-                        >
-                          ⬇️ Export CSV
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* Contact rows */}
-                    <div className="flex flex-col divide-y divide-white/[0.04] max-h-[520px] overflow-y-auto">
-                      {filteredAirtableOnly.map((r) => (
-                        <div key={r.id} className="px-4 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap hover:bg-white/[0.02] transition-colors">
-                          <a
-                            href={`https://www.instagram.com/${r.username}/`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs font-semibold text-orange-400 hover:underline flex-shrink-0 min-w-[100px]"
-                          >
-                            @{r.username}
-                          </a>
-                          <span className="text-[11px] text-[#606060] flex-shrink-0">{r.suiviPar || "—"}</span>
-                          <span className="text-[11px] text-[#505050] flex-shrink-0 min-w-[40px]">
-                            {r.followers > 0 ? formatFollowersBadge(r.followers) : "—"}
-                          </span>
-                          {r.profileType && (
-                            <span className="text-[10px] text-[#505050] flex-shrink-0 hidden sm:inline">{r.profileType}</span>
-                          )}
-                          <span className={`text-[10px] font-medium px-1.5 py-px rounded-full border flex-shrink-0 ${
-                            r.hasTemplate
-                              ? "bg-green-500/10 border-green-500/20 text-green-400/70"
-                              : "bg-white/[0.04] border-white/[0.08] text-[#505050]"
-                          }`}>
-                            {r.hasTemplate ? "has template" : "no template"}
-                          </span>
-                          <span className="text-[10px] text-yellow-500/60 bg-yellow-500/[0.06] border border-yellow-500/15 px-1.5 py-px rounded-full flex-shrink-0 ml-auto whitespace-nowrap">
-                            {getExclusionReason(r)}
-                          </span>
-                        </div>
-                      ))}
-                      {filteredAirtableOnly.length === 0 && (
-                        <p className="text-xs text-[#505050] text-center py-6">No Airtable-only contacts for this filter.</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-5">
-                <div className="relative">
-                  <input
-                    className={inputCls + " pr-10"}
-                    placeholder="Search by @username or name…"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    autoFocus
-                  />
-                  {searching && (
-                    <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                    </>
                   )}
                 </div>
-                {searchQuery.length > 0 && searchQuery.length < 2 && (
-                  <p className="text-xs text-[#505050] mt-2">Type at least 2 characters</p>
-                )}
-              </div>
+              )}
 
-              {searchResults.length > 0 && (
-                <div className="flex flex-col gap-3">
-                  {searchResults.map((contact) => {
-                    const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
-                    return (
-                      <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                        <div className="flex items-start justify-between gap-3 mb-4">
-                          <div className="min-w-0">
-                            <a
-                              href={`https://www.instagram.com/${contact.username}/`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-1.5 text-sm font-semibold text-white hover:text-orange-400 transition-colors group"
-                            >
-                              @{contact.username}
-                              <svg className="w-3 h-3 opacity-40 group-hover:opacity-100 transition-opacity" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                              </svg>
-                            </a>
-                            {contact.fullName && <p className="text-xs text-[#606060] mt-0.5">{contact.fullName}</p>}
-                            <p className="text-xs text-[#505050] mt-0.5">{contact.suiviPar}</p>
-                          </div>
-                          <div className="flex items-center gap-2 flex-shrink-0">
-                            <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
-                              {contact.profileType || "—"}
-                            </span>
-                            <button
-                              onClick={() => setDeleteTarget(contact)}
-                              disabled={deletingContact === contact.id}
-                              title={`Delete @${contact.username}`}
-                              className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
-                            >
-                              {deletingContact === contact.id ? (
-                                <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
-                              ) : (
-                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                </svg>
-                              )}
-                            </button>
-                          </div>
+              {/* ──────────────────────────────────────────────────────────── */}
+              {/* FIND DUPLICATES TAB                                         */}
+              {/* ──────────────────────────────────────────────────────────── */}
+              {contactTab === "duplicates" && (
+                <div>
+                  {/* Scan button */}
+                  {(dupScanState === "idle" || dupScanState === "done") && (
+                    <div className="mb-6">
+                      {dupScanState === "done" && (
+                        <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3 mb-4 flex items-center justify-between gap-3">
+                          <p className="text-sm text-green-400">✓ Deleted {dupDeletedCount} duplicate records.</p>
+                          <button onClick={() => setDupScanState("idle")} className="text-xs text-[#606060] hover:text-[#a0a0a0]">Dismiss</button>
                         </div>
-                        <div className="grid sm:grid-cols-2 gap-3 mb-4">
-                          <Field label="Followers">
-                            <input
-                              type="number"
-                              className={inputCls}
-                              value={edit.followers}
-                              onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 }, contact)}
-                            />
-                          </Field>
-                          <Field label="Profile Type">
-                            <CustomSelect
-                              value={edit.profileType}
-                              onChange={(v) => setContactEdit(contact.id, { profileType: v }, contact)}
-                              placeholder="— select type —"
-                              options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
-                            />
-                          </Field>
+                      )}
+                      <button
+                        onClick={handleFindDuplicates}
+                        disabled={false}
+                        className="flex items-center gap-2 text-sm font-medium px-4 py-2.5 rounded-lg bg-white/[0.04] border border-white/[0.1] text-white hover:bg-white/[0.07] hover:border-white/[0.2] transition-all disabled:opacity-40"
+                      >
+                        🔍 Scan for duplicates
+                      </button>
+                    </div>
+                  )}
+
+                  {dupScanState === "scanning" && (
+                    <div className="flex items-center gap-2 text-sm text-[#a0a0a0] py-8 justify-center">
+                      <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Scanning all contacts…
+                    </div>
+                  )}
+
+                  {dupScanState === "found" && dupGroups.length === 0 && (
+                    <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3">
+                      <p className="text-sm text-green-400">✓ No duplicate usernames found across all contacts.</p>
+                    </div>
+                  )}
+
+                  {dupScanState === "found" && dupGroups.length > 0 && (
+                    <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
+                      {/* Header */}
+                      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                        <div>
+                          <p className="text-sm font-semibold text-white">
+                            Found {dupGroups.reduce((s, g) => s + g.records.length - 1, 0)} duplicates across {dupGroups.length} usernames
+                          </p>
+                          <p className="text-xs text-[#606060] mt-0.5">
+                            Click a group to compare records side-by-side. Use &quot;✓ Keep this one&quot; to override which to keep.
+                          </p>
                         </div>
-                        <div className="flex justify-end">
-                          <SaveButton
-                            onClick={() => handleSaveContact(contact)}
-                            saving={savingContact === contact.id}
-                            label="Save contact"
-                          />
-                        </div>
+                        <button
+                          onClick={() => handleDeleteDuplicateGroups(
+                            dupFilterTab === "all" ? dupGroups : dupGroups.filter((g) => g.type === dupFilterTab)
+                          )}
+                          className="text-xs font-semibold px-3 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors whitespace-nowrap"
+                        >
+                          🗑️ Remove all {dupFilterTab !== "all" ? dupFilterTab : ""} duplicates
+                        </button>
                       </div>
-                    );
-                  })}
+
+                      {/* Filter tabs */}
+                      <div className="flex gap-1.5 mb-4 flex-wrap">
+                        {(["same-network", "cross-network", "all"] as const).map((tab) => {
+                          const count = tab === "all" ? dupGroups.length : dupGroups.filter((g) => g.type === tab).length;
+                          const label = tab === "same-network" ? `⚠️ Same network (${count})`
+                            : tab === "cross-network" ? `ℹ️ Cross-network (${count})` : `All (${count})`;
+                          const isActive = dupFilterTab === tab;
+                          return (
+                            <button key={tab} onClick={() => setDupFilterTab(tab)}
+                              className={`text-[11px] font-medium px-3 py-1 rounded-full border transition-all ${isActive
+                                ? tab === "same-network" ? "bg-red-500/20 border-red-500/50 text-red-300"
+                                  : tab === "cross-network" ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                                  : "bg-white/10 border-white/20 text-white"
+                                : "bg-transparent border-white/[0.08] text-[#606060] hover:text-[#a0a0a0] hover:border-white/[0.15]"}`}
+                            >{label}</button>
+                          );
+                        })}
+                      </div>
+
+                      {/* Group list */}
+                      <div className="flex flex-col gap-3 max-h-[70vh] overflow-y-auto">
+                        {dupGroups.filter((g) => dupFilterTab === "all" || g.type === dupFilterTab).map((g) => {
+                          const isGroupExpanded = dupExpandedGroups.has(g.username);
+                          return (
+                            <div key={g.username} className={`rounded-xl border ${g.type === "same-network" ? "bg-red-500/[0.03] border-red-500/20" : "bg-white/[0.02] border-white/[0.06]"}`}>
+                              {/* Group header — click to expand */}
+                              <div
+                                className="flex items-center gap-2 px-3 py-2.5 cursor-pointer select-none flex-wrap"
+                                onClick={() => toggleDupGroup(g.username)}
+                              >
+                                <svg className={`w-3.5 h-3.5 text-[#505050] flex-shrink-0 transition-transform duration-200 ${isGroupExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                <a href={`https://www.instagram.com/${g.username}/`} target="_blank" rel="noopener noreferrer"
+                                  className="text-xs font-semibold text-orange-400 hover:underline" onClick={(e) => e.stopPropagation()}>
+                                  @{g.username}
+                                </a>
+                                <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
+                                <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border flex-shrink-0 ${g.type === "same-network" ? "bg-red-500/10 border-red-500/30 text-red-400/80" : "bg-blue-500/10 border-blue-500/30 text-blue-400/80"}`}>
+                                  {g.type === "same-network" ? "⚠️ same network" : "ℹ️ cross-network"}
+                                </span>
+                                {/* Compact record summary */}
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {g.records.map((r) => (
+                                    <span key={r.id} className={`text-[9px] px-1.5 py-0.5 rounded border ${r.id === g.keepId ? "bg-green-500/10 border-green-500/30 text-green-400" : "bg-red-500/10 border-red-500/20 text-red-400/60"}`}>
+                                      {r.id === g.keepId ? "✓ keep" : "✗ del"} · {r.suiviPar || "?"}
+                                      {isOnSite(r) ? " ✅" : " ⚠️"}
+                                    </span>
+                                  ))}
+                                </div>
+                                {/* Per-group delete button */}
+                                <div className="ml-auto flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  {dupConfirmGroup === g.username ? (
+                                    <div className="flex items-center gap-1.5">
+                                      <button onClick={() => handleDeleteSingleDup(g)}
+                                        className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors whitespace-nowrap">
+                                        Yes, delete
+                                      </button>
+                                      <button onClick={() => setDupConfirmGroup(null)} className="text-[10px] text-[#606060] hover:text-[#a0a0a0]">✕</button>
+                                    </div>
+                                  ) : (
+                                    <button onClick={() => setDupConfirmGroup(g.username)} disabled={dupDeletingGroup === g.username}
+                                      className="text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors disabled:opacity-40 whitespace-nowrap">
+                                      {dupDeletingGroup === g.username ? (
+                                        <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />Deleting…</span>
+                                      ) : "🗑️ Remove dup"}
+                                    </button>
+                                  )}
+                                </div>
+                              </div>
+
+                              {/* Expanded detail cards */}
+                              {isGroupExpanded && (
+                                <div className="border-t border-white/[0.06] p-3 grid sm:grid-cols-2 gap-3">
+                                  {g.records.map((r) => {
+                                    const info = getDupRecordInfo(r, dupPositionMap[r.id]);
+                                    const onSite = isOnSite(r);
+                                    const isKeep = r.id === g.keepId;
+                                    const emailMatch = (r.bio + " " + r.template).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+                                    return (
+                                      <div key={r.id} className={`rounded-xl p-3.5 border ${isKeep ? "bg-green-500/[0.04] border-green-500/25" : "bg-red-500/[0.03] border-red-500/15"}`}>
+                                        {/* Card header */}
+                                        <div className="flex items-center gap-2 mb-3 flex-wrap">
+                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isKeep ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
+                                            {isKeep ? "✓ KEEP" : "✗ DELETE"}
+                                          </span>
+                                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${onSite ? "bg-green-500/10 border-green-500/20 text-green-400/80" : "bg-yellow-500/10 border-yellow-500/20 text-yellow-500/70"}`}>
+                                            {onSite ? "✅ On site" : "⚠️ Airtable only"}
+                                          </span>
+                                          {!isKeep && (
+                                            <button
+                                              onClick={() => handleSetKeep(g.username, r.id)}
+                                              className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded border border-green-500/40 text-green-400/80 hover:text-green-400 hover:bg-green-500/10 transition-colors whitespace-nowrap"
+                                            >
+                                              ✓ Keep this one
+                                            </button>
+                                          )}
+                                        </div>
+                                        {/* Details */}
+                                        <div className="flex flex-col gap-1.5 text-xs">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[#505050] flex-shrink-0">Name:</span>
+                                            <span className="text-[#a0a0a0] font-medium">{r.fullName || "—"}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[#505050] flex-shrink-0">Handle:</span>
+                                            <a href={`https://www.instagram.com/${r.username}/`} target="_blank" rel="noopener noreferrer"
+                                              className="text-orange-400 hover:underline">@{r.username}</a>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[#505050] flex-shrink-0">Artist:</span>
+                                            {info.href ? (
+                                              <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/80 hover:underline">{info.label}</a>
+                                            ) : <span className="text-[#606060]">{info.label}</span>}
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[#505050] flex-shrink-0">Followers:</span>
+                                            <span className="text-[#a0a0a0]">{r.followers > 0 ? formatFollowersBadge(r.followers) : "—"}</span>
+                                          </div>
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-[#505050] flex-shrink-0">Type:</span>
+                                            <span className="text-[#a0a0a0]">{r.profileType || "—"}</span>
+                                          </div>
+                                          {emailMatch && (
+                                            <div className="flex items-center gap-1.5">
+                                              <span className="text-[#505050] flex-shrink-0">Email:</span>
+                                              <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                        {r.bio && (
+                                          <div className="mt-2.5">
+                                            <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
+                                            <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04]">{r.bio}</p>
+                                          </div>
+                                        )}
+                                        {r.template && (
+                                          <div className="mt-2">
+                                            <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
+                                            <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04]">{r.template}</p>
+                                          </div>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {dupGroups.filter((g) => dupFilterTab === "all" || g.type === dupFilterTab).length === 0 && (
+                          <p className="text-xs text-[#505050] text-center py-4">No duplicates in this category.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {dupScanState === "deleting" && (
+                    <div className="bg-white/[0.025] border border-white/[0.08] rounded-xl px-4 py-4">
+                      <div className="flex items-center gap-3 mb-2">
+                        <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                        <p className="text-sm text-white">Deleting duplicates… {dupDeleteProgress.done}/{dupDeleteProgress.total}</p>
+                      </div>
+                      <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                          style={{ width: `${dupDeleteProgress.total > 0 ? (dupDeleteProgress.done / dupDeleteProgress.total) * 100 : 0}%` }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
-                <p className="text-[#505050] text-sm text-center py-8">No contacts found for &quot;{searchQuery}&quot;</p>
+              {/* ──────────────────────────────────────────────────────────── */}
+              {/* AIRTABLE-ONLY TAB                                           */}
+              {/* ──────────────────────────────────────────────────────────── */}
+              {contactTab === "airtable-only" && (
+                <div>
+                  {allContactsLoading && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-[#606060] py-12">
+                      <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Loading contacts…
+                    </div>
+                  )}
+
+                  {!allContactsLoading && allContactsLoaded && (
+                    <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
+                      {/* Panel header */}
+                      <div className="px-5 py-4 border-b border-white/[0.06] flex flex-col gap-3">
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div>
+                            <p className="text-sm font-semibold text-white">📦 Airtable-only contacts</p>
+                            <p className="text-xs text-[#606060] mt-0.5">
+                              <span className="text-white">{filteredAirtableOnly.length}</span> contacts not shown on site
+                              {(airtableOnlyFilter || airtableOnlyFilterType || airtableOnlyFilterTemplate) && " (filtered)"}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button onClick={() => handleLoadAllContacts(true)} className="text-xs text-[#505050] hover:text-orange-400 transition-colors">↺ Refresh</button>
+                            <button
+                              onClick={() => exportAirtableOnlyCSV(filteredAirtableOnly)}
+                              disabled={filteredAirtableOnly.length === 0}
+                              className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 transition-all disabled:opacity-40 whitespace-nowrap"
+                            >
+                              ⬇️ Export CSV
+                            </button>
+                          </div>
+                        </div>
+                        {/* Filters row */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                          <select value={airtableOnlyFilter} onChange={(e) => setAirtableOnlyFilter(e.target.value)} className={selectCls}>
+                            <option value="">All artists</option>
+                            {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                          </select>
+                          <select value={airtableOnlyFilterType} onChange={(e) => setAirtableOnlyFilterType(e.target.value)} className={selectCls}>
+                            <option value="">All types</option>
+                            {["Beatmaker/Producteur","Artiste/Rappeur","DJ","Label","Manager","Ingé son","Studio","Autre"].map((t) => <option key={t} value={t}>{t}</option>)}
+                          </select>
+                          <select value={airtableOnlyFilterTemplate} onChange={(e) => setAirtableOnlyFilterTemplate(e.target.value)} className={selectCls}>
+                            <option value="">All templates</option>
+                            <option value="has">Has template</option>
+                            <option value="none">No template</option>
+                          </select>
+                          <select value={airtableOnlySort} onChange={(e) => setAirtableOnlySort(e.target.value)} className={selectCls}>
+                            <option value="followers-desc">Followers ↓</option>
+                            <option value="followers-asc">Followers ↑</option>
+                            <option value="artist-az">Artist A–Z</option>
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Contact rows */}
+                      <div className="flex flex-col divide-y divide-white/[0.04] max-h-[520px] overflow-y-auto">
+                        {filteredAirtableOnly.map((r) => (
+                          <div key={r.id} className="px-4 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap hover:bg-white/[0.02] transition-colors">
+                            <a href={`https://www.instagram.com/${r.username}/`} target="_blank" rel="noopener noreferrer"
+                              className="text-xs font-semibold text-orange-400 hover:underline flex-shrink-0 min-w-[100px]">
+                              @{r.username}
+                            </a>
+                            <span className="text-[11px] text-[#606060] flex-shrink-0">{r.suiviPar || "—"}</span>
+                            <span className="text-[11px] text-[#505050] flex-shrink-0 min-w-[40px]">
+                              {r.followers > 0 ? formatFollowersBadge(r.followers) : "—"}
+                            </span>
+                            {r.profileType && <span className="text-[10px] text-[#505050] flex-shrink-0 hidden sm:inline">{r.profileType}</span>}
+                            <span className={`text-[10px] font-medium px-1.5 py-px rounded-full border flex-shrink-0 ${r.hasTemplate ? "bg-green-500/10 border-green-500/20 text-green-400/70" : "bg-white/[0.04] border-white/[0.08] text-[#505050]"}`}>
+                              {r.hasTemplate ? "has template" : "no template"}
+                            </span>
+                            <span className="text-[10px] text-yellow-500/60 bg-yellow-500/[0.06] border border-yellow-500/15 px-1.5 py-px rounded-full flex-shrink-0 ml-auto whitespace-nowrap">
+                              {getExclusionReason(r)}
+                            </span>
+                          </div>
+                        ))}
+                        {filteredAirtableOnly.length === 0 && (
+                          <p className="text-xs text-[#505050] text-center py-6">No contacts match your filters.</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               )}
 
               {/* Delete confirmation modal */}
-              {deleteTarget && (
-                <div
-                  className="fixed inset-0 z-[500] flex items-center justify-center p-4"
+              {deleteTargetFull && (
+                <div className="fixed inset-0 z-[500] flex items-center justify-center p-4"
                   style={{ background: "rgba(0,0,0,0.7)" }}
-                  onClick={() => setDeleteTarget(null)}
-                >
-                  <div
-                    className="bg-[#1a1a1a] border border-white/[0.1] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
-                    onClick={(e) => e.stopPropagation()}
-                  >
+                  onClick={() => setDeleteTargetFull(null)}>
+                  <div className="bg-[#1a1a1a] border border-white/[0.1] rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
                     <h3 className="text-base font-semibold text-white mb-2">Delete this contact?</h3>
                     <p className="text-sm text-[#a0a0a0] mb-6 leading-relaxed">
-                      Delete{" "}
-                      <span className="text-white font-medium">@{deleteTarget.username}</span>?{" "}
-                      This cannot be undone.
+                      Delete <span className="text-white font-medium">@{deleteTargetFull.username}</span>? This cannot be undone.
                     </p>
                     <div className="flex gap-3 justify-end">
-                      <button
-                        onClick={() => setDeleteTarget(null)}
-                        className="px-4 py-2 text-sm text-[#a0a0a0] bg-white/[0.06] hover:bg-white/[0.1] rounded-lg transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={() => executeDelete(deleteTarget)}
-                        className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
-                      >
-                        Yes, delete
-                      </button>
+                      <button onClick={() => setDeleteTargetFull(null)} className="px-4 py-2 text-sm text-[#a0a0a0] bg-white/[0.06] hover:bg-white/[0.1] rounded-lg transition-colors">Cancel</button>
+                      <button onClick={() => executeDeleteFull(deleteTargetFull)} className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors">Yes, delete</button>
                     </div>
                   </div>
                 </div>
               )}
             </div>
-          )}
+            );
+          })()}
 
           {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
           {section === "ai-assistant" && (
