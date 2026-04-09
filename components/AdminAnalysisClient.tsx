@@ -63,6 +63,16 @@ export default function AdminAnalysisClient() {
 
   // Filters — analyzed contacts section
   const [analyzedFilterArtist, setAnalyzedFilterArtist] = useState("");
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  function toggleExpanded(id: string) {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
   const [filterBio, setFilterBio] = useState<"all" | "has-bio" | "no-bio">("all");
   const [filterAnalyzed, setFilterAnalyzed] = useState<"all" | "analyzed" | "not-analyzed">("not-analyzed");
   const [maxContacts, setMaxContacts] = useState(50);
@@ -661,43 +671,110 @@ export default function AdminAnalysisClient() {
             </div>
           ) : (
             <div className="mt-4 bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
-              {analyzedContacts.map((c, idx) => (
-                <div
-                  key={c.id}
-                  className={`flex items-center gap-3 px-4 py-3 ${
-                    idx < analyzedContacts.length - 1 ? "border-b border-white/[0.05]" : ""
-                  } hover:bg-white/[0.03] transition-colors`}
-                >
-                  {/* Username */}
-                  <a
-                    href={`https://www.instagram.com/${c.username.replace(/^@/, "")}/`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm font-mono text-orange-400 hover:text-orange-300 transition-colors w-36 truncate flex-shrink-0"
+              {analyzedContacts.map((c, idx) => {
+                const isExpanded = expandedIds.has(c.id);
+                const handle = c.username.replace(/^@/, "");
+                const artist = c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar || "—";
+
+                // Parse analysis note from the Notes field (appended as "— Analysis: ...")
+                const analysisMatch = c.bio.match(/—\s*Analysis:\s*(.+)$/m);
+                const analysisNote = analysisMatch ? analysisMatch[1].trim() : null;
+
+                return (
+                  <div
+                    key={c.id}
+                    className={idx < analyzedContacts.length - 1 ? "border-b border-white/[0.05]" : ""}
                   >
-                    @{c.username.replace(/^@/, "")}
-                  </a>
+                    {/* ── Summary row (clickable) ── */}
+                    <button
+                      onClick={() => toggleExpanded(c.id)}
+                      className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors text-left"
+                    >
+                      {/* Chevron */}
+                      <span className={`flex-shrink-0 text-[#404040] text-xs transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`}>
+                        ▶
+                      </span>
 
-                  {/* Artist */}
-                  <span className="text-xs text-[#606060] w-24 truncate flex-shrink-0">
-                    {c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar || "—"}
-                  </span>
+                      {/* Username */}
+                      <span className="text-sm font-mono text-orange-400 w-36 truncate flex-shrink-0">
+                        @{handle}
+                      </span>
 
-                  {/* Profile type */}
-                  <span className="text-xs text-[#a0a0a0] flex-1 truncate">
-                    {c.profileType || "—"}
-                  </span>
+                      {/* Artist */}
+                      <span className="text-xs text-[#606060] w-24 truncate flex-shrink-0">
+                        {artist}
+                      </span>
 
-                  {/* Template badge */}
-                  {c.template ? (
-                    <span className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
-                      has template
-                    </span>
-                  ) : (
-                    <span className="flex-shrink-0 text-xs text-[#404040]">no template</span>
-                  )}
-                </div>
-              ))}
+                      {/* Profile type */}
+                      <span className="text-xs text-[#a0a0a0] flex-1 truncate text-left">
+                        {c.profileType || "—"}
+                      </span>
+
+                      {/* Template badge */}
+                      {c.template ? (
+                        <span className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full bg-orange-500/15 text-orange-400 border border-orange-500/20">
+                          has template
+                        </span>
+                      ) : (
+                        <span className="flex-shrink-0 text-xs text-[#404040]">no template</span>
+                      )}
+                    </button>
+
+                    {/* ── Expanded detail panel ── */}
+                    {isExpanded && (
+                      <div className="px-4 pb-5 pt-1 bg-black/20 flex flex-col gap-4 border-t border-white/[0.04]">
+
+                        {/* DM Template */}
+                        <div>
+                          <p className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em] mb-2">
+                            DM Template
+                          </p>
+                          {c.template ? (
+                            <div className="bg-[#0d0d0d] border border-white/[0.08] rounded-xl px-4 py-3">
+                              <p className="text-sm text-white leading-relaxed whitespace-pre-wrap">{c.template}</p>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-[#404040] italic">No template generated.</p>
+                          )}
+                        </div>
+
+                        {/* Analysis note */}
+                        {analysisNote && (
+                          <div>
+                            <p className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em] mb-2">
+                              Analysis Note
+                            </p>
+                            <p className="text-sm text-[#a0a0a0] leading-relaxed">{analysisNote}</p>
+                          </div>
+                        )}
+
+                        {/* Meta row — profile type + followers + Instagram link */}
+                        <div className="flex flex-wrap items-center gap-4">
+                          <div>
+                            <p className="text-xs text-[#505050] mb-0.5">Profile type</p>
+                            <p className="text-sm text-white">{c.profileType || "—"}</p>
+                          </div>
+                          {c.followers > 0 && (
+                            <div>
+                              <p className="text-xs text-[#505050] mb-0.5">Followers</p>
+                              <p className="text-sm text-white">{c.followers.toLocaleString()}</p>
+                            </div>
+                          )}
+                          <a
+                            href={`https://www.instagram.com/${handle}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="ml-auto text-xs text-[#505050] hover:text-orange-400 transition-colors"
+                          >
+                            View on Instagram ↗
+                          </a>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
