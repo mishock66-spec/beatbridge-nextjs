@@ -63,6 +63,8 @@ type ContactFull = {
   suiviPar: string;
   hasTemplate: boolean;
   hasBio: boolean;
+  bio: string;
+  template: string;
 };
 
 type DupGroup = {
@@ -151,6 +153,28 @@ function isOnSite(r: ContactFull): boolean {
   const ranges = ARTIST_RANGES[slug];
   if (!ranges) return false;
   return ranges.some((rng) => r.followers >= rng.min && r.followers <= rng.max);
+}
+
+function fmtCap(n: number): string {
+  return n >= 1000 ? `${n / 1000}K` : String(n);
+}
+
+function getExclusionReason(r: ContactFull): string {
+  const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
+  if (!slug) return "Artist not published";
+  const ranges = ARTIST_RANGES[slug];
+  if (!ranges) return "No range pages";
+  const maxCap = Math.max(...ranges.map((rng) => rng.max));
+  const minFloor = Math.min(...ranges.map((rng) => rng.min));
+  if (r.followers > maxCap) return `Above ${fmtCap(maxCap)} cap`;
+  if (r.followers < minFloor) return `Below ${fmtCap(minFloor)} floor`;
+  return "Outside ranges";
+}
+
+function formatFollowersBadge(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${Math.round(n / 100) / 10}K`;
+  return String(n);
 }
 
 type RegenState = {
@@ -613,6 +637,12 @@ export default function AdminClient({
   const [dupDeletingGroup, setDupDeletingGroup] = useState<string | null>(null);
   const [dupFilterTab, setDupFilterTab] = useState<DupGroupType | "all">("same-network");
 
+  // ── Airtable-only contacts ────────────────────────────────────────────────
+  const [airtableOnly, setAirtableOnly] = useState<ContactFull[]>([]);
+  const [airtableOnlyLoaded, setAirtableOnlyLoaded] = useState(false);
+  const [airtableOnlyLoading, setAirtableOnlyLoading] = useState(false);
+  const [airtableOnlyFilter, setAirtableOnlyFilter] = useState("");
+
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
   const [regenMode, setRegenMode] = useState<Record<string, "all" | "empty">>({});
@@ -978,6 +1008,53 @@ export default function AdminClient({
     } finally {
       setDupDeletingGroup(null);
     }
+  }
+
+  async function handleFetchAirtableOnly() {
+    setAirtableOnlyLoading(true);
+    try {
+      const res = await fetch(`/api/admin/contacts?userId=${encodeURIComponent(adminUserId)}`);
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const data = await res.json();
+      const records: ContactFull[] = data.records ?? [];
+      const filtered = records
+        .filter((r) => !isOnSite(r))
+        .sort((a, b) => b.followers - a.followers);
+      setAirtableOnly(filtered);
+      setAirtableOnlyLoaded(true);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Fetch failed");
+    } finally {
+      setAirtableOnlyLoading(false);
+    }
+  }
+
+  function exportAirtableOnlyCSV(contacts: ContactFull[]) {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = "username,full_name,followers,artist,profile_type,bio,template,reason_excluded";
+    const rows = contacts.map((c) =>
+      [
+        esc(c.username),
+        esc(c.fullName),
+        c.followers,
+        esc(c.suiviPar),
+        esc(c.profileType),
+        esc(c.bio),
+        esc(c.template),
+        esc(getExclusionReason(c)),
+      ].join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const date = new Date().toISOString().slice(0, 10);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `beatbridge-airtable-only-${date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
   }
 
   function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
@@ -1936,15 +2013,26 @@ export default function AdminClient({
             <div>
               <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
                 <h2 className="text-xl font-light tracking-[0.02em]">Contact Editor</h2>
-                <button
-                  onClick={handleFindDuplicates}
-                  disabled={dupScanState === "scanning" || dupScanState === "deleting"}
-                  className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
-                >
-                  {dupScanState === "scanning" ? (
-                    <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Scanning…</>
-                  ) : "🔍 Find Duplicates"}
-                </button>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button
+                    onClick={handleFindDuplicates}
+                    disabled={dupScanState === "scanning" || dupScanState === "deleting"}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {dupScanState === "scanning" ? (
+                      <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Scanning…</>
+                    ) : "🔍 Find Duplicates"}
+                  </button>
+                  <button
+                    onClick={handleFetchAirtableOnly}
+                    disabled={airtableOnlyLoading}
+                    className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  >
+                    {airtableOnlyLoading ? (
+                      <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Loading…</>
+                    ) : airtableOnlyLoaded ? "↻ Airtable-only" : "📦 Airtable-only"}
+                  </button>
+                </div>
               </div>
 
               {/* ── Duplicate scan results ─────────────────────────────────── */}
@@ -2123,6 +2211,87 @@ export default function AdminClient({
                   <button onClick={() => setDupScanState("idle")} className="text-xs text-[#606060] hover:text-[#a0a0a0]">Dismiss</button>
                 </div>
               )}
+
+              {/* ── Airtable-only contacts ──────────────────────────────────── */}
+              {airtableOnlyLoaded && (() => {
+                const filteredAirtableOnly = airtableOnlyFilter
+                  ? airtableOnly.filter((r) => r.suiviPar === airtableOnlyFilter)
+                  : airtableOnly;
+                return (
+                  <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl mb-6 overflow-hidden">
+                    {/* Panel header */}
+                    <div className="px-5 py-4 border-b border-white/[0.06] flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          📦 Airtable-only contacts
+                        </p>
+                        <p className="text-xs text-[#606060] mt-0.5">
+                          <span className="text-white">{filteredAirtableOnly.length}</span> contacts in Airtable not shown on site
+                          {airtableOnlyFilter && <span> for {airtableOnlyFilter}</span>}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Artist filter */}
+                        <select
+                          value={airtableOnlyFilter}
+                          onChange={(e) => setAirtableOnlyFilter(e.target.value)}
+                          className="text-xs bg-white/[0.05] border border-white/[0.08] text-[#a0a0a0] px-2.5 py-1.5 rounded-lg focus:outline-none focus:border-white/[0.2] cursor-pointer"
+                        >
+                          <option value="">All artists</option>
+                          {["Wheezy", "Curren$y", "Harry Fraud", "Juke Wong", "Southside", "Metro Boomin"].map((a) => (
+                            <option key={a} value={a}>{a}</option>
+                          ))}
+                        </select>
+                        {/* Export CSV */}
+                        <button
+                          onClick={() => exportAirtableOnlyCSV(filteredAirtableOnly)}
+                          disabled={filteredAirtableOnly.length === 0}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 transition-all disabled:opacity-40 whitespace-nowrap"
+                        >
+                          ⬇️ Export CSV
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Contact rows */}
+                    <div className="flex flex-col divide-y divide-white/[0.04] max-h-[520px] overflow-y-auto">
+                      {filteredAirtableOnly.map((r) => (
+                        <div key={r.id} className="px-4 py-2.5 flex items-center gap-2 sm:gap-3 flex-wrap hover:bg-white/[0.02] transition-colors">
+                          <a
+                            href={`https://www.instagram.com/${r.username}/`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs font-semibold text-orange-400 hover:underline flex-shrink-0 min-w-[100px]"
+                          >
+                            @{r.username}
+                          </a>
+                          <span className="text-[11px] text-[#606060] flex-shrink-0">{r.suiviPar || "—"}</span>
+                          <span className="text-[11px] text-[#505050] flex-shrink-0 min-w-[40px]">
+                            {r.followers > 0 ? formatFollowersBadge(r.followers) : "—"}
+                          </span>
+                          {r.profileType && (
+                            <span className="text-[10px] text-[#505050] flex-shrink-0 hidden sm:inline">{r.profileType}</span>
+                          )}
+                          <span className={`text-[10px] font-medium px-1.5 py-px rounded-full border flex-shrink-0 ${
+                            r.hasTemplate
+                              ? "bg-green-500/10 border-green-500/20 text-green-400/70"
+                              : "bg-white/[0.04] border-white/[0.08] text-[#505050]"
+                          }`}>
+                            {r.hasTemplate ? "has template" : "no template"}
+                          </span>
+                          <span className="text-[10px] text-yellow-500/60 bg-yellow-500/[0.06] border border-yellow-500/15 px-1.5 py-px rounded-full flex-shrink-0 ml-auto whitespace-nowrap">
+                            {getExclusionReason(r)}
+                          </span>
+                        </div>
+                      ))}
+                      {filteredAirtableOnly.length === 0 && (
+                        <p className="text-xs text-[#505050] text-center py-6">No Airtable-only contacts for this filter.</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-5">
                 <div className="relative">
                   <input

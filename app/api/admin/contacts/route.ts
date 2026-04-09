@@ -19,6 +19,8 @@ export type ContactFull = {
   suiviPar: string;
   hasTemplate: boolean;
   hasBio: boolean;
+  bio: string;
+  template: string;
 };
 
 export async function GET(req: NextRequest) {
@@ -61,6 +63,8 @@ export async function GET(req: NextRequest) {
 
     const data = await res.json();
     for (const r of data.records ?? []) {
+      const bio = (r.fields["Notes"] as string) ?? "";
+      const template = (r.fields["template"] as string) ?? "";
       records.push({
         id: r.id,
         username: ((r.fields["Pseudo Instagram"] as string) ?? "").toLowerCase().replace(/^@/, "").trim(),
@@ -68,8 +72,10 @@ export async function GET(req: NextRequest) {
         followers: (r.fields["Nombre de followers"] as number) ?? 0,
         profileType: (r.fields["Type de profil"] as string) ?? "",
         suiviPar: (r.fields["Suivi par"] as string) ?? "",
-        hasTemplate: !!((r.fields["template"] as string) ?? ""),
-        hasBio: !!((r.fields["Notes"] as string) ?? ""),
+        hasTemplate: !!template,
+        hasBio: !!bio,
+        bio,
+        template,
       });
     }
     offset = data.offset as string | undefined;
