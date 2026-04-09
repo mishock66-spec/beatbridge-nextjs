@@ -48,7 +48,9 @@ export default function AdminAnalysisClient() {
   const [loading, setLoading] = useState(false);
   const [totalAnalyzed, setTotalAnalyzed] = useState(0);
   const [totalPending, setTotalPending] = useState(0);
+  const [analyzedFieldExists, setAnalyzedFieldExists] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [showModal, setShowModal] = useState(false);
 
   // Filters
   const [filterArtist, setFilterArtist] = useState("");
@@ -82,6 +84,7 @@ export default function AdminAnalysisClient() {
         setContacts(data.contacts ?? []);
         setTotalAnalyzed(data.totalAnalyzed ?? 0);
         setTotalPending(data.totalPending ?? 0);
+        setAnalyzedFieldExists(data.analyzedFieldExists !== false);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
@@ -92,7 +95,6 @@ export default function AdminAnalysisClient() {
     let result = contacts;
 
     if (filterArtist) {
-      // Handle CurrenSy/Curren$y variants
       if (filterArtist === "Curren$y") {
         result = result.filter((c) => c.suiviPar === "Curren$y" || c.suiviPar === "CurrenSy");
       } else {
@@ -119,7 +121,7 @@ export default function AdminAnalysisClient() {
     return result.slice(0, maxContacts);
   }, [contacts, filterArtist, filterType, filterBio, filterAnalyzed, maxContacts]);
 
-  function downloadQueue() {
+  function triggerDownload() {
     const queue = selectedContacts.map((c) => ({
       username: c.username.replace(/^@/, ""),
       record_id: c.id,
@@ -137,10 +139,14 @@ export default function AdminAnalysisClient() {
     a.click();
     URL.revokeObjectURL(url);
 
-    // Record last run timestamp
     const now = new Date().toISOString();
     localStorage.setItem(LAST_RUN_KEY, now);
     setLastRun(now);
+  }
+
+  function handleStartSession() {
+    triggerDownload();
+    setShowModal(true);
   }
 
   if (!isLoaded || user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
@@ -152,14 +158,78 @@ export default function AdminAnalysisClient() {
 
   return (
     <div className="min-h-screen bg-[#080808]">
+      {/* Post-download modal */}
+      {showModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
+          onClick={() => setShowModal(false)}
+        >
+          <div
+            className="bg-[#111] border border-white/[0.1] rounded-2xl w-full max-w-md shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="px-6 pt-6 pb-4 border-b border-white/[0.08]">
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">✅</span>
+                <h2 className="text-base font-semibold text-white">Queue downloaded!</h2>
+              </div>
+            </div>
+
+            <div className="px-6 py-5">
+              <p className="text-sm text-[#a0a0a0] mb-4">Now run the analysis script:</p>
+              <ol className="flex flex-col gap-3">
+                {[
+                  {
+                    n: 1,
+                    text: "Move the file to your scripts folder",
+                    code: "scripts\\analysis-queue.json",
+                  },
+                  {
+                    n: 2,
+                    text: "Close Chrome completely",
+                    code: null,
+                  },
+                  {
+                    n: 3,
+                    text: "Run the script in your terminal",
+                    code: "node scripts/instagram-analyzer.js",
+                  },
+                ].map(({ n, text, code }) => (
+                  <li key={n} className="flex gap-3">
+                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs font-bold flex items-center justify-center mt-0.5">
+                      {n}
+                    </span>
+                    <div>
+                      <p className="text-sm text-white">{text}</p>
+                      {code && (
+                        <p className="text-xs font-mono text-orange-300 mt-1 bg-orange-500/10 px-2 py-1 rounded-md inline-block">
+                          {code}
+                        </p>
+                      )}
+                    </div>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="px-6 pb-6">
+              <button
+                onClick={() => setShowModal(false)}
+                className="w-full bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold py-2.5 rounded-lg hover:opacity-90 transition-opacity min-h-[44px]"
+              >
+                Got it
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="border-b border-white/[0.06] bg-[rgba(8,8,8,0.95)] sticky top-14 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Link
-              href="/admin"
-              className="text-[#606060] hover:text-white text-sm transition-colors"
-            >
+            <Link href="/admin" className="text-[#606060] hover:text-white text-sm transition-colors">
               ← Admin
             </Link>
             <span className="text-[#303030]">/</span>
@@ -173,6 +243,18 @@ export default function AdminAnalysisClient() {
 
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-8">
 
+        {/* "analyzed" field missing notice */}
+        {!loading && !analyzedFieldExists && (
+          <div className="flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm text-amber-300">
+            <span className="flex-shrink-0 mt-0.5">⚠️</span>
+            <span>
+              The <code className="bg-white/[0.08] px-1 rounded text-xs">analyzed</code> field
+              doesn&apos;t exist in Airtable yet. All contacts are treated as not-yet-analyzed.
+              The field will be created automatically after the first script run.
+            </span>
+          </div>
+        )}
+
         {/* ── SECTION 1 — Build your queue ─────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Build your queue</h2>
@@ -182,66 +264,38 @@ export default function AdminAnalysisClient() {
 
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Filter: Artist */}
+              {/* Artist */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">
-                  Artist
-                </label>
-                <select
-                  value={filterArtist}
-                  onChange={(e) => setFilterArtist(e.target.value)}
-                  className={selectCls}
-                >
+                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Artist</label>
+                <select value={filterArtist} onChange={(e) => setFilterArtist(e.target.value)} className={selectCls}>
                   <option value="">All artists</option>
-                  {ARTISTS.map((a) => (
-                    <option key={a} value={a}>{a}</option>
-                  ))}
+                  {ARTISTS.map((a) => <option key={a} value={a}>{a}</option>)}
                 </select>
               </div>
 
-              {/* Filter: Profile type */}
+              {/* Profile type */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">
-                  Profile type
-                </label>
-                <select
-                  value={filterType}
-                  onChange={(e) => setFilterType(e.target.value)}
-                  className={selectCls}
-                >
+                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Profile type</label>
+                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
                   <option value="">All types</option>
-                  {PROFILE_TYPES.map((t) => (
-                    <option key={t} value={t}>{t}</option>
-                  ))}
+                  {PROFILE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
 
-              {/* Filter: Bio */}
+              {/* Bio */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">
-                  Bio
-                </label>
-                <select
-                  value={filterBio}
-                  onChange={(e) => setFilterBio(e.target.value as typeof filterBio)}
-                  className={selectCls}
-                >
+                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Bio</label>
+                <select value={filterBio} onChange={(e) => setFilterBio(e.target.value as typeof filterBio)} className={selectCls}>
                   <option value="all">All</option>
                   <option value="has-bio">Has bio</option>
                   <option value="no-bio">No bio</option>
                 </select>
               </div>
 
-              {/* Filter: Analyzed */}
+              {/* Analysis status */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">
-                  Analysis status
-                </label>
-                <select
-                  value={filterAnalyzed}
-                  onChange={(e) => setFilterAnalyzed(e.target.value as typeof filterAnalyzed)}
-                  className={selectCls}
-                >
+                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Analysis status</label>
+                <select value={filterAnalyzed} onChange={(e) => setFilterAnalyzed(e.target.value as typeof filterAnalyzed)} className={selectCls}>
                   <option value="not-analyzed">Not yet analyzed</option>
                   <option value="analyzed">Already analyzed</option>
                   <option value="all">All</option>
@@ -265,8 +319,8 @@ export default function AdminAnalysisClient() {
               <span className="text-xs text-[#505050]">max 50 per session</span>
             </div>
 
-            {/* Preview count */}
-            <div className="flex items-center gap-3 pt-1 border-t border-white/[0.06]">
+            {/* Preview count + Start button */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1 border-t border-white/[0.06]">
               {loading ? (
                 <p className="text-sm text-[#505050]">Loading contacts…</p>
               ) : (
@@ -274,12 +328,24 @@ export default function AdminAnalysisClient() {
                   <span className="text-white font-semibold text-lg">{selectedContacts.length}</span>
                   <span className="text-[#a0a0a0] ml-2">contacts selected for analysis</span>
                   {contacts.length > 0 && (
-                    <span className="text-[#505050] ml-2 text-xs">
-                      (from {contacts.length} total)
-                    </span>
+                    <span className="text-[#505050] ml-2 text-xs">(from {contacts.length} total)</span>
                   )}
                 </p>
               )}
+
+              <button
+                onClick={handleStartSession}
+                disabled={selectedContacts.length === 0 || loading}
+                className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 min-h-[44px] whitespace-nowrap"
+              >
+                <span>▶</span>
+                Start Analysis Session
+                {selectedContacts.length > 0 && (
+                  <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                    {selectedContacts.length}
+                  </span>
+                )}
+              </button>
             </div>
           </div>
         </section>
@@ -288,29 +354,27 @@ export default function AdminAnalysisClient() {
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Generate queue file</h2>
           <p className="text-sm text-[#606060] mb-6">
-            Download the queue file, then run the analyzer script locally.
+            Download the queue file manually if needed.
           </p>
 
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6">
             <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
               <button
-                onClick={downloadQueue}
+                onClick={triggerDownload}
                 disabled={selectedContacts.length === 0 || loading}
-                className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
+                className="flex items-center gap-2 border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] text-sm font-medium px-5 py-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
               >
                 <span>⬇️</span>
                 Download analysis-queue.json
                 {selectedContacts.length > 0 && (
-                  <span className="ml-1 bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                  <span className="ml-1 bg-white/[0.08] text-[#a0a0a0] text-xs font-bold px-2 py-0.5 rounded-full">
                     {selectedContacts.length}
                   </span>
                 )}
               </button>
 
               {selectedContacts.length === 0 && !loading && (
-                <p className="text-xs text-[#606060]">
-                  No contacts match your current filters.
-                </p>
+                <p className="text-xs text-[#606060]">No contacts match your current filters.</p>
               )}
             </div>
 
@@ -322,10 +386,7 @@ export default function AdminAnalysisClient() {
                 </p>
                 <div className="flex flex-col gap-2">
                   {selectedContacts.slice(0, 5).map((c) => (
-                    <div
-                      key={c.id}
-                      className="flex items-center gap-3 text-sm"
-                    >
+                    <div key={c.id} className="flex items-center gap-3 text-sm">
                       <span className="font-mono text-orange-400 w-32 truncate">
                         @{c.username.replace(/^@/, "")}
                       </span>
@@ -361,41 +422,13 @@ export default function AdminAnalysisClient() {
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6">
             <ol className="flex flex-col gap-4">
               {[
-                {
-                  n: 1,
-                  text: "Select your filters above and download the queue file",
-                  note: null,
-                },
-                {
-                  n: 2,
-                  text: "Move the file to the scripts folder",
-                  note: "C:\\Users\\crayx\\beatbridge-nextjs\\scripts\\analysis-queue.json",
-                },
-                {
-                  n: 3,
-                  text: "Close Chrome completely",
-                  note: "Chrome must be fully closed — it locks its profile directory",
-                },
-                {
-                  n: 4,
-                  text: "Open Claude Code terminal and run the script",
-                  note: "node scripts/instagram-analyzer.js",
-                },
-                {
-                  n: 5,
-                  text: "Chrome will open automatically and start analyzing profiles",
-                  note: "Random delays between profiles — do not close Chrome while running",
-                },
-                {
-                  n: 6,
-                  text: "Results are saved to Airtable automatically",
-                  note: "Fields updated: Type de profil, template, Notes (bio appended), analyzed ✓",
-                },
-                {
-                  n: 7,
-                  text: "Check back here to see updated templates and profile types",
-                  note: "Refresh this page to see the updated analyzed count",
-                },
+                { n: 1, text: "Click \"▶ Start Analysis Session\" above to download the queue file", note: null },
+                { n: 2, text: "Move the file to the scripts folder", note: "C:\\Users\\crayx\\beatbridge-nextjs\\scripts\\analysis-queue.json" },
+                { n: 3, text: "Close Chrome completely", note: "Chrome must be fully closed — it locks its profile directory" },
+                { n: 4, text: "Open Claude Code terminal and run the script", note: "node scripts/instagram-analyzer.js" },
+                { n: 5, text: "Chrome will open automatically and start analyzing profiles", note: "Random delays between profiles — do not close Chrome while running" },
+                { n: 6, text: "Results are saved to Airtable automatically", note: "Fields updated: Type de profil, template, Notes (bio appended), analyzed ✓" },
+                { n: 7, text: "Check back here to see updated templates and profile types", note: "Refresh this page to see the updated analyzed count" },
               ].map(({ n, text, note }) => (
                 <li key={n} className="flex gap-4">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 text-sm font-bold flex items-center justify-center">
@@ -429,37 +462,27 @@ export default function AdminAnalysisClient() {
         {/* ── SECTION 4 — Results tracker ──────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Results tracker</h2>
-          <p className="text-sm text-[#606060] mb-6">
-            Live stats from Airtable.
-          </p>
+          <p className="text-sm text-[#606060] mb-6">Live stats from Airtable.</p>
 
           {loading ? (
             <p className="text-sm text-[#505050]">Loading stats…</p>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">
-                  Total analyzed
-                </p>
+                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">Total analyzed</p>
                 <p className="text-3xl font-black text-orange-500">{totalAnalyzed.toLocaleString()}</p>
                 <p className="text-xs text-[#505050] mt-1">Contacts with analyzed = ✓</p>
               </div>
 
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">
-                  Awaiting analysis
-                </p>
+                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">Awaiting analysis</p>
                 <p className="text-3xl font-black text-white">{totalPending.toLocaleString()}</p>
                 <p className="text-xs text-[#505050] mt-1">Not yet analyzed</p>
               </div>
 
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">
-                  Last queue downloaded
-                </p>
-                <p className="text-lg font-semibold text-white leading-tight mt-1">
-                  {formatDate(lastRun)}
-                </p>
+                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">Last queue downloaded</p>
+                <p className="text-lg font-semibold text-white leading-tight mt-1">{formatDate(lastRun)}</p>
                 <p className="text-xs text-[#505050] mt-1">From this browser</p>
               </div>
             </div>
@@ -474,9 +497,7 @@ export default function AdminAnalysisClient() {
               <div className="flex flex-col gap-3">
                 {ARTISTS.map((artist) => {
                   const artistContacts = contacts.filter(
-                    (c) =>
-                      c.suiviPar === artist ||
-                      (artist === "Curren$y" && c.suiviPar === "CurrenSy")
+                    (c) => c.suiviPar === artist || (artist === "Curren$y" && c.suiviPar === "CurrenSy")
                   );
                   const analyzed = artistContacts.filter((c) => c.analyzed).length;
                   const total = artistContacts.length;
