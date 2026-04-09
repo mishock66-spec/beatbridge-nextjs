@@ -1187,6 +1187,55 @@ export default function AdminClient({
     });
   }
 
+  async function handleSaveDupRecord(r: ContactFull) {
+    const edit = contactEdits[r.id];
+    if (!edit) return;
+    setSavingContact(r.id);
+    try {
+      const res = await fetch("/api/admin/contact-update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: adminUserId,
+          recordId: r.id,
+          followers: edit.followers,
+          profileType: edit.profileType,
+          fullName: edit.fullName,
+          username: edit.username,
+          bio: edit.bio,
+          template: edit.template,
+          suiviPar: edit.suiviPar,
+        }),
+      });
+      if (!res.ok) throw new Error("Update failed");
+      const updated: ContactFull = {
+        ...r,
+        followers: edit.followers,
+        profileType: edit.profileType,
+        fullName: edit.fullName,
+        username: edit.username,
+        bio: edit.bio,
+        template: edit.template,
+        suiviPar: edit.suiviPar,
+        hasTemplate: !!edit.template.trim(),
+        hasBio: !!edit.bio.trim(),
+      };
+      setDupGroups((prev) =>
+        prev.map((g) => ({ ...g, records: g.records.map((rec) => rec.id === r.id ? updated : rec) }))
+      );
+      setAllContacts((prev) => prev.map((c) => c.id === r.id ? updated : c));
+      setContactRowEditMode((prev) => { const s = new Set(prev); s.delete(r.id); return s; });
+      setContactEdits((prev) => { const n = { ...prev }; delete n[r.id]; return n; });
+      setContactSavedFlash((prev) => new Set(Array.from(prev).concat(r.id)));
+      setTimeout(() => setContactSavedFlash((prev) => { const s = new Set(prev); s.delete(r.id); return s; }), 2000);
+      toast.success(`@${edit.username || r.username} updated ✓`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Save failed");
+    } finally {
+      setSavingContact(null);
+    }
+  }
+
   async function handleDeleteSpecificRecord(recordId: string, groupUsername: string) {
     setDupRecordDeleteConfirm(null);
     setDupRecordDeleting(recordId);
@@ -2939,94 +2988,184 @@ export default function AdminClient({
                                     const info = getDupRecordInfo(r, dupPositionMap[r.id]);
                                     const onSite = isOnSite(r);
                                     const isKeep = r.id === g.keepId;
+                                    const inEditMode = contactRowEditMode.has(r.id);
+                                    const savedFlash = contactSavedFlash.has(r.id);
                                     const emailMatch = (r.bio + " " + r.template).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+                                    const edit = contactEdits[r.id] ?? {
+                                      followers: r.followers, profileType: r.profileType,
+                                      fullName: r.fullName, username: r.username,
+                                      bio: r.bio, template: r.template, suiviPar: r.suiviPar,
+                                    };
+
+                                    function enterDupEdit() {
+                                      setContactRowEditMode((prev) => new Set(Array.from(prev).concat(r.id)));
+                                      setContactEdits((prev) => ({
+                                        ...prev,
+                                        [r.id]: prev[r.id] ?? {
+                                          followers: r.followers, profileType: r.profileType,
+                                          fullName: r.fullName, username: r.username,
+                                          bio: r.bio, template: r.template, suiviPar: r.suiviPar,
+                                        },
+                                      }));
+                                    }
+
+                                    function cancelDupEdit() {
+                                      setContactRowEditMode((prev) => { const s = new Set(prev); s.delete(r.id); return s; });
+                                      setContactEdits((prev) => { const n = { ...prev }; delete n[r.id]; return n; });
+                                    }
+
+                                    const lbl = "text-[10px] font-medium text-[#505050] uppercase tracking-[0.06em] mb-1 block";
+                                    const inp = "w-full bg-white/[0.05] border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/40 transition-colors";
+
                                     return (
-                                      <div key={r.id} className={`rounded-xl p-3.5 border ${isKeep ? "bg-green-500/[0.04] border-green-500/25" : "bg-red-500/[0.03] border-red-500/15"}`}>
+                                      <div key={r.id} className={`rounded-xl border flex flex-col ${isKeep ? "bg-green-500/[0.04] border-green-500/25" : "bg-red-500/[0.03] border-red-500/15"}`}>
                                         {/* Card header */}
-                                        <div className="flex items-center gap-2 mb-3 flex-wrap">
-                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${isKeep ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
+                                        <div className="flex items-center gap-1.5 px-3 py-2.5 flex-wrap border-b border-white/[0.04]">
+                                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${isKeep ? "bg-green-500/15 border-green-500/40 text-green-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
                                             {isKeep ? "✓ KEEP" : "✗ DELETE"}
                                           </span>
-                                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border ${onSite ? "bg-green-500/10 border-green-500/20 text-green-400/80" : "bg-yellow-500/10 border-yellow-500/20 text-yellow-500/70"}`}>
+                                          <span className={`text-[9px] px-1.5 py-0.5 rounded-full border flex-shrink-0 ${onSite ? "bg-green-500/10 border-green-500/20 text-green-400/80" : "bg-yellow-500/10 border-yellow-500/20 text-yellow-500/70"}`}>
                                             {onSite ? "✅ On site" : "⚠️ Airtable only"}
                                           </span>
-                                          {!isKeep && (
-                                            <div className="ml-auto flex items-center gap-1.5">
-                                              <button
-                                                onClick={() => handleSetKeep(g.username, r.id)}
-                                                className="text-[10px] font-semibold px-2 py-0.5 rounded border border-green-500/40 text-green-400/80 hover:text-green-400 hover:bg-green-500/10 transition-colors whitespace-nowrap"
-                                              >
-                                                ✓ Keep this one
+                                          {savedFlash && <span className="text-[10px] text-green-400 flex-shrink-0">✓ Saved</span>}
+                                          <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                                            {inEditMode ? (
+                                              <button onClick={cancelDupEdit} className="text-[10px] text-[#606060] hover:text-[#a0a0a0] transition-colors">Cancel</button>
+                                            ) : (
+                                              <button onClick={enterDupEdit}
+                                                className="text-[10px] px-2 py-0.5 rounded border border-white/[0.1] text-[#606060] hover:text-white hover:border-white/[0.2] transition-colors">
+                                                ✏️ Edit
                                               </button>
-                                              {dupRecordDeleting === r.id ? (
-                                                <span className="flex items-center gap-1 text-[10px] text-red-400/60">
-                                                  <span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
-                                                  Deleting…
-                                                </span>
-                                              ) : dupRecordDeleteConfirm === r.id ? (
-                                                <div className="flex items-center gap-1">
-                                                  <span className="text-[9px] text-[#606060]">Delete @{r.username}?</span>
-                                                  <button
-                                                    onClick={() => handleDeleteSpecificRecord(r.id, g.username)}
-                                                    className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors whitespace-nowrap"
-                                                  >
-                                                    Yes
-                                                  </button>
-                                                  <button onClick={() => setDupRecordDeleteConfirm(null)} className="text-[10px] text-[#606060] hover:text-[#a0a0a0]">✕</button>
-                                                </div>
-                                              ) : (
+                                            )}
+                                            {!isKeep && !inEditMode && (
+                                              <>
                                                 <button
-                                                  onClick={() => setDupRecordDeleteConfirm(r.id)}
-                                                  className="text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+                                                  onClick={() => handleSetKeep(g.username, r.id)}
+                                                  className="text-[10px] font-semibold px-2 py-0.5 rounded border border-green-500/40 text-green-400/80 hover:text-green-400 hover:bg-green-500/10 transition-colors whitespace-nowrap"
                                                 >
-                                                  🗑️ Delete
+                                                  ✓ Keep
                                                 </button>
+                                                {dupRecordDeleting === r.id ? (
+                                                  <span className="flex items-center gap-1 text-[10px] text-red-400/60">
+                                                    <span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                                  </span>
+                                                ) : dupRecordDeleteConfirm === r.id ? (
+                                                  <div className="flex items-center gap-1">
+                                                    <button onClick={() => handleDeleteSpecificRecord(r.id, g.username)}
+                                                      className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors whitespace-nowrap">
+                                                      Yes, del
+                                                    </button>
+                                                    <button onClick={() => setDupRecordDeleteConfirm(null)} className="text-[10px] text-[#606060] hover:text-[#a0a0a0]">✕</button>
+                                                  </div>
+                                                ) : (
+                                                  <button onClick={() => setDupRecordDeleteConfirm(r.id)}
+                                                    className="text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors whitespace-nowrap">
+                                                    🗑️
+                                                  </button>
+                                                )}
+                                              </>
+                                            )}
+                                          </div>
+                                        </div>
+
+                                        {inEditMode ? (
+                                          /* ── Edit mode ── */
+                                          <div className="p-3 flex flex-col gap-2.5">
+                                            <div>
+                                              <label className={lbl}>Full Name</label>
+                                              <input className={inp} value={edit.fullName}
+                                                onChange={(e) => setContactEdit(r.id, { fullName: e.target.value })} />
+                                            </div>
+                                            <div>
+                                              <label className={lbl}>Handle (no @)</label>
+                                              <input className={inp} value={edit.username}
+                                                onChange={(e) => setContactEdit(r.id, { username: e.target.value.replace(/^@/, "") })} />
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-2">
+                                              <div>
+                                                <label className={lbl}>Followers</label>
+                                                <input type="number" className={inp} value={edit.followers}
+                                                  onChange={(e) => setContactEdit(r.id, { followers: parseInt(e.target.value) || 0 })} />
+                                              </div>
+                                              <div>
+                                                <label className={lbl}>Profile Type</label>
+                                                <select className={inp + " cursor-pointer"} value={edit.profileType}
+                                                  onChange={(e) => setContactEdit(r.id, { profileType: e.target.value })}>
+                                                  <option value="">— type —</option>
+                                                  {PROFILE_TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                                                </select>
+                                              </div>
+                                            </div>
+                                            <div>
+                                              <label className={lbl}>Bio / Notes</label>
+                                              <textarea className={inp + " resize-y min-h-[60px] leading-relaxed"} rows={2}
+                                                value={edit.bio} onChange={(e) => setContactEdit(r.id, { bio: e.target.value })} />
+                                            </div>
+                                            <div>
+                                              <label className={lbl}>DM Template</label>
+                                              <textarea className={inp + " resize-y min-h-[80px] font-mono leading-relaxed"} rows={3}
+                                                value={edit.template} onChange={(e) => setContactEdit(r.id, { template: e.target.value })} />
+                                              <p className="text-[9px] text-[#404040] mt-0.5">
+                                                {edit.template.trim().split(/\s+/).filter(Boolean).length} words · {edit.template.length} chars
+                                              </p>
+                                            </div>
+                                            <div className="flex justify-between items-center gap-2 pt-1 border-t border-white/[0.04]">
+                                              <button onClick={cancelDupEdit} className="text-[10px] text-[#606060] hover:text-[#a0a0a0] transition-colors">Cancel</button>
+                                              <button
+                                                onClick={() => handleSaveDupRecord(r)}
+                                                disabled={savingContact === r.id}
+                                                className="text-[11px] font-semibold px-3 py-1.5 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                                              >
+                                                {savingContact === r.id ? "Saving…" : "Save changes"}
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          /* ── Read mode ── */
+                                          <div className="p-3">
+                                            <div className="flex flex-col gap-1.5 text-xs mb-0">
+                                              <div className="flex items-start gap-1.5">
+                                                <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Name:</span>
+                                                <span className="text-[#a0a0a0]">{r.fullName || "—"}</span>
+                                              </div>
+                                              <div className="flex items-start gap-1.5">
+                                                <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Handle:</span>
+                                                <a href={`https://www.instagram.com/${r.username}/`} target="_blank" rel="noopener noreferrer"
+                                                  className="text-orange-400 hover:underline">@{r.username}</a>
+                                              </div>
+                                              <div className="flex items-start gap-1.5">
+                                                <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Artist:</span>
+                                                {info.href ? (
+                                                  <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/80 hover:underline">{info.label}</a>
+                                                ) : <span className="text-[#606060]">{info.label}</span>}
+                                              </div>
+                                              <div className="flex items-start gap-1.5">
+                                                <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Followers:</span>
+                                                <span className="text-[#a0a0a0]">{r.followers > 0 ? r.followers.toLocaleString() : "—"}</span>
+                                              </div>
+                                              <div className="flex items-start gap-1.5">
+                                                <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Type:</span>
+                                                <span className="text-[#a0a0a0]">{r.profileType || "—"}</span>
+                                              </div>
+                                              {emailMatch && (
+                                                <div className="flex items-start gap-1.5">
+                                                  <span className="text-[#505050] w-12 flex-shrink-0 pt-px">Email:</span>
+                                                  <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
+                                                </div>
                                               )}
                                             </div>
-                                          )}
-                                        </div>
-                                        {/* Details */}
-                                        <div className="flex flex-col gap-1.5 text-xs">
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[#505050] flex-shrink-0">Name:</span>
-                                            <span className="text-[#a0a0a0] font-medium">{r.fullName || "—"}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[#505050] flex-shrink-0">Handle:</span>
-                                            <a href={`https://www.instagram.com/${r.username}/`} target="_blank" rel="noopener noreferrer"
-                                              className="text-orange-400 hover:underline">@{r.username}</a>
-                                          </div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[#505050] flex-shrink-0">Artist:</span>
-                                            {info.href ? (
-                                              <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/80 hover:underline">{info.label}</a>
-                                            ) : <span className="text-[#606060]">{info.label}</span>}
-                                          </div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[#505050] flex-shrink-0">Followers:</span>
-                                            <span className="text-[#a0a0a0]">{r.followers > 0 ? formatFollowersBadge(r.followers) : "—"}</span>
-                                          </div>
-                                          <div className="flex items-center gap-1.5">
-                                            <span className="text-[#505050] flex-shrink-0">Type:</span>
-                                            <span className="text-[#a0a0a0]">{r.profileType || "—"}</span>
-                                          </div>
-                                          {emailMatch && (
-                                            <div className="flex items-center gap-1.5">
-                                              <span className="text-[#505050] flex-shrink-0">Email:</span>
-                                              <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
-                                            </div>
-                                          )}
-                                        </div>
-                                        {r.bio && (
-                                          <div className="mt-2.5">
-                                            <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
-                                            <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04]">{r.bio}</p>
-                                          </div>
-                                        )}
-                                        {r.template && (
-                                          <div className="mt-2">
-                                            <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
-                                            <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04]">{r.template}</p>
+                                            {r.bio && (
+                                              <div className="mt-2.5">
+                                                <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
+                                                <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{r.bio}</p>
+                                              </div>
+                                            )}
+                                            {r.template && (
+                                              <div className="mt-2">
+                                                <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
+                                                <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap font-mono">{r.template}</p>
+                                              </div>
+                                            )}
                                           </div>
                                         )}
                                       </div>
