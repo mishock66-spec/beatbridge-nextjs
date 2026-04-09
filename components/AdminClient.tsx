@@ -53,6 +53,25 @@ type ContactEdit = {
   profileType: string;
 };
 
+type ContactFull = {
+  id: string;
+  username: string;
+  fullName: string;
+  followers: number;
+  profileType: string;
+  suiviPar: string;
+  hasTemplate: boolean;
+  hasBio: boolean;
+};
+
+type DupGroup = {
+  username: string;
+  records: ContactFull[];
+  keepId: string; // record ID to keep
+};
+
+type DupScanState = "idle" | "scanning" | "found" | "deleting" | "done";
+
 type RegenState = {
   slug: string;
   done: number;
@@ -499,10 +518,15 @@ export default function AdminClient({
   const [searching, setSearching] = useState(false);
   const [contactEdits, setContactEdits] = useState<Record<string, ContactEdit>>({});
   const [savingContact, setSavingContact] = useState<string | null>(null);
-  const [archivingContact, setArchivingContact] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
-  const [archiveTarget, setArchiveTarget] = useState<ContactResult | null>(null);
+  const [deletingContact, setDeletingContact] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<ContactResult | null>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Duplicate detection ───────────────────────────────────────────────────
+  const [dupScanState, setDupScanState] = useState<DupScanState>("idle");
+  const [dupGroups, setDupGroups] = useState<DupGroup[]>([]);
+  const [dupDeleteProgress, setDupDeleteProgress] = useState({ done: 0, total: 0 });
+  const [dupDeletedCount, setDupDeletedCount] = useState(0);
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
@@ -657,7 +681,7 @@ export default function AdminClient({
     searchDebounceRef.current = setTimeout(async () => {
       setSearching(true);
       const res = await fetch(
-        `/api/admin/contact-search?userId=${encodeURIComponent(adminUserId)}&q=${encodeURIComponent(searchQuery)}&showArchived=${showArchived}`
+        `/api/admin/contact-search?userId=${encodeURIComponent(adminUserId)}&q=${encodeURIComponent(searchQuery)}`
       ).catch(() => null);
       if (res?.ok) {
         const data = await res.json().catch(() => null);
@@ -665,14 +689,14 @@ export default function AdminClient({
       }
       setSearching(false);
     }, 400);
-  }, [searchQuery, adminUserId, showArchived]);
+  }, [searchQuery, adminUserId]);
 
   useEffect(() => {
-    if (!archiveTarget) return;
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setArchiveTarget(null); }
+    if (!deleteTarget) return;
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") setDeleteTarget(null); }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [archiveTarget]);
+  }, [deleteTarget]);
 
   async function handleSaveContact(contact: ContactResult) {
     const edit = contactEdits[contact.id];
@@ -710,32 +734,110 @@ export default function AdminClient({
     return contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
   }
 
-  async function executeArchive(contact: ContactResult) {
-    setArchiveTarget(null);
-    setArchivingContact(contact.id);
+  async function executeDelete(contact: ContactResult) {
+    setDeleteTarget(null);
+    setDeletingContact(contact.id);
     try {
-      const res = await fetch(`/api/admin/contacts/${contact.id}/archive`, {
-        method: "PATCH",
+      const res = await fetch(`/api/admin/contacts/${contact.id}`, {
+        method: "DELETE",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: adminUserId, artistName: contact.suiviPar }),
+        body: JSON.stringify({ userId: adminUserId }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        throw new Error(err.error ?? "Archive failed");
+        throw new Error(err.error ?? "Delete failed");
       }
-      if (!showArchived) {
-        setSearchResults((prev) => prev.filter((c) => c.id !== contact.id));
-      } else {
-        setSearchResults((prev) =>
-          prev.map((c) => c.id === contact.id ? { ...c, statutDeContact: "Archivé" } : c)
-        );
-      }
-      toast.success(`@${contact.username} archived ✓`);
+      setSearchResults((prev) => prev.filter((c) => c.id !== contact.id));
+      toast.success(`@${contact.username} deleted ✓`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Archive failed");
+      toast.error(e instanceof Error ? e.message : "Delete failed");
     } finally {
-      setArchivingContact(null);
+      setDeletingContact(null);
     }
+  }
+
+  // ── Scoring: higher = better candidate to keep ────────────────────────────
+  function scoreRecord(r: ContactFull): number {
+    let s = 0;
+    if (r.hasTemplate) s += 3;
+    if (r.hasBio) s += 2;
+    if (r.followers > 0) s += 1;
+    return s;
+  }
+
+  async function handleFindDuplicates() {
+    setDupScanState("scanning");
+    setDupGroups([]);
+    try {
+      const res = await fetch(`/api/admin/contacts?userId=${encodeURIComponent(adminUserId)}`);
+      if (!res.ok) throw new Error("Failed to fetch contacts");
+      const data = await res.json();
+      const records: ContactFull[] = data.records ?? [];
+
+      // Group by normalised username
+      const byUsername = new Map<string, ContactFull[]>();
+      for (const r of records) {
+        if (!r.username) continue;
+        if (!byUsername.has(r.username)) byUsername.set(r.username, []);
+        byUsername.get(r.username)!.push(r);
+      }
+
+      const groups: DupGroup[] = [];
+      for (const [username, recs] of byUsername) {
+        if (recs.length < 2) continue;
+        // Sort descending by score, keep the first
+        const sorted = [...recs].sort((a, b) => scoreRecord(b) - scoreRecord(a));
+        groups.push({ username, records: sorted, keepId: sorted[0].id });
+      }
+
+      // Sort groups by username alphabetically
+      groups.sort((a, b) => a.username.localeCompare(b.username));
+      setDupGroups(groups);
+      setDupScanState("found");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Scan failed");
+      setDupScanState("idle");
+    }
+  }
+
+  async function handleDeleteDuplicates() {
+    const toDelete = dupGroups.flatMap((g) =>
+      g.records.filter((r) => r.id !== g.keepId).map((r) => r.id)
+    );
+    if (!toDelete.length) return;
+
+    setDupScanState("deleting");
+    setDupDeleteProgress({ done: 0, total: toDelete.length });
+
+    const CHUNK = 50; // send 50 IDs per request (each request batches into 10s server-side)
+    let done = 0;
+
+    for (let i = 0; i < toDelete.length; i += CHUNK) {
+      const chunk = toDelete.slice(i, i + CHUNK);
+      try {
+        const res = await fetch("/api/admin/contacts/bulk-delete", {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: adminUserId, recordIds: chunk }),
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.error ?? "Bulk delete failed");
+        }
+        const result = await res.json();
+        done += result.deleted ?? chunk.length;
+        setDupDeleteProgress({ done, total: toDelete.length });
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : "Delete batch failed");
+        setDupScanState("found");
+        return;
+      }
+    }
+
+    setDupDeletedCount(done);
+    setDupGroups([]);
+    setDupScanState("done");
+    toast.success(`Deleted ${done} duplicate records ✓`);
   }
 
   function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
@@ -1691,19 +1793,88 @@ export default function AdminClient({
           {/* ── CONTACTS ──────────────────────────────────────────────────── */}
           {section === "contacts" && (
             <div>
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center justify-between mb-6 gap-3 flex-wrap">
                 <h2 className="text-xl font-light tracking-[0.02em]">Contact Editor</h2>
                 <button
-                  onClick={() => { setShowArchived((v) => !v); setSearchResults([]); }}
-                  className={`text-xs px-3 py-1.5 rounded-lg border transition-colors ${
-                    showArchived
-                      ? "border-orange-500/40 text-orange-400 bg-orange-500/10"
-                      : "border-white/[0.08] text-[#606060] hover:text-[#a0a0a0] hover:border-white/[0.15]"
-                  }`}
+                  onClick={handleFindDuplicates}
+                  disabled={dupScanState === "scanning" || dupScanState === "deleting"}
+                  className="text-xs px-3 py-1.5 rounded-lg border border-white/[0.08] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5"
                 >
-                  {showArchived ? "Hide archived" : "Show archived"}
+                  {dupScanState === "scanning" ? (
+                    <><span className="w-3 h-3 border border-[#a0a0a0] border-t-transparent rounded-full animate-spin" />Scanning…</>
+                  ) : "🔍 Find Duplicates"}
                 </button>
               </div>
+
+              {/* ── Duplicate scan results ─────────────────────────────────── */}
+              {dupScanState === "found" && dupGroups.length === 0 && (
+                <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3 mb-6">
+                  <p className="text-sm text-green-400">✓ No duplicate usernames found across all contacts.</p>
+                </div>
+              )}
+
+              {dupScanState === "found" && dupGroups.length > 0 && (
+                <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5 mb-6">
+                  <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+                    <div>
+                      <p className="text-sm font-semibold text-white">
+                        Found {dupGroups.reduce((s, g) => s + g.records.length - 1, 0)} duplicates across {dupGroups.length} usernames
+                      </p>
+                      <p className="text-xs text-[#606060] mt-0.5">
+                        One record per username will be kept (the one with the most complete data).
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleDeleteDuplicates}
+                      className="text-xs font-semibold px-3 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors whitespace-nowrap"
+                    >
+                      🗑️ Remove all duplicates
+                    </button>
+                  </div>
+                  <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
+                    {dupGroups.map((g) => (
+                      <div key={g.username} className="bg-white/[0.03] rounded-xl px-3 py-2.5 border border-white/[0.05]">
+                        <div className="flex items-center gap-2 mb-1.5">
+                          <span className="text-xs font-semibold text-orange-400">@{g.username}</span>
+                          <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
+                        </div>
+                        <div className="flex flex-col gap-1">
+                          {g.records.map((r) => (
+                            <div key={r.id} className={`flex items-center gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
+                              {r.id === g.keepId ? "✓ keep" : "✗ delete"}
+                              <span className="not-italic no-underline text-[#505050]">
+                                {r.suiviPar || "unknown artist"}{r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {dupScanState === "deleting" && (
+                <div className="bg-white/[0.025] border border-white/[0.08] rounded-xl px-4 py-4 mb-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <p className="text-sm text-white">Deleting duplicates… {dupDeleteProgress.done}/{dupDeleteProgress.total}</p>
+                  </div>
+                  <div className="w-full bg-white/[0.06] rounded-full h-1.5 overflow-hidden">
+                    <div
+                      className="h-full bg-orange-500 rounded-full transition-all duration-300"
+                      style={{ width: `${dupDeleteProgress.total > 0 ? (dupDeleteProgress.done / dupDeleteProgress.total) * 100 : 0}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {dupScanState === "done" && (
+                <div className="bg-green-500/[0.06] border border-green-500/20 rounded-xl px-4 py-3 mb-6 flex items-center justify-between gap-3">
+                  <p className="text-sm text-green-400">✓ Deleted {dupDeletedCount} duplicate records.</p>
+                  <button onClick={() => setDupScanState("idle")} className="text-xs text-[#606060] hover:text-[#a0a0a0]">Dismiss</button>
+                </div>
+              )}
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 mb-5">
                 <div className="relative">
                   <input
@@ -1745,30 +1916,23 @@ export default function AdminClient({
                             <p className="text-xs text-[#505050] mt-0.5">{contact.suiviPar}</p>
                           </div>
                           <div className="flex items-center gap-2 flex-shrink-0">
-                            {contact.statutDeContact === "Archivé" && (
-                              <span className="text-xs text-[#606060] bg-white/[0.05] px-2 py-1 rounded-md whitespace-nowrap">
-                                Archived
-                              </span>
-                            )}
                             <span className="text-xs text-orange-400 bg-orange-500/10 px-2 py-1 rounded-md whitespace-nowrap">
                               {contact.profileType || "—"}
                             </span>
-                            {contact.statutDeContact !== "Archivé" && (
-                              <button
-                                onClick={() => setArchiveTarget(contact)}
-                                disabled={archivingContact === contact.id}
-                                title={`Archive @${contact.username}`}
-                                className="p-1.5 text-[#505050] hover:text-[#a0a0a0] transition-colors rounded-lg hover:bg-white/[0.06] disabled:opacity-40"
-                              >
-                                {archivingContact === contact.id ? (
-                                  <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
-                                ) : (
-                                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
-                                  </svg>
-                                )}
-                              </button>
-                            )}
+                            <button
+                              onClick={() => setDeleteTarget(contact)}
+                              disabled={deletingContact === contact.id}
+                              title={`Delete @${contact.username}`}
+                              className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
+                            >
+                              {deletingContact === contact.id ? (
+                                <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
+                              ) : (
+                                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                  <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                              )}
+                            </button>
                           </div>
                         </div>
                         <div className="grid sm:grid-cols-2 gap-3 mb-4">
@@ -1803,38 +1967,38 @@ export default function AdminClient({
               )}
 
               {searchQuery.length >= 2 && !searching && searchResults.length === 0 && (
-                <p className="text-[#505050] text-sm text-center py-8">No contacts found for "{searchQuery}"</p>
+                <p className="text-[#505050] text-sm text-center py-8">No contacts found for &quot;{searchQuery}&quot;</p>
               )}
 
-              {/* Archive confirmation modal */}
-              {archiveTarget && (
+              {/* Delete confirmation modal */}
+              {deleteTarget && (
                 <div
                   className="fixed inset-0 z-[500] flex items-center justify-center p-4"
                   style={{ background: "rgba(0,0,0,0.7)" }}
-                  onClick={() => setArchiveTarget(null)}
+                  onClick={() => setDeleteTarget(null)}
                 >
                   <div
                     className="bg-[#1a1a1a] border border-white/[0.1] rounded-2xl p-6 w-full max-w-sm shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <h3 className="text-base font-semibold text-white mb-2">Archive this contact?</h3>
+                    <h3 className="text-base font-semibold text-white mb-2">Delete this contact?</h3>
                     <p className="text-sm text-[#a0a0a0] mb-6 leading-relaxed">
-                      Are you sure you want to archive{" "}
-                      <span className="text-white font-medium">@{archiveTarget.username}</span>?{" "}
-                      They will be hidden from the site but kept in Airtable.
+                      Delete{" "}
+                      <span className="text-white font-medium">@{deleteTarget.username}</span>?{" "}
+                      This cannot be undone.
                     </p>
                     <div className="flex gap-3 justify-end">
                       <button
-                        onClick={() => setArchiveTarget(null)}
+                        onClick={() => setDeleteTarget(null)}
                         className="px-4 py-2 text-sm text-[#a0a0a0] bg-white/[0.06] hover:bg-white/[0.1] rounded-lg transition-colors"
                       >
                         Cancel
                       </button>
                       <button
-                        onClick={() => executeArchive(archiveTarget)}
-                        className="px-4 py-2 text-sm font-semibold text-white bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90 rounded-lg transition-opacity"
+                        onClick={() => executeDelete(deleteTarget)}
+                        className="px-4 py-2 text-sm font-semibold text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors"
                       >
-                        Yes, archive
+                        Yes, delete
                       </button>
                     </div>
                   </div>
