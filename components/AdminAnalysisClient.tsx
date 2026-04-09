@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AnalysisContact } from "@/app/api/admin/analysis-contacts/route";
 
 const ADMIN_EMAIL = "mishock66@gmail.com";
+
+const RAILWAY_BASE =
+  process.env.NEXT_PUBLIC_ANALYZER_WEBHOOK_URL ||
+  "https://beatbridge-analyzer-production.up.railway.app";
 
 const ARTISTS = [
   "Wheezy",
@@ -29,6 +33,8 @@ const PROFILE_TYPES = [
 
 const LAST_RUN_KEY = "beatbridge_analysis_last_run";
 
+type SessionState = "idle" | "starting" | "running" | "done" | "error";
+
 function formatDate(iso: string | null): string {
   if (!iso) return "Never";
   return new Date(iso).toLocaleDateString("en-US", {
@@ -50,7 +56,6 @@ export default function AdminAnalysisClient() {
   const [totalPending, setTotalPending] = useState(0);
   const [analyzedFieldExists, setAnalyzedFieldExists] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
-  const [showModal, setShowModal] = useState(false);
 
   // Filters
   const [filterArtist, setFilterArtist] = useState("");
@@ -59,6 +64,17 @@ export default function AdminAnalysisClient() {
   const [filterAnalyzed, setFilterAnalyzed] = useState<"all" | "analyzed" | "not-analyzed">("not-analyzed");
   const [maxContacts, setMaxContacts] = useState(50);
 
+  // Session / job state
+  const [sessionState, setSessionState] = useState<SessionState>("idle");
+  const [jobId, setJobId] = useState<string | null>(null);
+  const [jobProgress, setJobProgress] = useState(0);
+  const [jobTotal, setJobTotal] = useState(0);
+  const [jobCompleted, setJobCompleted] = useState(0);
+  const [jobSkipped, setJobSkipped] = useState(0);
+  const [jobErrors, setJobErrors] = useState(0);
+  const [sessionError, setSessionError] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
   // Admin guard
   useEffect(() => {
     if (!isLoaded) return;
@@ -66,7 +82,6 @@ export default function AdminAnalysisClient() {
     if (email !== ADMIN_EMAIL) router.replace("/dashboard");
   }, [isLoaded, user, router]);
 
-  // Load last run timestamp from localStorage
   useEffect(() => {
     const stored = localStorage.getItem(LAST_RUN_KEY);
     if (stored) setLastRun(stored);
@@ -90,6 +105,51 @@ export default function AdminAnalysisClient() {
       .finally(() => setLoading(false));
   }, [adminUserId]);
 
+  // Poll job status every 3s while running
+  const stopPolling = useCallback(() => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (sessionState !== "running" || !jobId) return;
+
+    async function poll() {
+      try {
+        const res = await fetch(`${RAILWAY_BASE}/status/${jobId}`);
+        if (!res.ok) return;
+        const data = await res.json();
+
+        setJobProgress(data.progress ?? 0);
+        setJobTotal(data.total ?? 0);
+        setJobCompleted(data.completed ?? 0);
+        setJobSkipped(data.skipped ?? 0);
+        setJobErrors(data.errors ?? 0);
+
+        if (data.status === "completed" || data.status === "rate_limited") {
+          setSessionState("done");
+          stopPolling();
+          // Refresh totals
+          const now = new Date().toISOString();
+          localStorage.setItem(LAST_RUN_KEY, now);
+          setLastRun(now);
+        } else if (data.status === "failed") {
+          setSessionError(data.error || "Analysis job failed");
+          setSessionState("error");
+          stopPolling();
+        }
+      } catch {
+        // transient network error — keep polling
+      }
+    }
+
+    poll();
+    pollRef.current = setInterval(poll, 3000);
+    return stopPolling;
+  }, [sessionState, jobId, stopPolling]);
+
   // Filtered + limited contacts for queue
   const selectedContacts = useMemo(() => {
     let result = contacts;
@@ -101,17 +161,14 @@ export default function AdminAnalysisClient() {
         result = result.filter((c) => c.suiviPar === filterArtist);
       }
     }
-
     if (filterType) {
       result = result.filter((c) => c.profileType === filterType);
     }
-
     if (filterBio === "has-bio") {
       result = result.filter((c) => c.bio.trim().length > 0);
     } else if (filterBio === "no-bio") {
       result = result.filter((c) => c.bio.trim().length === 0);
     }
-
     if (filterAnalyzed === "analyzed") {
       result = result.filter((c) => c.analyzed);
     } else if (filterAnalyzed === "not-analyzed") {
@@ -121,8 +178,8 @@ export default function AdminAnalysisClient() {
     return result.slice(0, maxContacts);
   }, [contacts, filterArtist, filterType, filterBio, filterAnalyzed, maxContacts]);
 
-  function triggerDownload() {
-    const queue = selectedContacts.map((c) => ({
+  function buildContactPayload() {
+    return selectedContacts.map((c) => ({
       username: c.username.replace(/^@/, ""),
       record_id: c.id,
       artist: c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar,
@@ -130,7 +187,41 @@ export default function AdminAnalysisClient() {
       current_template: c.template,
       bio: c.bio,
     }));
+  }
 
+  async function handleStartSession() {
+    if (selectedContacts.length === 0 || !adminUserId) return;
+    setSessionState("starting");
+    setSessionError(null);
+    setJobProgress(0);
+    setJobCompleted(0);
+    setJobSkipped(0);
+    setJobErrors(0);
+
+    try {
+      const res = await fetch("/api/admin/start-analysis", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: adminUserId,
+          contacts: buildContactPayload(),
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+
+      setJobId(data.jobId);
+      setJobTotal(data.total ?? selectedContacts.length);
+      setSessionState("running");
+    } catch (err) {
+      setSessionError(err instanceof Error ? err.message : "Failed to start");
+      setSessionState("error");
+    }
+  }
+
+  function triggerDownload() {
+    const queue = buildContactPayload();
     const blob = new Blob([JSON.stringify(queue, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -138,15 +229,15 @@ export default function AdminAnalysisClient() {
     a.download = "analysis-queue.json";
     a.click();
     URL.revokeObjectURL(url);
-
     const now = new Date().toISOString();
     localStorage.setItem(LAST_RUN_KEY, now);
     setLastRun(now);
   }
 
-  function handleStartSession() {
-    triggerDownload();
-    setShowModal(true);
+  function closeOverlay() {
+    stopPolling();
+    setSessionState("idle");
+    setJobId(null);
   }
 
   if (!isLoaded || user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
@@ -156,76 +247,127 @@ export default function AdminAnalysisClient() {
   const selectCls =
     "bg-[#111] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors";
 
+  const pct =
+    jobTotal > 0 ? Math.round((jobProgress / jobTotal) * 100) : 0;
+
+  const isOverlayVisible = sessionState !== "idle";
+
   return (
     <div className="min-h-screen bg-[#080808]">
-      {/* Post-download modal */}
-      {showModal && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center p-4"
-          style={{ background: "rgba(0,0,0,0.75)", backdropFilter: "blur(6px)" }}
-          onClick={() => setShowModal(false)}
-        >
+
+      {/* ── Progress overlay ──────────────────────────────────────────────── */}
+      {isOverlayVisible && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.80)", backdropFilter: "blur(8px)" }}>
           <div
-            className="bg-[#111] border border-white/[0.1] rounded-2xl w-full max-w-md shadow-2xl"
+            className="bg-[#111] border border-white/[0.12] rounded-2xl w-full max-w-sm shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
+            {/* Header */}
             <div className="px-6 pt-6 pb-4 border-b border-white/[0.08]">
-              <div className="flex items-center gap-3">
-                <span className="text-2xl">✅</span>
-                <h2 className="text-base font-semibold text-white">Queue downloaded!</h2>
+              <div className="flex items-center gap-2">
+                {sessionState === "done" ? (
+                  <span className="text-xl">✅</span>
+                ) : sessionState === "error" ? (
+                  <span className="text-xl">❌</span>
+                ) : (
+                  <span className="text-xl animate-pulse">🔍</span>
+                )}
+                <h2 className="text-base font-semibold text-white">
+                  {sessionState === "starting" && "Starting session…"}
+                  {sessionState === "running" && "Analysis Session Running"}
+                  {sessionState === "done" && "Session Complete"}
+                  {sessionState === "error" && "Session Error"}
+                </h2>
               </div>
             </div>
 
-            <div className="px-6 py-5">
-              <p className="text-sm text-[#a0a0a0] mb-4">Now run the analysis script:</p>
-              <ol className="flex flex-col gap-3">
-                {[
-                  {
-                    n: 1,
-                    text: "Move the file to your scripts folder",
-                    code: "scripts\\analysis-queue.json",
-                  },
-                  {
-                    n: 2,
-                    text: "Your main Chrome stays open — the script uses its own profile",
-                    code: null,
-                  },
-                  {
-                    n: 3,
-                    text: "Run the script in your terminal",
-                    code: "node scripts/instagram-analyzer.js",
-                  },
-                ].map(({ n, text, code }) => (
-                  <li key={n} className="flex gap-3">
-                    <span className="flex-shrink-0 w-6 h-6 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 text-xs font-bold flex items-center justify-center mt-0.5">
-                      {n}
-                    </span>
-                    <div>
-                      <p className="text-sm text-white">{text}</p>
-                      {code && (
-                        <p className="text-xs font-mono text-orange-300 mt-1 bg-orange-500/10 px-2 py-1 rounded-md inline-block">
-                          {code}
-                        </p>
-                      )}
+            <div className="px-6 py-5 flex flex-col gap-4">
+              {/* Error state */}
+              {sessionState === "error" && (
+                <p className="text-sm text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  {sessionError}
+                </p>
+              )}
+
+              {/* Starting spinner */}
+              {sessionState === "starting" && (
+                <p className="text-sm text-[#a0a0a0]">Connecting to analyzer service…</p>
+              )}
+
+              {/* Running / done */}
+              {(sessionState === "running" || sessionState === "done") && (
+                <>
+                  {/* Progress bar */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm text-[#a0a0a0]">
+                        {sessionState === "done" ? "Finished" : "Analyzing…"}
+                      </span>
+                      <span className="text-sm font-semibold text-white">
+                        {jobProgress} / {jobTotal}
+                      </span>
                     </div>
-                  </li>
-                ))}
-              </ol>
+                    <div className="w-full bg-white/[0.08] rounded-full h-2 overflow-hidden">
+                      <div
+                        className="h-full bg-gradient-to-r from-[#f97316] to-[#f85c00] rounded-full transition-all duration-500"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                  </div>
+
+                  {/* Stats row */}
+                  <div className="flex items-center gap-4 text-sm">
+                    <span className="text-green-400">
+                      ✅ {jobCompleted} updated
+                    </span>
+                    {jobSkipped > 0 && (
+                      <span className="text-amber-400">
+                        ⏭ {jobSkipped} skipped
+                      </span>
+                    )}
+                    {jobErrors > 0 && (
+                      <span className="text-red-400">
+                        ⚠️ {jobErrors} errors
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Done summary */}
+                  {sessionState === "done" && (
+                    <p className="text-sm text-[#606060]">
+                      {jobCompleted} profile{jobCompleted !== 1 ? "s" : ""} analyzed
+                      {jobCompleted > 0 ? " and saved to Airtable." : "."}
+                      {jobSkipped > 0 ? ` ${jobSkipped} skipped.` : ""}
+                    </p>
+                  )}
+                </>
+              )}
             </div>
 
+            {/* Footer */}
             <div className="px-6 pb-6">
               <button
-                onClick={() => setShowModal(false)}
-                className="w-full bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold py-2.5 rounded-lg hover:opacity-90 transition-opacity min-h-[44px]"
+                onClick={closeOverlay}
+                className={`w-full text-sm font-semibold py-2.5 rounded-lg transition-all min-h-[44px] ${
+                  sessionState === "done"
+                    ? "bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90"
+                    : "border border-white/[0.12] text-[#a0a0a0] hover:text-white hover:border-white/[0.2]"
+                }`}
               >
-                Got it
+                {sessionState === "done" ? "Done" : "Close"}
               </button>
+              {sessionState === "running" && (
+                <p className="text-center text-xs text-[#404040] mt-2">
+                  Closing doesn't stop the server — analysis continues in background
+                </p>
+              )}
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
+      {/* ── Header ───────────────────────────────────────────────────────────── */}
       <div className="border-b border-white/[0.06] bg-[rgba(8,8,8,0.95)] sticky top-14 z-40">
         <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -243,19 +385,19 @@ export default function AdminAnalysisClient() {
 
       <div className="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-8">
 
-        {/* "analyzed" field missing notice */}
+        {/* analyzed field missing notice */}
         {!loading && !analyzedFieldExists && (
           <div className="flex items-start gap-3 px-4 py-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-sm text-amber-300">
             <span className="flex-shrink-0 mt-0.5">⚠️</span>
             <span>
               The <code className="bg-white/[0.08] px-1 rounded text-xs">analyzed</code> field
               doesn&apos;t exist in Airtable yet. All contacts are treated as not-yet-analyzed.
-              The field will be created automatically after the first script run.
+              It will be created automatically after the first run.
             </span>
           </div>
         )}
 
-        {/* ── SECTION 1 — Build your queue ─────────────────────────────────── */}
+        {/* ── SECTION 1 — Build your queue ───────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Build your queue</h2>
           <p className="text-sm text-[#606060] mb-6">
@@ -264,7 +406,6 @@ export default function AdminAnalysisClient() {
 
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-5">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Artist */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Artist</label>
                 <select value={filterArtist} onChange={(e) => setFilterArtist(e.target.value)} className={selectCls}>
@@ -273,7 +414,6 @@ export default function AdminAnalysisClient() {
                 </select>
               </div>
 
-              {/* Profile type */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Profile type</label>
                 <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
@@ -282,7 +422,6 @@ export default function AdminAnalysisClient() {
                 </select>
               </div>
 
-              {/* Bio */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Bio</label>
                 <select value={filterBio} onChange={(e) => setFilterBio(e.target.value as typeof filterBio)} className={selectCls}>
@@ -292,7 +431,6 @@ export default function AdminAnalysisClient() {
                 </select>
               </div>
 
-              {/* Analysis status */}
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Analysis status</label>
                 <select value={filterAnalyzed} onChange={(e) => setFilterAnalyzed(e.target.value as typeof filterAnalyzed)} className={selectCls}>
@@ -319,7 +457,7 @@ export default function AdminAnalysisClient() {
               <span className="text-xs text-[#505050]">max 50 per session</span>
             </div>
 
-            {/* Preview count + Start button */}
+            {/* Count + Start button */}
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1 border-t border-white/[0.06]">
               {loading ? (
                 <p className="text-sm text-[#505050]">Loading contacts…</p>
@@ -333,102 +471,48 @@ export default function AdminAnalysisClient() {
                 </p>
               )}
 
-              <button
-                onClick={handleStartSession}
-                disabled={selectedContacts.length === 0 || loading}
-                className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 min-h-[44px] whitespace-nowrap"
-              >
-                <span>▶</span>
-                Start Analysis Session
-                {selectedContacts.length > 0 && (
-                  <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                    {selectedContacts.length}
-                  </span>
-                )}
-              </button>
-            </div>
-          </div>
-        </section>
-
-        {/* ── SECTION 2 — Generate queue file ──────────────────────────────── */}
-        <section>
-          <h2 className="text-xl font-light tracking-[0.02em] mb-1">Generate queue file</h2>
-          <p className="text-sm text-[#606060] mb-6">
-            Download the queue file manually if needed.
-          </p>
-
-          <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-              <button
-                onClick={triggerDownload}
-                disabled={selectedContacts.length === 0 || loading}
-                className="flex items-center gap-2 border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] text-sm font-medium px-5 py-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px]"
-              >
-                <span>⬇️</span>
-                Download analysis-queue.json
-                {selectedContacts.length > 0 && (
-                  <span className="ml-1 bg-white/[0.08] text-[#a0a0a0] text-xs font-bold px-2 py-0.5 rounded-full">
-                    {selectedContacts.length}
-                  </span>
-                )}
-              </button>
-
-              {selectedContacts.length === 0 && !loading && (
-                <p className="text-xs text-[#606060]">No contacts match your current filters.</p>
-              )}
-            </div>
-
-            {/* Queue preview */}
-            {selectedContacts.length > 0 && (
-              <div className="mt-5 border-t border-white/[0.06] pt-4">
-                <p className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em] mb-3">
-                  Preview — first 5 contacts
-                </p>
-                <div className="flex flex-col gap-2">
-                  {selectedContacts.slice(0, 5).map((c) => (
-                    <div key={c.id} className="flex items-center gap-3 text-sm">
-                      <span className="font-mono text-orange-400 w-32 truncate">
-                        @{c.username.replace(/^@/, "")}
-                      </span>
-                      <span className="text-[#606060]">{c.suiviPar || "—"}</span>
-                      <span className="text-[#505050] text-xs px-2 py-0.5 bg-white/[0.04] rounded-full">
-                        {c.profileType}
-                      </span>
-                      {c.bio && (
-                        <span className="text-[#404040] text-xs truncate max-w-[200px]">
-                          {c.bio.slice(0, 60)}{c.bio.length > 60 ? "…" : ""}
-                        </span>
-                      )}
-                    </div>
-                  ))}
-                  {selectedContacts.length > 5 && (
-                    <p className="text-xs text-[#505050]">
-                      + {selectedContacts.length - 5} more in the downloaded file
-                    </p>
+              <div className="flex flex-col items-end gap-2">
+                <button
+                  onClick={handleStartSession}
+                  disabled={selectedContacts.length === 0 || loading || sessionState !== "idle"}
+                  className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 min-h-[44px] whitespace-nowrap"
+                >
+                  <span>▶</span>
+                  Start Analysis Session
+                  {selectedContacts.length > 0 && (
+                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      {selectedContacts.length}
+                    </span>
                   )}
-                </div>
+                </button>
+                {selectedContacts.length > 0 && (
+                  <button
+                    onClick={triggerDownload}
+                    className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
+                  >
+                    ⬇️ Download queue JSON
+                  </button>
+                )}
               </div>
-            )}
+            </div>
           </div>
         </section>
 
-        {/* ── SECTION 3 — Instructions ─────────────────────────────────────── */}
+        {/* ── SECTION 2 — Instructions ────────────────────────────────────────── */}
         <section>
-          <h2 className="text-xl font-light tracking-[0.02em] mb-1">How to run an Analysis Session</h2>
+          <h2 className="text-xl font-light tracking-[0.02em] mb-1">How it works</h2>
           <p className="text-sm text-[#606060] mb-6">
-            Follow these steps after downloading the queue file.
+            The analyzer runs on a remote server — no local setup needed.
           </p>
 
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6">
             <ol className="flex flex-col gap-4">
               {[
-                { n: 1, text: "Click \"▶ Start Analysis Session\" above to download the queue file", note: null },
-                { n: 2, text: "Move the file to the scripts folder", note: "C:\\Users\\crayx\\beatbridge-nextjs\\scripts\\analysis-queue.json" },
-                { n: 3, text: "The analyzer uses its own separate Chrome profile — your main Chrome stays open normally", note: "First run only: log into Instagram when prompted, then press Enter" },
-                { n: 4, text: "Open Claude Code terminal and run the script", note: "node scripts/instagram-analyzer.js" },
-                { n: 5, text: "Chrome will open automatically and start analyzing profiles", note: "Random delays between profiles — do not close Chrome while running" },
-                { n: 6, text: "Results are saved to Airtable automatically", note: "Fields updated: Type de profil, template, Notes (bio appended), analyzed ✓" },
-                { n: 7, text: "Check back here to see updated templates and profile types", note: "Refresh this page to see the updated analyzed count" },
+                { n: 1, text: "Select your filters and click \"▶ Start Analysis Session\"", note: null },
+                { n: 2, text: "The server visits each Instagram profile automatically", note: "Headless Chrome runs on the Railway backend — nothing to install locally" },
+                { n: 3, text: "Each profile is analyzed by Claude Haiku", note: "Generates: profile type classification + personalized DM template" },
+                { n: 4, text: "Results are saved to Airtable automatically", note: "Fields updated: Type de profil, template, Notes (bio appended), analyzed ✓" },
+                { n: 5, text: "Track progress in real time — results appear in the overlay", note: "Refresh this page after the session to see updated stats" },
               ].map(({ n, text, note }) => (
                 <li key={n} className="flex gap-4">
                   <span className="flex-shrink-0 w-7 h-7 rounded-full bg-orange-500/15 border border-orange-500/30 text-orange-400 text-sm font-bold flex items-center justify-center">
@@ -449,17 +533,17 @@ export default function AdminAnalysisClient() {
             <div className="mt-6 pt-4 border-t border-white/[0.06] flex flex-col sm:flex-row gap-3">
               <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/10 border border-amber-500/20 rounded-lg text-xs text-amber-300">
                 <span>⚠️</span>
-                Max 50 profiles per session — script stops automatically
+                Max 50 profiles per session
               </div>
               <div className="flex items-center gap-2 px-3 py-2 bg-blue-500/10 border border-blue-500/20 rounded-lg text-xs text-blue-300">
                 <span>ℹ️</span>
-                If interrupted, run again — already-analyzed profiles are skipped
+                Closing the overlay doesn&apos;t stop analysis — it continues on the server
               </div>
             </div>
           </div>
         </section>
 
-        {/* ── SECTION 4 — Results tracker ──────────────────────────────────── */}
+        {/* ── SECTION 3 — Results tracker ─────────────────────────────────────── */}
         <section>
           <h2 className="text-xl font-light tracking-[0.02em] mb-1">Results tracker</h2>
           <p className="text-sm text-[#606060] mb-6">Live stats from Airtable.</p>
@@ -481,7 +565,7 @@ export default function AdminAnalysisClient() {
               </div>
 
               <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5">
-                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">Last queue downloaded</p>
+                <p className="text-xs text-[#606060] uppercase tracking-[0.1em] mb-1">Last session started</p>
                 <p className="text-lg font-semibold text-white leading-tight mt-1">{formatDate(lastRun)}</p>
                 <p className="text-xs text-[#505050] mt-1">From this browser</p>
               </div>
@@ -502,7 +586,6 @@ export default function AdminAnalysisClient() {
                   const analyzed = artistContacts.filter((c) => c.analyzed).length;
                   const total = artistContacts.length;
                   const pct = total > 0 ? Math.round((analyzed / total) * 100) : 0;
-
                   return (
                     <div key={artist} className="flex items-center gap-3">
                       <span className="text-sm text-[#a0a0a0] w-28 truncate">{artist}</span>
