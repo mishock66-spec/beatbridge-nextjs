@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useMemo } from "react";
+import StatusDropdown from "@/components/ui/StatusDropdown";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import toast from "react-hot-toast";
@@ -160,106 +161,6 @@ export function statusStorageKey(artistSlug: string, username: string) {
   return `beatbridge_status_${artistSlug}_${username.replace("@", "")}`;
 }
 
-function StatusPill({
-  status,
-  onChange,
-}: {
-  status: ContactStatus;
-  onChange: (s: ContactStatus) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ bottom: 0, left: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  function handleToggle() {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({
-        bottom: window.innerHeight - rect.top + 6,
-        left: rect.left,
-      });
-    }
-    setOpen((o) => !o);
-  }
-
-  const style = STATUS_STYLE[status];
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80"
-        style={style.pill}
-      >
-        <span
-          className="w-1.5 h-1.5 rounded-full flex-shrink-0"
-          style={{ backgroundColor: style.dot }}
-        />
-        {status}
-        <svg
-          className="w-3 h-3 opacity-60"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2.5}
-        >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="fixed z-[9999] bg-[#0d0d0d] border border-white/[0.1] rounded-xl overflow-hidden shadow-2xl min-w-[150px]"
-          style={{ bottom: pos.bottom, left: pos.left }}
-        >
-          {CONTACT_STATUSES.map((s) => {
-            const st = STATUS_STYLE[s];
-            return (
-              <button
-                key={s}
-                onClick={() => {
-                  onChange(s);
-                  setOpen(false);
-                }}
-                className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center gap-2.5"
-                style={{ color: st.pill.color as string }}
-              >
-                <span
-                  className="w-2 h-2 rounded-full flex-shrink-0"
-                  style={{ backgroundColor: st.dot }}
-                />
-                {s}
-                {s === status && (
-                  <svg
-                    className="w-3 h-3 ml-auto opacity-70"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2.5}
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function ConnectionCard({
   record,
@@ -781,7 +682,7 @@ export default function ConnectionCard({
       {artistSlug && isSignedIn && (
         <div className="flex items-center gap-2 mt-auto pt-3 border-t border-white/[0.06]">
           <span className="text-xs text-[#505050] uppercase tracking-[0.08em]">Status:</span>
-          <StatusPill status={status} onChange={handleStatusChange} />
+          <StatusDropdown status={status} onChange={handleStatusChange} />
         </div>
       )}
     </div>

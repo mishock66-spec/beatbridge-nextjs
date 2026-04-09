@@ -9,7 +9,6 @@ import type { AirtableRecord } from "@/lib/airtable";
 import {
   type ContactStatus,
   CONTACT_STATUSES,
-  STATUS_STYLE,
   statusStorageKey,
 } from "@/components/ConnectionCard";
 import { supabase } from "@/lib/supabase";
@@ -20,6 +19,7 @@ import StickyDMBar from "@/components/StickyDMBar";
 import MutualContactsWidget from "@/components/MutualContactsWidget";
 import { getUserRank } from "@/lib/contactTier";
 import { DMStatusProvider, useDMStatus } from "@/contexts/DMStatusContext";
+import StatusDropdown from "@/components/ui/StatusDropdown";
 
 interface ArtistData {
   slug: string;
@@ -60,84 +60,6 @@ const TYPE_COLORS: Record<string, string> = {
 
 
 // ─── StatusPill (inline, same logic as ConnectionCard) ─────────────────────────
-
-function StatusPill({
-  status,
-  onChange,
-}: {
-  status: ContactStatus;
-  onChange: (s: ContactStatus) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ bottom: 0, right: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  function handleToggle() {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({
-        bottom: window.innerHeight - rect.top + 6,
-        right: window.innerWidth - rect.right,
-      });
-    }
-    setOpen((o) => !o);
-  }
-
-  const style = STATUS_STYLE[status];
-
-  return (
-    <div ref={ref} className="relative flex-shrink-0">
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80 whitespace-nowrap"
-        style={style.pill}
-      >
-        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: style.dot }} />
-        {status}
-        <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div
-          className="fixed z-[9999] bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[152px]"
-          style={{ bottom: pos.bottom, right: pos.right }}
-        >
-          {CONTACT_STATUSES.map((s) => {
-            const st = STATUS_STYLE[s];
-            return (
-              <button
-                key={s}
-                onClick={() => { onChange(s); setOpen(false); }}
-                className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center gap-2.5"
-                style={{ color: st.pill.color as string }}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: st.dot }} />
-                {s}
-                {s === status && (
-                  <svg className="w-3 h-3 ml-auto opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
 // ─── StatCard ─────────────────────────────────────────────────────────────────
 
@@ -265,93 +187,6 @@ function useDMHistory(userId: string | undefined, open: boolean) {
   return { items, loaded, hasMore, loadMore, updateItemStatus };
 }
 
-// ─── HistoryStatusBadge ───────────────────────────────────────────────────────
-
-const HISTORY_STATUS_OPTIONS: { value: ContactStatus; emoji: string; label: string }[] = [
-  { value: "To contact",     emoji: "🔵", label: "To contact"     },
-  { value: "DM sent",        emoji: "📤", label: "DM sent"        },
-  { value: "Replied",        emoji: "✅", label: "Replied"         },
-  { value: "Not interested", emoji: "❌", label: "Not interested"  },
-];
-
-const HISTORY_STATUS_STYLE: Record<string, { text: string; bg: string }> = {
-  "DM sent":        { text: "text-orange-400", bg: "bg-orange-500/10 border-orange-500/20" },
-  "Replied":        { text: "text-green-400",  bg: "bg-green-500/10  border-green-500/20"  },
-  "Not interested": { text: "text-gray-500",   bg: "bg-white/[0.03]  border-white/[0.08]"  },
-  "To contact":     { text: "text-gray-600",   bg: "bg-transparent   border-transparent"   },
-};
-
-function HistoryStatusBadge({
-  item,
-  onUpdate,
-}: {
-  item: DMHistoryItem;
-  onUpdate: (item: DMHistoryItem, s: ContactStatus) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [pos, setPos] = useState({ bottom: 0, right: 0 });
-  const ref = useRef<HTMLDivElement>(null);
-  const btnRef = useRef<HTMLButtonElement>(null);
-
-  useEffect(() => {
-    function handleOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    }
-    if (open) document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
-
-  function handleToggle() {
-    if (!open && btnRef.current) {
-      const rect = btnRef.current.getBoundingClientRect();
-      setPos({
-        bottom: window.innerHeight - rect.top + 6,
-        right: window.innerWidth - rect.right,
-      });
-    }
-    setOpen((o) => !o);
-  }
-
-  const style = HISTORY_STATUS_STYLE[item.status] ?? HISTORY_STATUS_STYLE["To contact"];
-  const opt   = HISTORY_STATUS_OPTIONS.find((o) => o.value === item.status);
-
-  return (
-    <div ref={ref} className="relative flex-shrink-0">
-      <button
-        ref={btnRef}
-        onClick={handleToggle}
-        className={`text-[10px] font-semibold px-2 py-1 rounded-full border whitespace-nowrap transition-all hover:opacity-80 ${style.text} ${style.bg}`}
-      >
-        {opt?.emoji} {item.status === "DM sent" ? "Sent" : item.status === "Not interested" ? "No" : item.status}
-      </button>
-
-      {open && (
-        <div
-          className="fixed z-[9999] bg-[#1a1a1a] border border-[#2f2f2f] rounded-xl overflow-hidden shadow-2xl min-w-[148px]"
-          style={{ bottom: pos.bottom, right: pos.right }}
-        >
-          {HISTORY_STATUS_OPTIONS.map((o) => (
-            <button
-              key={o.value}
-              onClick={() => { onUpdate(item, o.value); setOpen(false); }}
-              className={`w-full text-left text-xs px-3 py-2.5 hover:bg-white/[0.06] transition-colors flex items-center gap-2 ${
-                o.value === item.status ? "text-orange-400" : "text-gray-300"
-              }`}
-            >
-              <span>{o.emoji}</span>
-              <span>{o.label}</span>
-              {o.value === item.status && (
-                <svg className="w-3 h-3 ml-auto flex-shrink-0 opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
 
 const STATUS_COLOR: Record<string, string> = {
   "DM sent":        "text-orange-400",
@@ -410,7 +245,10 @@ function DMHistoryPanel({ userId }: { userId: string }) {
             </p>
 
             {/* Editable status badge */}
-            <HistoryStatusBadge item={item} onUpdate={updateItemStatus} />
+            <StatusDropdown
+                  status={item.status as ContactStatus}
+                  onChange={(s) => updateItemStatus(item, s)}
+                />
           </div>
         ))}
       </div>
@@ -547,7 +385,7 @@ function ArtistContactList({
                 </span>
 
                 {/* Status dropdown */}
-                <StatusPill
+                <StatusDropdown
                   status={status}
                   onChange={(s) => updateStatus(artist.slug, record.username, s)}
                 />

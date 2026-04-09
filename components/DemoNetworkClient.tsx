@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo } from "react";
+import StatusDropdown from "@/components/ui/StatusDropdown";
 import Link from "next/link";
 import type { AirtableRecord } from "@/lib/airtable";
 import { replyProbability, contactPriority } from "@/lib/scoreContact";
@@ -41,27 +42,6 @@ const CONTACT_STATUSES: ContactStatus[] = [
   "Not interested",
 ];
 
-const STATUS_STYLE: Record<
-  ContactStatus,
-  { pill: React.CSSProperties; dot: string }
-> = {
-  "To contact": {
-    pill: { backgroundColor: "rgba(55,65,81,0.5)", color: "#9ca3af", border: "1px solid #374151" },
-    dot: "#374151",
-  },
-  "DM sent": {
-    pill: { backgroundColor: "rgba(249,115,22,0.15)", color: "#f97316", border: "1px solid rgba(249,115,22,0.4)" },
-    dot: "#f97316",
-  },
-  Replied: {
-    pill: { backgroundColor: "rgba(34,197,94,0.15)", color: "#22c55e", border: "1px solid rgba(34,197,94,0.4)" },
-    dot: "#22c55e",
-  },
-  "Not interested": {
-    pill: { backgroundColor: "rgba(127,29,29,0.3)", color: "#b45454", border: "1px solid rgba(127,29,29,0.5)" },
-    dot: "#7f1d1d",
-  },
-};
 
 function formatFollowers(count: number) {
   if (!count) return "N/A";
@@ -77,69 +57,6 @@ function openExternal(url: string) {
   } else {
     window.open(url, "_blank", "noopener,noreferrer");
   }
-}
-
-function StatusPill({
-  status,
-  onChange,
-}: {
-  status: ContactStatus;
-  onChange: (s: ContactStatus) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    }
-    if (open) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [open]);
-
-  const style = STATUS_STYLE[status];
-
-  return (
-    <div ref={ref} className="relative">
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="text-xs font-medium px-2.5 py-1 rounded-full flex items-center gap-1.5 transition-opacity hover:opacity-80 min-h-[32px]"
-        style={style.pill}
-      >
-        <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: style.dot }} />
-        {status}
-        <svg className="w-3 h-3 opacity-60" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute bottom-full mb-1.5 left-0 z-20 bg-[#0d0d0d] border border-white/[0.1] rounded-xl overflow-hidden shadow-2xl min-w-[160px]">
-          {CONTACT_STATUSES.map((s) => {
-            const st = STATUS_STYLE[s];
-            return (
-              <button
-                key={s}
-                onClick={() => { onChange(s); setOpen(false); }}
-                className="w-full text-left text-xs px-3 py-2.5 hover:bg-white/5 transition-colors flex items-center gap-2.5"
-                style={{ color: st.pill.color as string }}
-              >
-                <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: st.dot }} />
-                {s}
-                {s === status && (
-                  <svg className="w-3 h-3 ml-auto opacity-70" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
 }
 
 function DemoConnectionCard({
@@ -295,7 +212,7 @@ function DemoConnectionCard({
       )}
 
       {/* Status pill — fully functional, localStorage */}
-      <StatusPill status={status} onChange={handleStatusChange} />
+      <StatusDropdown status={status} onChange={handleStatusChange} />
     </div>
   );
 }
