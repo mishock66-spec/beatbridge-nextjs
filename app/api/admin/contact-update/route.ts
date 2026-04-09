@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
   if (body.username !== undefined) fields["Pseudo Instagram"] = String(body.username);
   if (body.bio !== undefined) fields["Notes"] = String(body.bio);
   if (body.template !== undefined) fields["template"] = String(body.template);
+  if (body.suiviPar !== undefined) fields["Suivi par"] = String(body.suiviPar);
 
   if (Object.keys(fields).length === 0) {
     return NextResponse.json({ error: "No fields to update" }, { status: 400 });

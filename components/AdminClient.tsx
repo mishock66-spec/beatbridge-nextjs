@@ -52,6 +52,11 @@ type ContactResult = {
 type ContactEdit = {
   followers: number;
   profileType: string;
+  fullName: string;
+  username: string;
+  bio: string;
+  template: string;
+  suiviPar: string;
 };
 
 type ContactFull = {
@@ -666,6 +671,11 @@ export default function AdminClient({
   // ── Duplicates: expandable groups + manual keep override ─────────────────
   const [dupExpandedGroups, setDupExpandedGroups] = useState<Set<string>>(new Set());
 
+  // ── Contact row edit mode (Set of contact IDs in edit mode) ──────────────
+  const [contactRowEditMode, setContactRowEditMode] = useState<Set<string>>(new Set());
+  // Tracks last-saved contact IDs for "Saved ✓" flash
+  const [contactSavedFlash, setContactSavedFlash] = useState<Set<string>>(new Set());
+
   // ── Site-only filters ────────────────────────────────────────────────────
   const [siteOnlySearch, setSiteOnlySearch] = useState("");
   const [siteOnlyFilterArtist, setSiteOnlyFilterArtist] = useState("");
@@ -1101,14 +1111,39 @@ export default function AdminClient({
           recordId: contact.id,
           followers: edit.followers,
           profileType: edit.profileType,
+          fullName: edit.fullName,
+          username: edit.username,
+          bio: edit.bio,
+          template: edit.template,
+          suiviPar: edit.suiviPar,
         }),
       });
       if (!res.ok) throw new Error("Update failed");
       setAllContacts((prev) =>
-        prev.map((c) => c.id === contact.id ? { ...c, followers: edit.followers, profileType: edit.profileType } : c)
+        prev.map((c) =>
+          c.id === contact.id
+            ? {
+                ...c,
+                followers: edit.followers,
+                profileType: edit.profileType,
+                fullName: edit.fullName,
+                username: edit.username,
+                bio: edit.bio,
+                template: edit.template,
+                suiviPar: edit.suiviPar,
+                hasTemplate: !!edit.template.trim(),
+                hasBio: !!edit.bio.trim(),
+              }
+            : c
+        )
       );
-      setExpandedContactEdit(null);
-      toast.success(`@${contact.username} updated`);
+      // Exit edit mode, keep row expanded
+      setContactRowEditMode((prev) => { const s = new Set(prev); s.delete(contact.id); return s; });
+      setContactEdits((prev) => { const n = { ...prev }; delete n[contact.id]; return n; });
+      // Flash "Saved ✓"
+      setContactSavedFlash((prev) => new Set(Array.from(prev).concat(contact.id)));
+      setTimeout(() => setContactSavedFlash((prev) => { const s = new Set(prev); s.delete(contact.id); return s; }), 2000);
+      toast.success(`@${edit.username || contact.username} updated ✓`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Save failed");
     } finally {
@@ -1246,8 +1281,8 @@ export default function AdminClient({
   function setContactEdit(id: string, patch: Partial<ContactEdit>, baseContact?: ContactResult) {
     setContactEdits((prev) => {
       const base = prev[id] ?? (baseContact
-        ? { followers: baseContact.followers, profileType: baseContact.profileType }
-        : { followers: 0, profileType: "" });
+        ? { followers: baseContact.followers, profileType: baseContact.profileType, fullName: "", username: "", bio: "", template: "", suiviPar: "" }
+        : { followers: 0, profileType: "", fullName: "", username: "", bio: "", template: "", suiviPar: "" });
       return { ...prev, [id]: { ...base, ...patch } };
     });
   }
@@ -2286,97 +2321,243 @@ export default function AdminClient({
 
             // ── Shared expanded panel renderer ────────────────────────────
             const renderExpandedPanel = (contact: ContactFull) => {
-              const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+              const inEditMode = contactRowEditMode.has(contact.id);
+              const savedFlash = contactSavedFlash.has(contact.id);
+              const edit = contactEdits[contact.id] ?? {
+                followers: contact.followers,
+                profileType: contact.profileType,
+                fullName: contact.fullName,
+                username: contact.username,
+                bio: contact.bio,
+                template: contact.template,
+                suiviPar: contact.suiviPar,
+              };
+              const hasChanges = inEditMode && (
+                edit.fullName !== contact.fullName ||
+                edit.username !== contact.username ||
+                edit.followers !== contact.followers ||
+                edit.profileType !== contact.profileType ||
+                edit.bio !== contact.bio ||
+                edit.template !== contact.template ||
+                edit.suiviPar !== contact.suiviPar
+              );
               const rangeInfo = siteRangeInfoMap[contact.id];
               const pos = sitePositionMap[contact.id];
-              const emailMatch = (contact.bio + " " + contact.template).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
               const onSite = isOnSite(contact);
+              const emailMatch = (contact.bio + " " + contact.template).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+              const wordCount = edit.template.trim().split(/\s+/).filter(Boolean).length;
+              const charCount = edit.template.length;
+
+              function enterEditMode() {
+                setContactRowEditMode((prev) => new Set(Array.from(prev).concat(contact.id)));
+                setContactEdits((prev) => ({
+                  ...prev,
+                  [contact.id]: prev[contact.id] ?? {
+                    followers: contact.followers,
+                    profileType: contact.profileType,
+                    fullName: contact.fullName,
+                    username: contact.username,
+                    bio: contact.bio,
+                    template: contact.template,
+                    suiviPar: contact.suiviPar,
+                  },
+                }));
+              }
+
+              function cancelEditMode() {
+                setContactRowEditMode((prev) => { const s = new Set(prev); s.delete(contact.id); return s; });
+                setContactEdits((prev) => { const n = { ...prev }; delete n[contact.id]; return n; });
+              }
+
+              const lbl = "text-[10px] font-medium text-[#505050] uppercase tracking-[0.08em] mb-1.5 block";
+              const inp = inputCls;
+
               return (
-                <div className="border-t border-white/[0.06] px-4 pb-4 pt-3" onClick={(e) => e.stopPropagation()}>
-                  {/* Details */}
-                  <div className="flex flex-col gap-1.5 text-xs mb-3">
-                    <div className="flex items-start gap-2">
-                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Name:</span>
-                      <span className="text-[#a0a0a0]">{contact.fullName || "—"}</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Handle:</span>
-                      <a href={`https://www.instagram.com/${contact.username}/`} target="_blank" rel="noopener noreferrer"
-                        className="text-orange-400 hover:underline">@{contact.username}</a>
-                    </div>
-                    {onSite && rangeInfo && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Page:</span>
-                        <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
-                          className="text-orange-400/80 hover:underline">{rangeInfo.label}{pos ? ` · #${pos}` : ""}</a>
-                      </div>
-                    )}
-                    <div className="flex items-start gap-2">
-                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Followers:</span>
-                      <span className="text-[#a0a0a0]">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
-                    </div>
-                    <div className="flex items-start gap-2">
-                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Type:</span>
-                      <span className="text-[#a0a0a0]">{contact.profileType || "—"}</span>
-                    </div>
-                    {emailMatch && (
-                      <div className="flex items-start gap-2">
-                        <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Email:</span>
-                        <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
-                      </div>
-                    )}
-                  </div>
-                  {contact.bio && (
-                    <div className="mb-2.5">
-                      <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
-                      <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{contact.bio}</p>
-                    </div>
-                  )}
-                  {contact.template && (
-                    <div className="mb-4">
-                      <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
-                      <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{contact.template}</p>
-                    </div>
-                  )}
-                  {/* Edit fields */}
-                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                    <Field label="Followers">
-                      <input type="number" className={inputCls} value={edit.followers}
-                        onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 })} />
-                    </Field>
-                    <Field label="Profile Type">
-                      <CustomSelect
-                        value={edit.profileType}
-                        onChange={(v) => setContactEdit(contact.id, { profileType: v })}
-                        placeholder="— select type —"
-                        options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
-                      />
-                    </Field>
-                  </div>
-                  {/* Actions */}
-                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="border-t border-white/[0.06] px-4 pb-5 pt-4" onClick={(e) => e.stopPropagation()}>
+                  {/* Toolbar: status + edit toggle */}
+                  <div className="flex items-center justify-between mb-4 gap-2 flex-wrap">
                     <div className="flex items-center gap-2">
-                      {onSite && rangeInfo && (
-                        <a
-                          href={rangeInfo.href}
-                          target="_blank" rel="noopener noreferrer"
-                          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-all"
-                        >
-                          🔗 View on site
-                        </a>
+                      {savedFlash && (
+                        <span className="text-[10px] text-green-400 bg-green-500/10 border border-green-500/20 px-2 py-0.5 rounded-full">Saved ✓</span>
+                      )}
+                      {hasChanges && !savedFlash && (
+                        <span className="text-[10px] text-amber-400/80 bg-amber-400/10 border border-amber-400/20 px-2 py-0.5 rounded-full">Unsaved changes</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => { setDeleteTargetFull(contact); }}
-                        disabled={deletingContact === contact.id}
-                        className="text-xs px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-all disabled:opacity-40"
-                      >
-                        🗑️ Delete
+                    {!inEditMode ? (
+                      <button onClick={enterEditMode}
+                        className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-all">
+                        ✏️ Edit all fields
                       </button>
-                      <SaveButton onClick={() => handleSaveContactFull(contact)} saving={savingContact === contact.id} label="Save changes" />
-                    </div>
+                    ) : (
+                      <button onClick={cancelEditMode} className="text-xs text-[#606060] hover:text-[#a0a0a0] transition-colors">Cancel</button>
+                    )}
                   </div>
+
+                  {inEditMode ? (
+                    /* ── EDIT MODE ─────────────────────────────────────────── */
+                    <div className="flex flex-col gap-4">
+                      {/* Row 1: name + handle */}
+                      <div className="grid sm:grid-cols-2 gap-3">
+                        <div>
+                          <label className={lbl}>Full Name</label>
+                          <input className={inp} value={edit.fullName}
+                            onChange={(e) => setContactEdit(contact.id, { fullName: e.target.value })} />
+                        </div>
+                        <div>
+                          <label className={lbl}>Handle (no @)</label>
+                          <input className={inp} value={edit.username}
+                            onChange={(e) => setContactEdit(contact.id, { username: e.target.value.replace(/^@/, "") })} />
+                        </div>
+                      </div>
+                      {/* Row 2: followers + type + artist */}
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                        <div>
+                          <label className={lbl}>Followers</label>
+                          <input type="number" className={inp} value={edit.followers}
+                            onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 })} />
+                        </div>
+                        <div>
+                          <label className={lbl}>Profile Type</label>
+                          <CustomSelect
+                            value={edit.profileType}
+                            onChange={(v) => setContactEdit(contact.id, { profileType: v })}
+                            placeholder="— type —"
+                            options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                          />
+                        </div>
+                        <div>
+                          <label className={lbl}>Artist (Suivi par)</label>
+                          <select value={edit.suiviPar} onChange={(e) => setContactEdit(contact.id, { suiviPar: e.target.value })} className={selectCls + " w-full"}>
+                            <option value="">— none —</option>
+                            {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => (
+                              <option key={a} value={a}>{a}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+                      {/* Bio */}
+                      <div>
+                        <label className={lbl}>Bio / Notes</label>
+                        <textarea className={inp + " resize-y min-h-[80px] leading-relaxed"}
+                          value={edit.bio} rows={3}
+                          onChange={(e) => setContactEdit(contact.id, { bio: e.target.value })} />
+                      </div>
+                      {/* DM Template */}
+                      <div>
+                        <label className={lbl}>DM Template (Step 1)</label>
+                        <textarea className={inp + " resize-y min-h-[100px] font-mono text-[13px] leading-relaxed"}
+                          value={edit.template} rows={4}
+                          onChange={(e) => setContactEdit(contact.id, { template: e.target.value })} />
+                        <p className="text-[10px] text-[#404040] mt-1">{wordCount} words · {charCount} chars</p>
+                        {edit.template && (
+                          <div className="mt-2">
+                            <p className="text-[9px] text-[#404040] uppercase tracking-[0.06em] mb-1">Preview</p>
+                            <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04]">
+                              {edit.template.split(/(\[BEATMAKER_NAME\])/g).map((part, i) =>
+                                part === "[BEATMAKER_NAME]"
+                                  ? <span key={i} className="text-orange-400 font-medium">{part}</span>
+                                  : <span key={i}>{part}</span>
+                              )}
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                      {/* Actions */}
+                      <div className="flex items-center justify-between gap-3 flex-wrap border-t border-white/[0.06] pt-3">
+                        <div className="flex items-center gap-2">
+                          {onSite && rangeInfo && (
+                            <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
+                              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-all">
+                              🔗 View on site
+                            </a>
+                          )}
+                          <button onClick={() => setDeleteTargetFull(contact)} disabled={deletingContact === contact.id}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-all disabled:opacity-40">
+                            🗑️ Delete
+                          </button>
+                        </div>
+                        <SaveButton onClick={() => handleSaveContactFull(contact)} saving={savingContact === contact.id}
+                          label={hasChanges ? "Save changes ●" : "Save changes"} />
+                      </div>
+                    </div>
+                  ) : (
+                    /* ── READ MODE ─────────────────────────────────────────── */
+                    <div>
+                      <div className="flex flex-col gap-1.5 text-xs mb-3">
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Name:</span>
+                          <span className="text-[#a0a0a0]">{contact.fullName || "—"}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Handle:</span>
+                          <a href={`https://www.instagram.com/${contact.username}/`} target="_blank" rel="noopener noreferrer"
+                            className="text-orange-400 hover:underline">@{contact.username}</a>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Artist:</span>
+                          <span className="text-[#a0a0a0]">{contact.suiviPar || "—"}</span>
+                        </div>
+                        {onSite && rangeInfo && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Page:</span>
+                            <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
+                              className="text-orange-400/80 hover:underline">{rangeInfo.label}{pos ? ` · #${pos}` : ""}</a>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Followers:</span>
+                          <span className="text-[#a0a0a0]">{contact.followers > 0 ? contact.followers.toLocaleString() : "—"}</span>
+                        </div>
+                        <div className="flex items-start gap-2">
+                          <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Type:</span>
+                          <span className="text-[#a0a0a0]">{contact.profileType || "—"}</span>
+                        </div>
+                        {emailMatch && (
+                          <div className="flex items-start gap-2">
+                            <span className="text-[#505050] w-16 flex-shrink-0 pt-px">Email:</span>
+                            <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
+                          </div>
+                        )}
+                      </div>
+                      {contact.bio && (
+                        <div className="mb-2.5">
+                          <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
+                          <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{contact.bio}</p>
+                        </div>
+                      )}
+                      {contact.template && (
+                        <div className="mb-4">
+                          <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
+                          <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap font-mono">
+                            {contact.template.split(/(\[BEATMAKER_NAME\])/g).map((part, i) =>
+                              part === "[BEATMAKER_NAME]"
+                                ? <span key={i} className="text-orange-400 font-medium not-italic">{part}</span>
+                                : <span key={i}>{part}</span>
+                            )}
+                          </p>
+                        </div>
+                      )}
+                      {/* Actions */}
+                      <div className="flex items-center justify-between gap-3 flex-wrap border-t border-white/[0.06] pt-3">
+                        <div className="flex items-center gap-2">
+                          {onSite && rangeInfo && (
+                            <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
+                              className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-all">
+                              🔗 View on site
+                            </a>
+                          )}
+                          <button onClick={() => setDeleteTargetFull(contact)} disabled={deletingContact === contact.id}
+                            className="text-xs px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-all disabled:opacity-40">
+                            🗑️ Delete
+                          </button>
+                        </div>
+                        {savedFlash && (
+                          <span className="text-xs text-green-400 font-medium">Saved ✓</span>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               );
             };
