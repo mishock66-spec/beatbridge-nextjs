@@ -68,10 +68,12 @@ type ContactFull = {
 type DupGroup = {
   username: string;
   records: ContactFull[];
-  keepId: string; // record ID to keep
+  keepId: string;
+  type: DupGroupType;
 };
 
 type DupScanState = "idle" | "scanning" | "found" | "deleting" | "done";
+type DupGroupType = "same-network" | "cross-network";
 
 // ── Duplicate link helpers ────────────────────────────────────────────────────
 
@@ -141,6 +143,14 @@ function getDupRecordInfo(r: ContactFull, position?: number): { href: string | n
     href: `/artist/${slug}/${range.slug}`,
     label: `${r.suiviPar} · ${range.label}${pos}`,
   };
+}
+
+function isOnSite(r: ContactFull): boolean {
+  const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
+  if (!slug) return false;
+  const ranges = ARTIST_RANGES[slug];
+  if (!ranges) return false;
+  return ranges.some((rng) => r.followers >= rng.min && r.followers <= rng.max);
 }
 
 type RegenState = {
@@ -601,6 +611,7 @@ export default function AdminClient({
   const [dupPositionMap, setDupPositionMap] = useState<Record<string, number>>({});
   const [dupConfirmGroup, setDupConfirmGroup] = useState<string | null>(null);
   const [dupDeletingGroup, setDupDeletingGroup] = useState<string | null>(null);
+  const [dupFilterTab, setDupFilterTab] = useState<DupGroupType | "all">("same-network");
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
@@ -880,7 +891,9 @@ export default function AdminClient({
         .filter(([, recs]) => recs.length >= 2)
         .map(([username, recs]) => {
           const sorted = [...recs].sort((a, b) => scoreRecord(b) - scoreRecord(a));
-          return { username, records: sorted, keepId: sorted[0].id };
+          const uniqueArtists = new Set(recs.map((r) => r.suiviPar));
+          const type: DupGroupType = uniqueArtists.size === 1 ? "same-network" : "cross-network";
+          return { username, records: sorted, keepId: sorted[0].id, type };
         })
         .sort((a, b) => a.username.localeCompare(b.username));
       setDupGroups(groups);
@@ -891,16 +904,19 @@ export default function AdminClient({
     }
   }
 
-  async function handleDeleteDuplicates() {
-    const toDelete = dupGroups.flatMap((g) =>
+  async function handleDeleteDuplicateGroups(groups: DupGroup[]) {
+    const toDelete = groups.flatMap((g) =>
       g.records.filter((r) => r.id !== g.keepId).map((r) => r.id)
     );
     if (!toDelete.length) return;
 
+    const deletedUsernames = new Set(groups.map((g) => g.username));
+    const willDeleteAll = groups.length >= dupGroups.length;
+
     setDupScanState("deleting");
     setDupDeleteProgress({ done: 0, total: toDelete.length });
 
-    const CHUNK = 50; // send 50 IDs per request (each request batches into 10s server-side)
+    const CHUNK = 50;
     let done = 0;
 
     for (let i = 0; i < toDelete.length; i += CHUNK) {
@@ -925,10 +941,19 @@ export default function AdminClient({
       }
     }
 
-    setDupDeletedCount(done);
-    setDupGroups([]);
-    setDupScanState("done");
-    toast.success(`Deleted ${done} duplicate records ✓`);
+    setDupGroups((prev) => prev.filter((g) => !deletedUsernames.has(g.username)));
+
+    if (willDeleteAll) {
+      setDupDeletedCount(done);
+      setDupScanState("done");
+    } else {
+      setDupScanState("found");
+      toast.success(`Deleted ${done} duplicate records ✓`);
+    }
+  }
+
+  async function handleDeleteDuplicates() {
+    await handleDeleteDuplicateGroups(dupGroups);
   }
 
   async function handleDeleteSingleDup(group: DupGroup) {
@@ -1931,6 +1956,7 @@ export default function AdminClient({
 
               {dupScanState === "found" && dupGroups.length > 0 && (
                 <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-5 mb-6">
+                  {/* Header */}
                   <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
                     <div>
                       <p className="text-sm font-semibold text-white">
@@ -1941,16 +1967,59 @@ export default function AdminClient({
                       </p>
                     </div>
                     <button
-                      onClick={handleDeleteDuplicates}
+                      onClick={() => handleDeleteDuplicateGroups(
+                        dupFilterTab === "all" ? dupGroups
+                        : dupGroups.filter((g) => g.type === dupFilterTab)
+                      )}
                       className="text-xs font-semibold px-3 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors whitespace-nowrap"
                     >
-                      🗑️ Remove all duplicates
+                      🗑️ Remove all {dupFilterTab === "same-network" ? "same-network" : dupFilterTab === "cross-network" ? "cross-network" : ""} duplicates
                     </button>
                   </div>
+
+                  {/* Filter tabs */}
+                  <div className="flex gap-1.5 mb-4 flex-wrap">
+                    {(["same-network", "cross-network", "all"] as const).map((tab) => {
+                      const count = tab === "all" ? dupGroups.length
+                        : dupGroups.filter((g) => g.type === tab).length;
+                      const label = tab === "same-network" ? `⚠️ Same network (${count})`
+                        : tab === "cross-network" ? `ℹ️ Cross-network (${count})`
+                        : `All (${count})`;
+                      const isActive = dupFilterTab === tab;
+                      return (
+                        <button
+                          key={tab}
+                          onClick={() => setDupFilterTab(tab)}
+                          className={`text-[11px] font-medium px-3 py-1 rounded-full border transition-all ${
+                            isActive
+                              ? tab === "same-network"
+                                ? "bg-red-500/20 border-red-500/50 text-red-300"
+                                : tab === "cross-network"
+                                ? "bg-blue-500/20 border-blue-500/50 text-blue-300"
+                                : "bg-white/10 border-white/20 text-white"
+                              : "bg-transparent border-white/[0.08] text-[#606060] hover:text-[#a0a0a0] hover:border-white/[0.15]"
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Group list */}
                   <div className="flex flex-col gap-2 max-h-[400px] overflow-y-auto">
-                    {dupGroups.map((g) => (
-                      <div key={g.username} className="bg-white/[0.03] rounded-xl px-3 py-2.5 border border-white/[0.05]">
-                        {/* Group header: @username + record count + per-group delete */}
+                    {dupGroups
+                      .filter((g) => dupFilterTab === "all" || g.type === dupFilterTab)
+                      .map((g) => (
+                      <div
+                        key={g.username}
+                        className={`rounded-xl px-3 py-2.5 border ${
+                          g.type === "same-network"
+                            ? "bg-red-500/[0.04] border-red-500/20 border-l-2 border-l-red-500/50"
+                            : "bg-white/[0.03] border-white/[0.05]"
+                        }`}
+                      >
+                        {/* Group header */}
                         <div className="flex items-center gap-2 mb-1.5 flex-wrap">
                           <a
                             href={`https://www.instagram.com/${g.username}/`}
@@ -1961,6 +2030,13 @@ export default function AdminClient({
                             @{g.username}
                           </a>
                           <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
+                          <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded-full border ${
+                            g.type === "same-network"
+                              ? "bg-red-500/10 border-red-500/30 text-red-400/80"
+                              : "bg-blue-500/10 border-blue-500/30 text-blue-400/80"
+                          }`}>
+                            {g.type === "same-network" ? "⚠️ same network" : "ℹ️ cross-network"}
+                          </span>
                           {dupConfirmGroup === g.username ? (
                             <div className="flex items-center gap-1.5 ml-auto flex-wrap">
                               <span className="text-[10px] text-[#808080]">Delete duplicate for @{g.username}?</span>
@@ -1984,22 +2060,33 @@ export default function AdminClient({
                               className="ml-auto text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors disabled:opacity-40 whitespace-nowrap"
                             >
                               {dupDeletingGroup === g.username ? (
-                                <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />Deleting…</span>
+                                <span className="flex items-center gap-1">
+                                  <span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                  Deleting…
+                                </span>
                               ) : "🗑️ Remove duplicate"}
                             </button>
                           )}
                         </div>
                         {/* Records */}
-                        <div className="flex flex-col gap-1">
+                        <div className="flex flex-col gap-1.5">
                           {g.records.map((r) => {
                             const info = getDupRecordInfo(r, dupPositionMap[r.id]);
+                            const onSite = isOnSite(r);
                             return (
-                              <div key={r.id} className={`flex items-center gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
-                                {r.id === g.keepId ? "✓ keep" : "✗ delete"}
-                                <span className="not-italic no-underline text-[#505050]">
+                              <div key={r.id} className={`flex items-start gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
+                                <span className="flex-shrink-0 mt-px">{r.id === g.keepId ? "✓ keep" : "✗ delete"}</span>
+                                <span className="not-italic no-underline text-[#505050] flex items-center gap-1.5 flex-wrap">
                                   {info.href ? (
                                     <a href={info.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/70 hover:text-orange-400 hover:underline no-underline">{info.label}</a>
                                   ) : info.label}
+                                  <span className={`text-[9px] font-medium px-1.5 py-px rounded-full border flex-shrink-0 ${
+                                    onSite
+                                      ? "bg-green-500/10 border-green-500/20 text-green-400/80"
+                                      : "bg-yellow-500/10 border-yellow-500/20 text-yellow-500/70"
+                                  }`}>
+                                    {onSite ? "✅ On site" : "⚠️ Airtable only"}
+                                  </span>
                                   {r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
                                 </span>
                               </div>
@@ -2008,6 +2095,9 @@ export default function AdminClient({
                         </div>
                       </div>
                     ))}
+                    {dupGroups.filter((g) => dupFilterTab === "all" || g.type === dupFilterTab).length === 0 && (
+                      <p className="text-xs text-[#505050] text-center py-4">No duplicates in this category.</p>
+                    )}
                   </div>
                 </div>
               )}
