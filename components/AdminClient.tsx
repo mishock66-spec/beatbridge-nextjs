@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
+import AdminAIAssistant from "@/components/AdminAIAssistant";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -108,7 +109,7 @@ type Stats = {
   dmsSentTotal: number;
 };
 
-type Section = "stats" | "users" | "messages" | "banner" | "artists" | "add-artist" | "contacts" | "templates" | "vote" | "texts";
+type Section = "stats" | "users" | "messages" | "banner" | "artists" | "add-artist" | "contacts" | "templates" | "vote" | "texts" | "ai-assistant";
 
 type AddArtistForm = {
   artistName: string;
@@ -782,16 +783,13 @@ export default function AdminClient({
         byUsername.get(r.username)!.push(r);
       }
 
-      const groups: DupGroup[] = [];
-      for (const [username, recs] of byUsername) {
-        if (recs.length < 2) continue;
-        // Sort descending by score, keep the first
-        const sorted = [...recs].sort((a, b) => scoreRecord(b) - scoreRecord(a));
-        groups.push({ username, records: sorted, keepId: sorted[0].id });
-      }
-
-      // Sort groups by username alphabetically
-      groups.sort((a, b) => a.username.localeCompare(b.username));
+      const groups: DupGroup[] = Array.from(byUsername.entries())
+        .filter(([, recs]) => recs.length >= 2)
+        .map(([username, recs]) => {
+          const sorted = [...recs].sort((a, b) => scoreRecord(b) - scoreRecord(a));
+          return { username, records: sorted, keepId: sorted[0].id };
+        })
+        .sort((a, b) => a.username.localeCompare(b.username));
       setDupGroups(groups);
       setDupScanState("found");
     } catch (e) {
@@ -1089,10 +1087,11 @@ export default function AdminClient({
     { id: "banner",    label: "Banner",    icon: "📢" },
     { id: "artists",    label: "Artists",    icon: "🎤" },
     { id: "add-artist", label: "Add Artist +", icon: "➕" },
-    { id: "contacts",  label: "Contacts",  icon: "🔍" },
-    { id: "templates", label: "Templates", icon: "⚙️"  },
-    { id: "vote",      label: "Vote",      icon: "🗳️"  },
-    { id: "texts",     label: "Texts",     icon: "✏️"  },
+    { id: "contacts",     label: "Contacts",     icon: "🔍" },
+    { id: "ai-assistant", label: "AI Assistant", icon: "🤖" },
+    { id: "templates",    label: "Templates",    icon: "⚙️"  },
+    { id: "vote",         label: "Vote",         icon: "🗳️"  },
+    { id: "texts",        label: "Texts",        icon: "✏️"  },
   ];
 
   // Show nothing while Clerk initialises or if not admin
@@ -2005,6 +2004,11 @@ export default function AdminClient({
                 </div>
               )}
             </div>
+          )}
+
+          {/* ── AI ASSISTANT ──────────────────────────────────────────────── */}
+          {section === "ai-assistant" && (
+            <AdminAIAssistant adminUserId={adminUserId} />
           )}
 
           {/* ── TEMPLATES ─────────────────────────────────────────────────── */}
