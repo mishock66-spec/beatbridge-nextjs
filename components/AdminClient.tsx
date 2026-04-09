@@ -1583,6 +1583,10 @@ export default function AdminClient({
     { id: "texts",        label: "Texts",        icon: "✏️"  },
   ];
 
+  const navLinks: { href: string; label: string; icon: string }[] = [
+    { href: "/admin/analysis", label: "Analysis Session", icon: "🔬" },
+  ];
+
   // Show nothing while Clerk initialises or if not admin
   if (!isLoaded || user?.primaryEmailAddress?.emailAddress !== ADMIN_EMAIL) {
     return <div className="min-h-screen bg-[#080808]" />;
@@ -1617,6 +1621,17 @@ export default function AdminClient({
                 <span>{item.icon}</span>
                 {item.label}
               </button>
+            ))}
+            <div className="hidden lg:block h-px bg-white/[0.06] my-1" />
+            {navLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className="flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-150 text-left w-full text-[#a0a0a0] hover:text-white hover:bg-white/[0.04]"
+              >
+                <span>{link.icon}</span>
+                {link.label}
+              </a>
             ))}
           </div>
         </nav>
