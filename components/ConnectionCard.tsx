@@ -483,6 +483,11 @@ export default function ConnectionCard({
         className="flex items-center gap-2 sm:gap-3 px-3 sm:px-4 py-3 cursor-pointer select-none min-h-[60px]"
         onClick={toggleExpand}
       >
+        {/* DM priority number — far left, before avatar */}
+        {dmPriority !== undefined && (
+          <span className="text-[10px] font-bold w-6 text-center flex-shrink-0 text-[#505050]">#{dmPriority}</span>
+        )}
+
         {/* 32px type emoji */}
         <div className="w-8 h-8 bg-white/[0.05] rounded-lg flex items-center justify-center text-sm flex-shrink-0">
           {getTypeEmoji(record.profileType)}
@@ -506,9 +511,6 @@ export default function ConnectionCard({
 
         {/* Badges + interactive actions — stopProp wrapper */}
         <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
-          {dmPriority !== undefined && (
-            <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-500 text-white hidden sm:inline-flex">#{dmPriority}</span>
-          )}
           <span className={`hidden md:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${typeColor}`}>
             {record.profileType}
           </span>
@@ -553,9 +555,7 @@ export default function ConnectionCard({
               <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${reply.classes}`}>
                 {reply.symbol} {reply.label}
               </span>
-              {dmPriority !== undefined && (
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-orange-500 text-white sm:hidden">DM #{dmPriority}</span>
-              )}
+
             </div>
 
             {/* Description */}
