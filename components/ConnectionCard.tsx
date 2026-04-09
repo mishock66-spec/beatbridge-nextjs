@@ -176,6 +176,10 @@ export default function ConnectionCard({
   originalIndex = 0,
   expanded: externalExpanded,
   onExpandChange,
+  isAdmin = false,
+  onAdminEdit,
+  onAdminArchive,
+  onAdminDelete,
 }: {
   record: AirtableRecord;
   listeningLink: string;
@@ -190,10 +194,15 @@ export default function ConnectionCard({
   originalIndex?: number;
   expanded?: boolean;
   onExpandChange?: (v: boolean) => void;
+  isAdmin?: boolean;
+  onAdminEdit?: () => void;
+  onAdminArchive?: () => void;
+  onAdminDelete?: () => void;
 }) {
   const { isSignedIn, user } = useUser();
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [adminConfirmDelete, setAdminConfirmDelete] = useState(false);
   const [customTemplate, setCustomTemplate] = useState<string | null>(() =>
     initialIceBreaker ? cleanIceBreaker(initialIceBreaker) : null
   );
@@ -534,6 +543,48 @@ export default function ConnectionCard({
           >
             Send DM →
           </button>
+          {isAdmin && (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <button
+                onClick={onAdminEdit}
+                title="Edit contact"
+                className="text-xs px-2 py-1.5 rounded-lg border border-white/[0.1] text-[#606060] hover:text-white hover:border-white/[0.2] transition-all min-h-[32px]"
+              >
+                ✏️
+              </button>
+              <button
+                onClick={() => { onAdminArchive?.(); }}
+                title="Archive contact"
+                className="text-xs px-2 py-1.5 rounded-lg border border-white/[0.1] text-[#606060] hover:text-yellow-400 hover:border-yellow-500/30 transition-all min-h-[32px]"
+              >
+                📦
+              </button>
+              {adminConfirmDelete ? (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => { onAdminDelete?.(); setAdminConfirmDelete(false); }}
+                    className="text-[11px] font-semibold px-2 py-1.5 rounded-lg border border-red-500/40 text-red-400 hover:bg-red-500/10 transition-all min-h-[32px] whitespace-nowrap"
+                  >
+                    Confirm?
+                  </button>
+                  <button
+                    onClick={() => setAdminConfirmDelete(false)}
+                    className="text-xs px-2 py-1.5 rounded-lg border border-white/[0.08] text-[#606060] hover:text-white transition-all min-h-[32px]"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => setAdminConfirmDelete(true)}
+                  title="Delete contact"
+                  className="text-xs px-2 py-1.5 rounded-lg border border-white/[0.1] text-[#606060] hover:text-red-400 hover:border-red-500/30 transition-all min-h-[32px]"
+                >
+                  🗑️
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Chevron — participates in card toggle */}

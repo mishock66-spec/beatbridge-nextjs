@@ -5,11 +5,70 @@ import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import type { AirtableRecord } from "@/lib/airtable";
 import ConnectionCard, { type ContactStatus } from "@/components/ConnectionCard";
+import AdminContactModal from "@/components/AdminContactModal";
 import StickyDMBar from "@/components/StickyDMBar";
 import DMSessionModal from "@/components/DMSessionModal";
 import { supabase } from "@/lib/supabase";
 import type { AccountAge } from "@/lib/dmLimits";
 import { getDmLimit } from "@/lib/dmLimits";
+import toast from "react-hot-toast";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+
+const ADMIN_EMAIL = "mishock66@gmail.com";
+
+function SortableCardWrapper({
+  id,
+  children,
+}: {
+  id: string;
+  children: React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform: CSS.Transform.toString(transform),
+        transition,
+        opacity: isDragging ? 0.5 : 1,
+      }}
+      className="flex items-stretch gap-1.5"
+    >
+      {/* Drag handle */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="flex items-center justify-center w-5 flex-shrink-0 cursor-grab active:cursor-grabbing text-[#404040] hover:text-[#707070] transition-colors rounded focus:outline-none"
+        title="Drag to reorder"
+        tabIndex={-1}
+      >
+        <svg width="10" height="16" viewBox="0 0 10 16" fill="currentColor">
+          <circle cx="2" cy="2" r="1.5" />
+          <circle cx="8" cy="2" r="1.5" />
+          <circle cx="2" cy="8" r="1.5" />
+          <circle cx="8" cy="8" r="1.5" />
+          <circle cx="2" cy="14" r="1.5" />
+          <circle cx="8" cy="14" r="1.5" />
+        </svg>
+      </button>
+      <div className="flex-1 min-w-0">{children}</div>
+    </div>
+  );
+}
 
 const CURRENSY_DM_PRIORITY_ORDER = [
   "themixed_hippie",
@@ -86,6 +145,15 @@ export default function ArtistNetworkClient({
   const [listeningLink, setListeningLink] = useState("");
   const [producerName, setProducerName] = useState("");
 
+  // Admin state
+  const isAdmin = isSignedIn && user?.primaryEmailAddress?.emailAddress === ADMIN_EMAIL;
+  const [localRecords, setLocalRecords] = useState<AirtableRecord[]>(records);
+  const [editingRecord, setEditingRecord] = useState<AirtableRecord | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
   // Debounce refs for Supabase write-back
   const nameDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const linkDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -98,6 +166,11 @@ export default function ArtistNetworkClient({
   const [userPlan, setUserPlan] = useState<string>("free");
   const [dataLoaded, setDataLoaded] = useState(false);
   const [showSession, setShowSession] = useState(false);
+
+  // Keep localRecords in sync when records prop changes (initial load or ISR refresh)
+  useEffect(() => {
+    setLocalRecords(records);
+  }, [records]);
 
   useEffect(() => {
     if (!artistSlug || !supabase) { setStatusMap({}); setDataLoaded(true); return; }
@@ -240,6 +313,69 @@ export default function ArtistNetworkClient({
     setDmSentCount((c) => c + 1);
   }, []);
 
+  // Admin: save edits
+  function handleAdminSave(recordId: string, updates: Partial<AirtableRecord>) {
+    setLocalRecords((prev) => prev.map((r) => (r.id === recordId ? { ...r, ...updates } : r)));
+    setEditingRecord(null);
+  }
+
+  // Admin: archive → remove from local list
+  async function handleAdminArchive(recordId: string) {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/admin/contacts/${recordId}/archive`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id, artistName }),
+      });
+      if (!res.ok) throw new Error("Archive failed");
+      setLocalRecords((prev) => prev.filter((r) => r.id !== recordId));
+      toast.success("Contact archived");
+    } catch {
+      toast.error("Failed to archive contact");
+    }
+  }
+
+  // Admin: delete → remove from local list
+  async function handleAdminDelete(recordId: string) {
+    if (!user) return;
+    try {
+      const res = await fetch(`/api/admin/contacts/${recordId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setLocalRecords((prev) => prev.filter((r) => r.id !== recordId));
+      toast.success("Contact deleted");
+    } catch {
+      toast.error("Failed to delete contact");
+    }
+  }
+
+  // Admin: drag end → reorder + best-effort Airtable save
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    setLocalRecords((prev) => {
+      const oldIndex = prev.findIndex((r) => r.id === active.id);
+      const newIndex = prev.findIndex((r) => r.id === over.id);
+      const next = arrayMove(prev, oldIndex, newIndex);
+      // Best-effort position save (no toast on failure)
+      if (user) {
+        fetch("/api/admin/contacts/reorder", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: user.id,
+            updates: next.map((r, i) => ({ recordId: r.id, position: i + 1 })),
+          }),
+        }).catch(() => {});
+      }
+      return next;
+    });
+  }
+
   const priorityList = dmPriorityOrder ?? CURRENSY_DM_PRIORITY_ORDER;
 
   const priorityMap = useMemo(() => {
@@ -250,13 +386,15 @@ export default function ArtistNetworkClient({
 
   // Derive filter types from actual data
   const filterTypes = useMemo(() => {
+    const source = isAdmin ? localRecords : records;
     const types = new Set<string>();
-    records.forEach((r) => { if (r.profileType) types.add(r.profileType); });
+    source.forEach((r) => { if (r.profileType) types.add(r.profileType); });
     return ["All", ...Array.from(types).sort()];
-  }, [records]);
+  }, [records, localRecords, isAdmin]);
 
   const filtered = useMemo(() => {
-    const result = records.filter((r) => {
+    const source = isAdmin ? localRecords : records;
+    const result = source.filter((r) => {
       const matchType =
         activeFilter === "All" || r.profileType === activeFilter;
       const matchSearch =
@@ -266,21 +404,25 @@ export default function ArtistNetworkClient({
         r.description.toLowerCase().includes(search.toLowerCase());
       return matchType && matchSearch;
     });
-    result.sort((a, b) => {
-      const pa = priorityMap.get(normHandle(a.username)) ?? Infinity;
-      const pb = priorityMap.get(normHandle(b.username)) ?? Infinity;
-      return pa - pb;
-    });
+    // Admin: preserve drag order; regular users: sort by priority
+    if (!isAdmin) {
+      result.sort((a, b) => {
+        const pa = priorityMap.get(normHandle(a.username)) ?? Infinity;
+        const pb = priorityMap.get(normHandle(b.username)) ?? Infinity;
+        return pa - pb;
+      });
+    }
     return result;
-  }, [records, activeFilter, search, priorityMap]);
+  }, [records, localRecords, isAdmin, activeFilter, search, priorityMap]);
 
   const counts = useMemo(() => {
-    const map: Record<string, number> = { All: records.length };
-    records.forEach((r) => {
+    const source = isAdmin ? localRecords : records;
+    const map: Record<string, number> = { All: source.length };
+    source.forEach((r) => {
       map[r.profileType] = (map[r.profileType] || 0) + 1;
     });
     return map;
-  }, [records]);
+  }, [records, localRecords, isAdmin]);
 
   // Map record id → original index in Airtable order (used for Pro AI generation limit)
   const originalIndexMap = useMemo(() => {
@@ -444,45 +586,89 @@ export default function ArtistNetworkClient({
       )}
 
       {/* List */}
-      <div className="flex flex-col gap-2">
-        {loading || (isSignedIn && !dataLoaded)
-          ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
-          : filtered.map((record, index) => {
-              const contactId = artistSlug
-                ? `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`
-                : undefined;
-              const statusEntry = contactId ? statusMap?.[contactId] : undefined;
-              return (
-                <div
-                  key={record.id}
-                  style={{
-                    animation: "fadeInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
-                    animationDelay: `${Math.min(index * 30, 300)}ms`,
-                  }}
-                >
-                  <ConnectionCard
-                    record={record}
-                    listeningLink={listeningLink}
-                    producerName={producerName}
-                    dmPriority={priorityMap.get(normHandle(record.username))}
-                    artistSlug={artistSlug}
-                    artistName={artistName}
-                    initialStatus={statusEntry?.status}
-                    initialIceBreaker={statusEntry?.ice_breaker}
-                    onStatusChange={handleCardStatusChange}
-                    userPlan={userPlan}
-                    originalIndex={originalIndexMap.get(record.id) ?? 0}
-                    expanded={expandedIds.has(record.id)}
-                    onExpandChange={(v) => setExpandedIds((prev) => {
-                      const next = new Set(prev);
-                      if (v) next.add(record.id); else next.delete(record.id);
-                      return next;
-                    })}
-                  />
-                </div>
-              );
-            })}
-      </div>
+      {isAdmin ? (
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+          <SortableContext items={filtered.map((r) => r.id)} strategy={verticalListSortingStrategy}>
+            <div className="flex flex-col gap-2">
+              {loading || (isSignedIn && !dataLoaded)
+                ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
+                : filtered.map((record, index) => {
+                    const contactId = artistSlug
+                      ? `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`
+                      : undefined;
+                    const statusEntry = contactId ? statusMap?.[contactId] : undefined;
+                    return (
+                      <SortableCardWrapper key={record.id} id={record.id}>
+                        <ConnectionCard
+                          record={record}
+                          listeningLink={listeningLink}
+                          producerName={producerName}
+                          dmPriority={priorityMap.get(normHandle(record.username))}
+                          artistSlug={artistSlug}
+                          artistName={artistName}
+                          initialStatus={statusEntry?.status}
+                          initialIceBreaker={statusEntry?.ice_breaker}
+                          onStatusChange={handleCardStatusChange}
+                          userPlan={userPlan}
+                          originalIndex={originalIndexMap.get(record.id) ?? index}
+                          expanded={expandedIds.has(record.id)}
+                          onExpandChange={(v) => setExpandedIds((prev) => {
+                            const next = new Set(prev);
+                            if (v) next.add(record.id); else next.delete(record.id);
+                            return next;
+                          })}
+                          isAdmin={true}
+                          onAdminEdit={() => setEditingRecord(record)}
+                          onAdminArchive={() => handleAdminArchive(record.id)}
+                          onAdminDelete={() => handleAdminDelete(record.id)}
+                        />
+                      </SortableCardWrapper>
+                    );
+                  })}
+            </div>
+          </SortableContext>
+        </DndContext>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {loading || (isSignedIn && !dataLoaded)
+            ? Array.from({ length: 12 }).map((_, i) => <Skeleton key={i} />)
+            : filtered.map((record, index) => {
+                const contactId = artistSlug
+                  ? `${artistSlug}_${record.username.replace("@", "").toLowerCase()}`
+                  : undefined;
+                const statusEntry = contactId ? statusMap?.[contactId] : undefined;
+                return (
+                  <div
+                    key={record.id}
+                    style={{
+                      animation: "fadeInUp 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94) both",
+                      animationDelay: `${Math.min(index * 30, 300)}ms`,
+                    }}
+                  >
+                    <ConnectionCard
+                      record={record}
+                      listeningLink={listeningLink}
+                      producerName={producerName}
+                      dmPriority={priorityMap.get(normHandle(record.username))}
+                      artistSlug={artistSlug}
+                      artistName={artistName}
+                      initialStatus={statusEntry?.status}
+                      initialIceBreaker={statusEntry?.ice_breaker}
+                      onStatusChange={handleCardStatusChange}
+                      userPlan={userPlan}
+                      originalIndex={originalIndexMap.get(record.id) ?? 0}
+                      expanded={expandedIds.has(record.id)}
+                      onExpandChange={(v) => setExpandedIds((prev) => {
+                        const next = new Set(prev);
+                        if (v) next.add(record.id); else next.delete(record.id);
+                        return next;
+                      })}
+                    />
+                  </div>
+                );
+              })}
+        </div>
+      )}
 
       {!loading && filtered.length === 0 && (
         <div className="text-center py-24 text-[#505050]">
@@ -515,6 +701,16 @@ export default function ArtistNetworkClient({
           artistSlug={artistSlug}
           onClose={() => setShowSession(false)}
           onMarkSent={handleSessionMarkSent}
+        />
+      )}
+
+      {/* Admin: edit contact modal */}
+      {editingRecord && user && (
+        <AdminContactModal
+          record={editingRecord}
+          userId={user.id}
+          onSave={handleAdminSave}
+          onClose={() => setEditingRecord(null)}
         />
       )}
     </>
