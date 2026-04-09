@@ -644,7 +644,7 @@ export default function AdminClient({
   const [airtableOnlyFilter, setAirtableOnlyFilter] = useState("");
 
   // ── Contacts tab navigation ───────────────────────────────────────────────
-  const [contactTab, setContactTab] = useState<"all" | "duplicates" | "airtable-only">("all");
+  const [contactTab, setContactTab] = useState<"all" | "site-only" | "duplicates" | "airtable-only">("all");
 
   // ── All Contacts (shared bulk load) ──────────────────────────────────────
   const [allContacts, setAllContacts] = useState<ContactFull[]>([]);
@@ -665,6 +665,17 @@ export default function AdminClient({
 
   // ── Duplicates: expandable groups + manual keep override ─────────────────
   const [dupExpandedGroups, setDupExpandedGroups] = useState<Set<string>>(new Set());
+
+  // ── Site-only filters ────────────────────────────────────────────────────
+  const [siteOnlySearch, setSiteOnlySearch] = useState("");
+  const [siteOnlyFilterArtist, setSiteOnlyFilterArtist] = useState("");
+  const [siteOnlyFilterType, setSiteOnlyFilterType] = useState("");
+  const [siteOnlyFilterTemplate, setSiteOnlyFilterTemplate] = useState("");
+  const [siteOnlyFilterRange, setSiteOnlyFilterRange] = useState("");
+
+  // ── Dup record-level delete confirmation ─────────────────────────────────
+  const [dupRecordDeleteConfirm, setDupRecordDeleteConfirm] = useState<string | null>(null);
+  const [dupRecordDeleting, setDupRecordDeleting] = useState<string | null>(null);
 
   // ── Template regen ────────────────────────────────────────────────────────
   const [regenStates, setRegenStates] = useState<Record<string, RegenState>>({});
@@ -838,7 +849,7 @@ export default function AdminClient({
 
   // Auto-load all contacts when switching to All Contacts or Airtable-only tab
   useEffect(() => {
-    if (section === "contacts" && (contactTab === "all" || contactTab === "airtable-only")) {
+    if (section === "contacts" && (contactTab === "all" || contactTab === "site-only" || contactTab === "airtable-only")) {
       handleLoadAllContacts();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1141,6 +1152,38 @@ export default function AdminClient({
     });
   }
 
+  async function handleDeleteSpecificRecord(recordId: string, groupUsername: string) {
+    setDupRecordDeleteConfirm(null);
+    setDupRecordDeleting(recordId);
+    try {
+      const res = await fetch(`/api/admin/contacts/${recordId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: adminUserId }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error ?? "Delete failed");
+      }
+      setDupGroups((prev) =>
+        prev
+          .map((g) => {
+            if (g.username !== groupUsername) return g;
+            const newRecords = g.records.filter((r) => r.id !== recordId);
+            if (newRecords.length <= 1) return null;
+            const newKeepId = g.keepId === recordId ? newRecords[0].id : g.keepId;
+            return { ...g, records: newRecords, keepId: newKeepId };
+          })
+          .filter((g): g is DupGroup => g !== null)
+      );
+      toast.success("Record deleted ✓");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Delete failed");
+    } finally {
+      setDupRecordDeleting(null);
+    }
+  }
+
   function exportAirtableOnlyCSV(contacts: ContactFull[]) {
     const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
     const header = "username,full_name,followers,artist,profile_type,bio,template,reason_excluded";
@@ -1163,6 +1206,37 @@ export default function AdminClient({
     const a = document.createElement("a");
     a.href = url;
     a.download = `beatbridge-airtable-only-${date}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportSiteOnlyCSV(
+    contacts: Array<ContactFull & { pageRange: string; pageHref: string; position: number }>
+  ) {
+    const esc = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const header = "username,full_name,followers,artist,profile_type,bio,template,page_range,position";
+    const rows = contacts.map((c) =>
+      [
+        esc(c.username),
+        esc(c.fullName),
+        c.followers,
+        esc(c.suiviPar),
+        esc(c.profileType),
+        esc(c.bio),
+        esc(c.template),
+        esc(c.pageRange),
+        c.position,
+      ].join(",")
+    );
+    const csv = [header, ...rows].join("\n");
+    const date = new Date().toISOString().slice(0, 10);
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `beatbridge-site-only-${date}.csv`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -2161,6 +2235,53 @@ export default function AdminClient({
               return b.followers - a.followers; // default: followers desc
             });
 
+            // ── computed values for Site-only tab ─────────────────────────
+            const SITE_FOLLOWER_RANGES: Record<string, [number, number]> = {
+              "0-500":   [0, 499],
+              "500-5K":  [500, 4999],
+              "5K-10K":  [5000, 9999],
+              "10K-20K": [10000, 19999],
+              "20K-50K": [20000, 49999],
+            };
+            // Build position map for site contacts
+            const sitePositionMap: Record<string, number> = {};
+            const siteRangeInfoMap: Record<string, { label: string; href: string }> = {};
+            {
+              const byKey = new Map<string, ContactFull[]>();
+              for (const r of allContacts) {
+                if (!isOnSite(r)) continue;
+                const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
+                const ranges = slug ? ARTIST_RANGES[slug] : undefined;
+                if (!ranges) continue;
+                const range = ranges.find((rng) => r.followers >= rng.min && r.followers <= rng.max);
+                if (!range) continue;
+                const key = `${slug}::${range.slug}`;
+                if (!byKey.has(key)) byKey.set(key, []);
+                byKey.get(key)!.push(r);
+                siteRangeInfoMap[r.id] = { label: `${r.suiviPar} · ${range.label}`, href: `/artist/${slug}/${range.slug}` };
+              }
+              for (const grp of Array.from(byKey.values())) {
+                const sorted = [...grp].sort((a, b) => b.followers - a.followers);
+                sorted.forEach((r, i) => { sitePositionMap[r.id] = i + 1; });
+              }
+            }
+            const siteOnlyBase = allContacts.filter((r) => isOnSite(r));
+            const filteredSiteOnly = siteOnlyBase.filter((r) => {
+              if (siteOnlySearch.trim()) {
+                const q = siteOnlySearch.toLowerCase();
+                if (!r.username.includes(q) && !r.fullName.toLowerCase().includes(q)) return false;
+              }
+              if (siteOnlyFilterArtist && r.suiviPar !== siteOnlyFilterArtist) return false;
+              if (siteOnlyFilterType && r.profileType !== siteOnlyFilterType) return false;
+              if (siteOnlyFilterTemplate === "has" && !r.hasTemplate) return false;
+              if (siteOnlyFilterTemplate === "none" && r.hasTemplate) return false;
+              if (siteOnlyFilterRange) {
+                const [min, max] = SITE_FOLLOWER_RANGES[siteOnlyFilterRange] ?? [0, Infinity];
+                if (r.followers < min || r.followers > max) return false;
+              }
+              return true;
+            }).sort((a, b) => b.followers - a.followers);
+
             const selectCls = "text-xs bg-white/[0.04] border border-white/[0.08] text-[#a0a0a0] px-2.5 py-2 rounded-lg focus:outline-none focus:border-white/[0.2] cursor-pointer";
 
             return (
@@ -2169,6 +2290,7 @@ export default function AdminClient({
               <div className="flex gap-0 mb-6 border-b border-white/[0.06]">
                 {([
                   { id: "all" as const,           label: "All Contacts" },
+                  { id: "site-only" as const,     label: "🌐 Site-only" },
                   { id: "duplicates" as const,    label: "🔍 Find Duplicates" },
                   { id: "airtable-only" as const, label: "📦 Airtable-only" },
                 ]).map((tab) => (
@@ -2329,6 +2451,149 @@ export default function AdminClient({
               )}
 
               {/* ──────────────────────────────────────────────────────────── */}
+              {/* SITE-ONLY TAB                                               */}
+              {/* ──────────────────────────────────────────────────────────── */}
+              {contactTab === "site-only" && (
+                <div>
+                  {/* Search + filters */}
+                  <div className="flex flex-col gap-3 mb-5">
+                    <div className="relative">
+                      <input
+                        className={inputCls + " pr-10"}
+                        placeholder="Search by @username or name…"
+                        value={siteOnlySearch}
+                        onChange={(e) => setSiteOnlySearch(e.target.value)}
+                        autoFocus
+                      />
+                      {allContactsLoading && (
+                        <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      )}
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      <select value={siteOnlyFilterArtist} onChange={(e) => setSiteOnlyFilterArtist(e.target.value)} className={selectCls}>
+                        <option value="">All artists</option>
+                        {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                      <select value={siteOnlyFilterType} onChange={(e) => setSiteOnlyFilterType(e.target.value)} className={selectCls}>
+                        <option value="">All types</option>
+                        {["Beatmaker/Producteur","Artiste/Rappeur","DJ","Label","Manager","Ingé son","Studio","Autre"].map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                      <select value={siteOnlyFilterTemplate} onChange={(e) => setSiteOnlyFilterTemplate(e.target.value)} className={selectCls}>
+                        <option value="">All templates</option>
+                        <option value="has">Has template</option>
+                        <option value="none">No template</option>
+                      </select>
+                      <select value={siteOnlyFilterRange} onChange={(e) => setSiteOnlyFilterRange(e.target.value)} className={selectCls}>
+                        <option value="">All followers</option>
+                        {["0-500","500-5K","5K-10K","10K-20K","20K-50K"].map((r) => <option key={r} value={r}>{r.replace("-"," – ")}</option>)}
+                      </select>
+                    </div>
+                  </div>
+
+                  {allContactsLoading && (
+                    <div className="flex items-center justify-center gap-2 text-sm text-[#606060] py-12">
+                      <span className="w-4 h-4 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
+                      Loading contacts…
+                    </div>
+                  )}
+
+                  {!allContactsLoading && allContactsLoaded && (
+                    <>
+                      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                        <p className="text-xs text-[#505050]">
+                          <span className="text-[#a0a0a0]">{filteredSiteOnly.length}</span> contacts shown on site
+                          {siteOnlyBase.length > filteredSiteOnly.length && (
+                            <span className="text-[#404040]"> (filtered from {siteOnlyBase.length})</span>
+                          )}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleLoadAllContacts(true)} className="text-xs text-[#505050] hover:text-orange-400 transition-colors">↺ Refresh</button>
+                          <button
+                            onClick={() => exportSiteOnlyCSV(filteredSiteOnly.map((r) => ({
+                              ...r,
+                              pageRange: siteRangeInfoMap[r.id]?.label ?? "",
+                              pageHref: siteRangeInfoMap[r.id]?.href ?? "",
+                              position: sitePositionMap[r.id] ?? 0,
+                            })))}
+                            disabled={filteredSiteOnly.length === 0}
+                            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 transition-all disabled:opacity-40 whitespace-nowrap"
+                          >
+                            ⬇️ Export CSV
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2">
+                        {filteredSiteOnly.slice(0, 200).map((contact) => {
+                          const rangeInfo = siteRangeInfoMap[contact.id];
+                          const pos = sitePositionMap[contact.id];
+                          return (
+                            <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-xl overflow-hidden">
+                              <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
+                                <a
+                                  href={`https://www.instagram.com/${contact.username}/`}
+                                  target="_blank" rel="noopener noreferrer"
+                                  className="text-sm font-semibold text-orange-400 hover:underline flex-shrink-0"
+                                >
+                                  @{contact.username}
+                                </a>
+                                {contact.fullName && <span className="text-xs text-[#a0a0a0] truncate max-w-[120px]">{contact.fullName}</span>}
+                                <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.suiviPar || "—"}</span>
+                                <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
+                                {contact.profileType && <span className="text-[11px] text-[#606060] hidden sm:inline flex-shrink-0">{contact.profileType}</span>}
+                                <span className={`text-[10px] px-1.5 py-px rounded-full border flex-shrink-0 ${contact.hasTemplate ? "bg-green-500/10 border-green-500/20 text-green-400/70" : "bg-white/[0.04] border-white/[0.06] text-[#404040]"}`}>
+                                  {contact.hasTemplate ? "template ✓" : "no template"}
+                                </span>
+                                {rangeInfo && (
+                                  <a
+                                    href={rangeInfo.href}
+                                    target="_blank" rel="noopener noreferrer"
+                                    className="text-[10px] text-[#505050] hover:text-orange-400/70 transition-colors flex-shrink-0 hidden sm:inline"
+                                  >
+                                    {rangeInfo.label}{pos ? ` · #${pos}` : ""}
+                                  </a>
+                                )}
+                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
+                                  <button
+                                    onClick={() => setDeleteTargetFull(contact)}
+                                    disabled={deletingContact === contact.id}
+                                    className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
+                                  >
+                                    {deletingContact === contact.id ? (
+                                      <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
+                                    ) : (
+                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                              {/* Range page link on mobile (inline row) */}
+                              {rangeInfo && (
+                                <div className="sm:hidden px-4 pb-2">
+                                  <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
+                                    className="text-[10px] text-[#505050] hover:text-orange-400/70 transition-colors">
+                                    {rangeInfo.label}{pos ? ` · #${pos}` : ""}
+                                  </a>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {filteredSiteOnly.length > 200 && (
+                          <p className="text-xs text-[#505050] text-center py-3">
+                            Showing first 200 of {filteredSiteOnly.length}. Use filters to narrow down.
+                          </p>
+                        )}
+                        {filteredSiteOnly.length === 0 && (
+                          <p className="text-[#505050] text-sm text-center py-8">No contacts match your filters.</p>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* ──────────────────────────────────────────────────────────── */}
               {/* FIND DUPLICATES TAB                                         */}
               {/* ──────────────────────────────────────────────────────────── */}
               {contactTab === "duplicates" && (
@@ -2475,12 +2740,38 @@ export default function AdminClient({
                                             {onSite ? "✅ On site" : "⚠️ Airtable only"}
                                           </span>
                                           {!isKeep && (
-                                            <button
-                                              onClick={() => handleSetKeep(g.username, r.id)}
-                                              className="ml-auto text-[10px] font-semibold px-2 py-0.5 rounded border border-green-500/40 text-green-400/80 hover:text-green-400 hover:bg-green-500/10 transition-colors whitespace-nowrap"
-                                            >
-                                              ✓ Keep this one
-                                            </button>
+                                            <div className="ml-auto flex items-center gap-1.5">
+                                              <button
+                                                onClick={() => handleSetKeep(g.username, r.id)}
+                                                className="text-[10px] font-semibold px-2 py-0.5 rounded border border-green-500/40 text-green-400/80 hover:text-green-400 hover:bg-green-500/10 transition-colors whitespace-nowrap"
+                                              >
+                                                ✓ Keep this one
+                                              </button>
+                                              {dupRecordDeleting === r.id ? (
+                                                <span className="flex items-center gap-1 text-[10px] text-red-400/60">
+                                                  <span className="w-2.5 h-2.5 border border-red-400 border-t-transparent rounded-full animate-spin inline-block" />
+                                                  Deleting…
+                                                </span>
+                                              ) : dupRecordDeleteConfirm === r.id ? (
+                                                <div className="flex items-center gap-1">
+                                                  <span className="text-[9px] text-[#606060]">Delete @{r.username}?</span>
+                                                  <button
+                                                    onClick={() => handleDeleteSpecificRecord(r.id, g.username)}
+                                                    className="text-[10px] font-semibold text-red-400 border border-red-500/40 px-2 py-0.5 rounded hover:bg-red-500/10 transition-colors whitespace-nowrap"
+                                                  >
+                                                    Yes
+                                                  </button>
+                                                  <button onClick={() => setDupRecordDeleteConfirm(null)} className="text-[10px] text-[#606060] hover:text-[#a0a0a0]">✕</button>
+                                                </div>
+                                              ) : (
+                                                <button
+                                                  onClick={() => setDupRecordDeleteConfirm(r.id)}
+                                                  className="text-[10px] px-2 py-0.5 rounded border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-colors whitespace-nowrap"
+                                                >
+                                                  🗑️ Delete
+                                                </button>
+                                              )}
+                                            </div>
                                           )}
                                         </div>
                                         {/* Details */}
