@@ -84,7 +84,7 @@ export default function MutualContactsWidget() {
                 <div className="text-right flex-shrink-0">
                   <p className="text-xs text-[#606060]">{c.profileType}</p>
                   {c.followers > 0 && (
-                    <p className="text-xs text-[#404040] mt-0.5">{formatFollowers(c.followers)}</p>
+                    <p className="text-xs text-[#404040] mt-0.5">{formatFollowers(c.followers)} followers</p>
                   )}
                 </div>
               </div>

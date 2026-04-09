@@ -73,6 +73,74 @@ type DupGroup = {
 
 type DupScanState = "idle" | "scanning" | "found" | "deleting" | "done";
 
+// ── Duplicate link helpers ────────────────────────────────────────────────────
+
+const SUIVIPAR_TO_SLUG: Record<string, string> = {
+  "Wheezy": "wheezy",
+  "Juke Wong": "juke-wong",
+  "Southside": "southside",
+  "Metro Boomin": "metro-boomin",
+  "Harry Fraud": "harry-fraud",
+  "Curren$y": "currensy",
+  "CurrenSy": "currensy",
+};
+
+type RangeDef = { min: number; max: number; slug: string; label: string };
+
+const ARTIST_RANGES: Record<string, RangeDef[]> = {
+  wheezy: [
+    { min: 500,   max: 4999,  slug: "500-5k",   label: "500–5K"   },
+    { min: 5000,  max: 9999,  slug: "5k-10k",   label: "5K–10K"   },
+    { min: 10000, max: 14999, slug: "10k-15k",  label: "10K–15K"  },
+    { min: 15000, max: 19999, slug: "15k-20k",  label: "15K–20K"  },
+    { min: 20000, max: 24999, slug: "20k-25k",  label: "20K–25K"  },
+    { min: 25000, max: 29999, slug: "25k-30k",  label: "25K–30K"  },
+    { min: 30000, max: 34999, slug: "30k-35k",  label: "30K–35K"  },
+    { min: 35000, max: 39999, slug: "35k-40k",  label: "35K–40K"  },
+    { min: 40000, max: 50000, slug: "40k-50k",  label: "40K–50K"  },
+  ],
+  "juke-wong": [
+    { min: 0,     max: 499,   slug: "0-500",    label: "0–500"    },
+    { min: 500,   max: 4999,  slug: "500-5k",   label: "500–5K"   },
+    { min: 5000,  max: 9999,  slug: "5k-10k",   label: "5K–10K"   },
+    { min: 10000, max: 19999, slug: "10k-20k",  label: "10K–20K"  },
+    { min: 20000, max: 29999, slug: "20k-30k",  label: "20K–30K"  },
+    { min: 30000, max: 39999, slug: "30k-40k",  label: "30K–40K"  },
+    { min: 40000, max: 50000, slug: "40k-50k",  label: "40K–50K"  },
+  ],
+  southside: [
+    { min: 0,     max: 499,   slug: "0-500",    label: "0–500"    },
+    { min: 500,   max: 4999,  slug: "500-5k",   label: "500–5K"   },
+    { min: 5000,  max: 9999,  slug: "5k-10k",   label: "5K–10K"   },
+    { min: 10000, max: 19999, slug: "10k-20k",  label: "10K–20K"  },
+    { min: 20000, max: 29999, slug: "20k-30k",  label: "20K–30K"  },
+    { min: 30000, max: 39999, slug: "30k-40k",  label: "30K–40K"  },
+    { min: 40000, max: 50000, slug: "40k-50k",  label: "40K–50K"  },
+  ],
+  "metro-boomin": [
+    { min: 0,     max: 499,   slug: "0-500",    label: "0–500"    },
+    { min: 500,   max: 4999,  slug: "500-5k",   label: "500–5K"   },
+    { min: 5000,  max: 9999,  slug: "5k-10k",   label: "5K–10K"   },
+    { min: 10000, max: 19999, slug: "10k-20k",  label: "10K–20K"  },
+    { min: 20000, max: 29999, slug: "20k-30k",  label: "20K–30K"  },
+    { min: 30000, max: 39999, slug: "30k-40k",  label: "30K–40K"  },
+    { min: 40000, max: 50000, slug: "40k-50k",  label: "40K–50K"  },
+  ],
+};
+
+function getDupRecordLink(r: ContactFull): { href: string; label: string } | null {
+  const slug = SUIVIPAR_TO_SLUG[r.suiviPar];
+  if (!slug) return null;
+  const ranges = ARTIST_RANGES[slug];
+  if (!ranges) return null;
+  const range = ranges.find((rng) => r.followers >= rng.min && r.followers <= rng.max);
+  if (!range) return null;
+  return {
+    href: `/artist/${slug}/${range.slug}`,
+    label: `${r.suiviPar} · ${range.label}`,
+  };
+}
+
 type RegenState = {
   slug: string;
   done: number;
@@ -1838,14 +1906,20 @@ export default function AdminClient({
                           <span className="text-[10px] text-[#505050]">{g.records.length} records</span>
                         </div>
                         <div className="flex flex-col gap-1">
-                          {g.records.map((r) => (
+                          {g.records.map((r) => {
+                            const dupLink = getDupRecordLink(r);
+                            return (
                             <div key={r.id} className={`flex items-center gap-2 text-[11px] ${r.id === g.keepId ? "text-green-400" : "text-[#606060] line-through"}`}>
                               {r.id === g.keepId ? "✓ keep" : "✗ delete"}
                               <span className="not-italic no-underline text-[#505050]">
-                                {r.suiviPar || "unknown artist"}{r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
+                                {dupLink ? (
+                                  <a href={dupLink.href} target="_blank" rel="noopener noreferrer" className="text-orange-400/70 hover:text-orange-400 hover:underline no-underline">{dupLink.label}</a>
+                                ) : (r.suiviPar || "unknown artist")}
+                                {r.hasTemplate ? " · has template" : ""}{r.hasBio ? " · has bio" : ""}
                               </span>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     ))}

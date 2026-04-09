@@ -504,7 +504,7 @@ export default function ConnectionCard({
               @{username}
             </button>
             {record.followers > 0 && (
-              <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)}</span>
+              <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)} followers</span>
             )}
           </div>
         </div>
@@ -521,7 +521,15 @@ export default function ConnectionCard({
             <StatusDropdown status={status} onChange={handleStatusChange} />
           )}
           <button
-            onClick={(e) => { e.stopPropagation(); openExternalUrl(`https://ig.me/m/${username}`); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (activeTemplate) {
+                navigator.clipboard.writeText(activeTemplate).then(() => {
+                  toast("✅ DM copied — paste it on Instagram");
+                });
+              }
+              openExternalUrl(`https://ig.me/m/${username}`);
+            }}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap min-h-[32px]"
           >
             Send DM →
@@ -607,7 +615,14 @@ export default function ConnectionCard({
                     {copied ? "✓ Copied!" : "Copy DM"}
                   </button>
                   <button
-                    onClick={() => openExternalUrl(`https://ig.me/m/${username}`)}
+                    onClick={() => {
+                      if (activeTemplate) {
+                        navigator.clipboard.writeText(activeTemplate).then(() => {
+                          toast("✅ DM copied — paste it on Instagram");
+                        });
+                      }
+                      openExternalUrl(`https://ig.me/m/${username}`);
+                    }}
                     className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
                     Send DM →
                   </button>
@@ -657,7 +672,14 @@ export default function ConnectionCard({
                     {copiedFollowUp ? "✓ Copied!" : "Copy Follow-up"}
                   </button>
                   <button
-                    onClick={() => openExternalUrl(`https://ig.me/m/${username}`)}
+                    onClick={() => {
+                      if (activeTemplate) {
+                        navigator.clipboard.writeText(activeTemplate).then(() => {
+                          toast("✅ DM copied — paste it on Instagram");
+                        });
+                      }
+                      openExternalUrl(`https://ig.me/m/${username}`);
+                    }}
                     className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-green-500/30 text-green-400 hover:bg-green-500/10 hover:border-green-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95">
                     Send DM →
                   </button>

@@ -20,6 +20,7 @@ import MutualContactsWidget from "@/components/MutualContactsWidget";
 import { getUserRank } from "@/lib/contactTier";
 import { DMStatusProvider, useDMStatus } from "@/contexts/DMStatusContext";
 import StatusDropdown from "@/components/ui/StatusDropdown";
+import toast from "react-hot-toast";
 
 interface ArtistData {
   slug: string;
@@ -392,7 +393,14 @@ function ArtistContactList({
 
                 {/* Send DM */}
                 <button
-                  onClick={() => { openExternalUrl(`https://ig.me/m/${username}`); }}
+                  onClick={() => {
+                    if (record.template) {
+                      navigator.clipboard.writeText(record.template).then(() => {
+                        toast("✅ DM copied — paste it on Instagram");
+                      });
+                    }
+                    openExternalUrl(`https://ig.me/m/${username}`);
+                  }}
                   className="flex-1 sm:flex-none text-center text-xs font-semibold px-3 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap"
                 >
                   Send DM →

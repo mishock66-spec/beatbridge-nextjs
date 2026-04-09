@@ -8,6 +8,7 @@ import { replyProbability, contactPriority } from "@/lib/scoreContact";
 import { getContactTier } from "@/lib/contactTier";
 import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import ScoringDisclaimer from "@/components/ScoringDisclaimer";
+import toast from "react-hot-toast";
 
 const TYPE_COLORS: Record<string, string> = {
   Producer: "bg-purple-500/20 text-purple-300 border-purple-500/30",
@@ -136,7 +137,7 @@ function DemoConnectionCard({
               onClick={(e) => { e.stopPropagation(); openExternal(record.profileUrl || `https://instagram.com/${username}`); }}
               className="text-orange-400 text-xs hover:underline flex-shrink-0"
             >@{username}</button>
-            {record.followers > 0 && <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)}</span>}
+            {record.followers > 0 && <span className="text-xs text-gray-600 flex-shrink-0 hidden sm:inline">{formatFollowers(record.followers)} followers</span>}
           </div>
         </div>
 
@@ -145,7 +146,16 @@ function DemoConnectionCard({
           <span className={`hidden lg:inline-flex text-xs font-medium px-2 py-0.5 rounded-full border ${priority.classes}`}>{priority.symbol} {priority.label}</span>
           <StatusDropdown status={status} onChange={handleStatusChange} />
           <button
-            onClick={(e) => { e.stopPropagation(); openExternal(`https://ig.me/m/${username}`); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              if (record.template) {
+                const resolved = producerName ? record.template.replace(/\[BEATMAKER_NAME\]/g, producerName) : record.template;
+                navigator.clipboard.writeText(resolved).then(() => {
+                  toast("✅ DM copied — paste it on Instagram");
+                });
+              }
+              openExternal(`https://ig.me/m/${username}`);
+            }}
             className="text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-orange-500/40 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/70 transition-all whitespace-nowrap min-h-[32px]"
           >Send DM →</button>
         </div>
@@ -177,7 +187,15 @@ function DemoConnectionCard({
                     className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white hover:opacity-90 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]">
                     {copied ? "✓ Copied!" : "Copy DM"}
                   </button>
-                  <button onClick={() => openExternal(`https://ig.me/m/${username}`)}
+                  <button onClick={() => {
+                    if (record.template) {
+                      const resolved = producerName ? record.template.replace(/\[BEATMAKER_NAME\]/g, producerName) : record.template;
+                      navigator.clipboard.writeText(resolved).then(() => {
+                        toast("✅ DM copied — paste it on Instagram");
+                      });
+                    }
+                    openExternal(`https://ig.me/m/${username}`);
+                  }}
                     className="w-full text-sm font-semibold py-2.5 px-3 rounded-lg border border-orange-500/30 text-orange-400 hover:bg-orange-500/10 hover:border-orange-500/60 hover:scale-[1.02] transition-all duration-200 active:scale-95 min-h-[44px]">
                     Send DM →
                   </button>
