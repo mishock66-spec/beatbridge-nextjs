@@ -1037,6 +1037,7 @@ function RankCard({ userId }: { userId: string | undefined }) {
       <div className="mb-3">
         <p className="text-2xl font-black text-white">{rank.emoji} {rank.rank}</p>
         <p className="text-xs text-gray-500 mt-0.5">{total_points} points total</p>
+        <p className="text-xs text-gray-600 mt-0.5">Points earned from profile setup, daily activity, DMs sent, and replies received.</p>
       </div>
       {rank.next && (
         <>
