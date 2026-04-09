@@ -8,9 +8,15 @@ import { createClient } from "@supabase/supabase-js";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
+const ADMIN_EMAIL = "mishock66@gmail.com";
+const ADMIN_USER_ID = process.env.ADMIN_CLERK_USER_ID ?? "";
+
 export async function POST(req: NextRequest) {
+  console.log("[clerk-webhook] POST received");
+
   const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
   if (!webhookSecret) {
+    console.error("[clerk-webhook] CLERK_WEBHOOK_SECRET not set");
     return NextResponse.json({ error: "Webhook secret not configured" }, { status: 500 });
   }
 
@@ -19,6 +25,8 @@ export async function POST(req: NextRequest) {
   const svixId = headerPayload.get("svix-id");
   const svixTimestamp = headerPayload.get("svix-timestamp");
   const svixSignature = headerPayload.get("svix-signature");
+
+  console.log("[clerk-webhook] svix headers present:", { svixId: !!svixId, svixTimestamp: !!svixTimestamp, svixSignature: !!svixSignature });
 
   if (!svixId || !svixTimestamp || !svixSignature) {
     return NextResponse.json({ error: "Missing svix headers" }, { status: 400 });
@@ -35,30 +43,45 @@ export async function POST(req: NextRequest) {
       "svix-timestamp": svixTimestamp,
       "svix-signature": svixSignature,
     }) as { type: string; data: Record<string, unknown> };
-  } catch {
+  } catch (err) {
+    console.error("[clerk-webhook] Signature verification failed:", err);
     return NextResponse.json({ error: "Invalid webhook signature" }, { status: 400 });
   }
 
+  console.log("[clerk-webhook] Event type:", event.type);
+
   if (event.type === "user.created") {
     const data = event.data;
+    console.log("[clerk-webhook] user.created — user id:", data.id);
 
-    const emailAddresses = data.email_addresses as Array<{ email_address: string }> | undefined;
+    // ── Derive email ──────────────────────────────────────────────────────────
+    const emailAddresses = data.email_addresses as Array<{ id: string; email_address: string }> | undefined;
     const primaryEmailId = data.primary_email_address_id as string | undefined;
-    const primaryEmailObj = emailAddresses?.find(
-      (e) => (data.email_addresses as Array<{ id: string; email_address: string }>)
-        ?.find((x) => x.id === primaryEmailId)?.email_address === e.email_address
-    );
-    const userEmail = primaryEmailObj?.email_address ?? emailAddresses?.[0]?.email_address ?? "Unknown";
+    const primaryEmail =
+      emailAddresses?.find((e) => e.id === primaryEmailId) ?? emailAddresses?.[0];
+    const userEmail = primaryEmail?.email_address ?? "unknown";
 
+    // ── Derive name ───────────────────────────────────────────────────────────
     const firstName = (data.first_name as string) || "";
     const lastName = (data.last_name as string) || "";
-
-    // Derive a display name: "First Last", or email prefix if no name provided
     const derivedName =
       [firstName, lastName].filter(Boolean).join(" ").trim() ||
-      (userEmail !== "Unknown" ? userEmail.split("@")[0] : "");
+      (userEmail !== "unknown" ? userEmail.split("@")[0] : "New User");
 
-    // Create Supabase profile + welcome message immediately on sign-up
+    const fullName = derivedName || "New User";
+
+    const createdAt = data.created_at as number;
+    const signUpDate = createdAt
+      ? new Date(createdAt).toLocaleString("en-US", {
+          timeZone: "UTC",
+          dateStyle: "long",
+          timeStyle: "short",
+        }) + " UTC"
+      : new Date().toUTCString();
+
+    console.log("[clerk-webhook] New user:", { fullName, userEmail, signUpDate });
+
+    // ── Supabase: create profile + welcome inbox message ──────────────────────
     const newUserId = data.id as string;
     if (newUserId) {
       const supabase = createClient(
@@ -66,7 +89,8 @@ export async function POST(req: NextRequest) {
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
       );
       const now = new Date().toISOString();
-      await supabase.from("user_profiles").upsert(
+
+      const { error: profileError } = await supabase.from("user_profiles").upsert(
         {
           user_id: newUserId,
           producer_name: derivedName || null,
@@ -78,57 +102,76 @@ export async function POST(req: NextRequest) {
         },
         { onConflict: "user_id" }
       );
+      if (profileError) console.error("[clerk-webhook] profile upsert error:", profileError.message);
 
-      // Send welcome inbox message
-      const welcomeTitle = "Welcome to BeatBridge 🎹";
-      const welcomeBody = `Hey${derivedName ? ` ${derivedName}` : ""}! Welcome to BeatBridge — your 14-day trial has started.\n\nHere's how to get the most out of it:\n\n**1. Explore a network** — Go to /artists and pick an artist. Browse their producers, engineers, and managers.\n\n**2. Use the DM templates** — Every contact has a ready-to-send ice-breaker. Fill in your name and listening link once and all templates update automatically.\n\n**3. Track your outreach** — Mark contacts as "DM sent", "Replied", or "Not interested" to stay organized.\n\nIf you have questions, reply to this message or reach out at contact@beatbridge.live.\n\nLet's get you some placements. 🔥`;
-
-      await supabase.from("messages").insert({
+      // Welcome inbox message to new user
+      const { error: welcomeError } = await supabase.from("messages").insert({
         batch_id: crypto.randomUUID(),
         user_id: newUserId,
-        title: welcomeTitle,
-        body: welcomeBody,
+        title: "Welcome to BeatBridge 🎹",
+        body: `Hey${derivedName ? ` ${derivedName}` : ""}! Welcome to BeatBridge — your 14-day trial has started.\n\nHere's how to get the most out of it:\n\n**1. Explore a network** — Go to /artists and pick an artist. Browse their producers, engineers, and managers.\n\n**2. Use the DM templates** — Every contact has a ready-to-send ice-breaker. Fill in your name and listening link once and all templates update automatically.\n\n**3. Track your outreach** — Mark contacts as "DM sent", "Replied", or "Not interested" to stay organized.\n\nIf you have questions, reply to this message or reach out at contact@beatbridge.live.\n\nLet's get you some placements. 🔥`,
         type: "announcement",
         read: false,
         is_broadcast: false,
       });
+      if (welcomeError) console.error("[clerk-webhook] welcome message error:", welcomeError.message);
+
+      // ── Admin inbox notification (internal BeatBridge message) ────────────
+      if (ADMIN_USER_ID) {
+        const { error: adminMsgError } = await supabase.from("messages").insert({
+          batch_id: crypto.randomUUID(),
+          user_id: ADMIN_USER_ID,
+          title: `New user joined — ${fullName}`,
+          body: `${fullName} (${userEmail}) just created an account.\nPlan: Free\nJoined: ${signUpDate}`,
+          type: "announcement",
+          read: false,
+          is_broadcast: false,
+        });
+        if (adminMsgError) {
+          console.error("[clerk-webhook] admin inbox message error:", adminMsgError.message);
+        } else {
+          console.log("[clerk-webhook] Admin inbox notification sent to", ADMIN_USER_ID);
+        }
+      } else {
+        console.warn("[clerk-webhook] ADMIN_CLERK_USER_ID not set — skipping admin inbox notification");
+      }
     }
-    const fullName = derivedName || "No name provided";
 
-    const createdAt = data.created_at as number;
-    const signUpDate = createdAt
-      ? new Date(createdAt).toLocaleString("en-US", { timeZone: "UTC", dateStyle: "long", timeStyle: "short" }) + " UTC"
-      : new Date().toUTCString();
-
-    // Admin notification
-    await resend.emails.send({
+    // ── Admin email notification ──────────────────────────────────────────────
+    console.log("[clerk-webhook] Sending admin email to", ADMIN_EMAIL);
+    const { error: adminEmailError } = await resend.emails.send({
       from: "BeatBridge <onboarding@resend.dev>",
-      to: "contact@beatbridge.live",
-      subject: "🎹 New BeatBridge signup!",
+      to: ADMIN_EMAIL,
+      subject: `🎉 New BeatBridge user: ${fullName}`,
       html: `
-        <div style="font-family: sans-serif; max-width: 480px; margin: 0 auto; padding: 24px; background: #0f0f0f; color: #f1f1f1; border-radius: 8px;">
-          <h2 style="color: #f97316; margin-bottom: 8px;">🎹 New BeatBridge Signup</h2>
-          <p style="color: #a3a3a3; margin-bottom: 24px;">Someone just joined the platform.</p>
-          <table style="width: 100%; border-collapse: collapse;">
+        <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#0f0f0f;color:#f1f1f1;border-radius:8px;">
+          <h2 style="color:#f97316;margin:0 0 8px;">🎉 New BeatBridge Signup</h2>
+          <p style="color:#a3a3a3;margin:0 0 24px;">Someone just joined the platform.</p>
+          <table style="width:100%;border-collapse:collapse;">
             <tr>
-              <td style="padding: 10px 0; border-bottom: 1px solid #1f1f1f; color: #a3a3a3; width: 40%;">Email</td>
-              <td style="padding: 10px 0; border-bottom: 1px solid #1f1f1f; color: #f1f1f1;">${userEmail}</td>
+              <td style="padding:10px 0;border-bottom:1px solid #1f1f1f;color:#a3a3a3;width:40%;">Name</td>
+              <td style="padding:10px 0;border-bottom:1px solid #1f1f1f;color:#f1f1f1;">${fullName}</td>
             </tr>
             <tr>
-              <td style="padding: 10px 0; border-bottom: 1px solid #1f1f1f; color: #a3a3a3;">Full Name</td>
-              <td style="padding: 10px 0; border-bottom: 1px solid #1f1f1f; color: #f1f1f1;">${fullName}</td>
+              <td style="padding:10px 0;border-bottom:1px solid #1f1f1f;color:#a3a3a3;">Email</td>
+              <td style="padding:10px 0;border-bottom:1px solid #1f1f1f;color:#f1f1f1;">${userEmail}</td>
             </tr>
             <tr>
-              <td style="padding: 10px 0; color: #a3a3a3;">Signed Up</td>
-              <td style="padding: 10px 0; color: #f1f1f1;">${signUpDate}</td>
+              <td style="padding:10px 0;color:#a3a3a3;">Joined</td>
+              <td style="padding:10px 0;color:#f1f1f1;">${signUpDate}</td>
             </tr>
           </table>
         </div>
       `,
     });
+    if (adminEmailError) {
+      console.error("[clerk-webhook] Admin email send error:", adminEmailError);
+    } else {
+      console.log("[clerk-webhook] Admin email sent successfully");
+    }
 
     // Welcome email to new user
-    if (userEmail && userEmail !== "Unknown") {
+    if (userEmail && userEmail !== "unknown") {
       await resend.emails.send({
         from: "BeatBridge <onboarding@resend.dev>",
         to: userEmail,
