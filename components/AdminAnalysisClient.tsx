@@ -72,6 +72,7 @@ export default function AdminAnalysisClient() {
   const [jobCompleted, setJobCompleted] = useState(0);
   const [jobSkipped, setJobSkipped] = useState(0);
   const [jobErrors, setJobErrors] = useState(0);
+  const [jobCurrent, setJobCurrent] = useState<string | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -122,11 +123,14 @@ export default function AdminAnalysisClient() {
         if (!res.ok) return;
         const data = await res.json();
 
+        console.log("[Analysis] poll response:", data);
+
         setJobProgress(data.progress ?? 0);
         setJobTotal(data.total ?? 0);
         setJobCompleted(data.completed ?? 0);
         setJobSkipped(data.skipped ?? 0);
         setJobErrors(data.errors ?? 0);
+        setJobCurrent(data.current ?? null);
 
         if (data.status === "completed" || data.status === "rate_limited") {
           setSessionState("done");
@@ -197,6 +201,7 @@ export default function AdminAnalysisClient() {
     setJobCompleted(0);
     setJobSkipped(0);
     setJobErrors(0);
+    setJobCurrent(null);
 
     try {
       const res = await fetch("/api/admin/start-analysis", {
@@ -315,6 +320,13 @@ export default function AdminAnalysisClient() {
                       />
                     </div>
                   </div>
+
+                  {/* Currently analyzing */}
+                  {sessionState === "running" && jobCurrent && (
+                    <p className="text-xs text-[#606060] font-mono truncate">
+                      Currently: {jobCurrent}
+                    </p>
+                  )}
 
                   {/* Stats row */}
                   <div className="flex items-center gap-4 text-sm">
