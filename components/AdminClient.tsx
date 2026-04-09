@@ -2284,6 +2284,103 @@ export default function AdminClient({
 
             const selectCls = "text-xs bg-white/[0.04] border border-white/[0.08] text-[#a0a0a0] px-2.5 py-2 rounded-lg focus:outline-none focus:border-white/[0.2] cursor-pointer";
 
+            // ── Shared expanded panel renderer ────────────────────────────
+            const renderExpandedPanel = (contact: ContactFull) => {
+              const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
+              const rangeInfo = siteRangeInfoMap[contact.id];
+              const pos = sitePositionMap[contact.id];
+              const emailMatch = (contact.bio + " " + contact.template).match(/[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/);
+              const onSite = isOnSite(contact);
+              return (
+                <div className="border-t border-white/[0.06] px-4 pb-4 pt-3" onClick={(e) => e.stopPropagation()}>
+                  {/* Details */}
+                  <div className="flex flex-col gap-1.5 text-xs mb-3">
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Name:</span>
+                      <span className="text-[#a0a0a0]">{contact.fullName || "—"}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Handle:</span>
+                      <a href={`https://www.instagram.com/${contact.username}/`} target="_blank" rel="noopener noreferrer"
+                        className="text-orange-400 hover:underline">@{contact.username}</a>
+                    </div>
+                    {onSite && rangeInfo && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Page:</span>
+                        <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
+                          className="text-orange-400/80 hover:underline">{rangeInfo.label}{pos ? ` · #${pos}` : ""}</a>
+                      </div>
+                    )}
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Followers:</span>
+                      <span className="text-[#a0a0a0]">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Type:</span>
+                      <span className="text-[#a0a0a0]">{contact.profileType || "—"}</span>
+                    </div>
+                    {emailMatch && (
+                      <div className="flex items-start gap-2">
+                        <span className="text-[#505050] w-14 flex-shrink-0 pt-px">Email:</span>
+                        <span className="text-blue-400 font-mono text-[10px]">{emailMatch[0]}</span>
+                      </div>
+                    )}
+                  </div>
+                  {contact.bio && (
+                    <div className="mb-2.5">
+                      <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">Bio / Notes</p>
+                      <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{contact.bio}</p>
+                    </div>
+                  )}
+                  {contact.template && (
+                    <div className="mb-4">
+                      <p className="text-[10px] text-[#505050] uppercase tracking-[0.08em] mb-1">DM Template</p>
+                      <p className="text-[11px] text-[#707070] leading-relaxed bg-white/[0.02] rounded-lg px-2.5 py-2 border border-white/[0.04] whitespace-pre-wrap">{contact.template}</p>
+                    </div>
+                  )}
+                  {/* Edit fields */}
+                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
+                    <Field label="Followers">
+                      <input type="number" className={inputCls} value={edit.followers}
+                        onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 })} />
+                    </Field>
+                    <Field label="Profile Type">
+                      <CustomSelect
+                        value={edit.profileType}
+                        onChange={(v) => setContactEdit(contact.id, { profileType: v })}
+                        placeholder="— select type —"
+                        options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
+                      />
+                    </Field>
+                  </div>
+                  {/* Actions */}
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      {onSite && rangeInfo && (
+                        <a
+                          href={rangeInfo.href}
+                          target="_blank" rel="noopener noreferrer"
+                          className="text-xs font-medium px-3 py-1.5 rounded-lg border border-white/[0.1] text-[#a0a0a0] hover:text-white hover:border-white/[0.2] transition-all"
+                        >
+                          🔗 View on site
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => { setDeleteTargetFull(contact); }}
+                        disabled={deletingContact === contact.id}
+                        className="text-xs px-3 py-1.5 rounded-lg border border-red-500/20 text-red-400/60 hover:text-red-400 hover:border-red-500/40 hover:bg-red-500/10 transition-all disabled:opacity-40"
+                      >
+                        🗑️ Delete
+                      </button>
+                      <SaveButton onClick={() => handleSaveContactFull(contact)} saving={savingContact === contact.id} label="Save changes" />
+                    </div>
+                  </div>
+                </div>
+              );
+            };
+
             return (
             <div>
               {/* ── Tab navigation ────────────────────────────────────────── */}
@@ -2368,21 +2465,19 @@ export default function AdminClient({
                         <button onClick={() => handleLoadAllContacts(true)} className="text-xs text-[#505050] hover:text-orange-400 transition-colors">↺ Refresh</button>
                       </div>
 
-                      <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-2">
                         {filteredAllContacts.slice(0, 100).map((contact) => {
-                          const edit = contactEdits[contact.id] ?? { followers: contact.followers, profileType: contact.profileType };
                           const isExpanded = expandedContactEdit === contact.id;
+                          const onSite = isOnSite(contact);
                           return (
-                            <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
-                              {/* Compact row */}
-                              <div className="flex items-center gap-2 px-4 py-3 flex-wrap">
-                                <a
-                                  href={`https://www.instagram.com/${contact.username}/`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  className="text-sm font-semibold text-orange-400 hover:underline flex-shrink-0"
-                                >
-                                  @{contact.username}
-                                </a>
+                            <div key={contact.id} className={`bg-white/[0.025] border rounded-2xl overflow-hidden transition-colors ${isExpanded ? "border-white/[0.15]" : "border-white/[0.08] hover:border-white/[0.12]"}`}>
+                              {/* Compact row — click to expand */}
+                              <div
+                                className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none flex-wrap"
+                                onClick={() => setExpandedContactEdit(isExpanded ? null : contact.id)}
+                              >
+                                <svg className={`w-3 h-3 text-[#505050] flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                <span className="text-sm font-semibold text-orange-400 flex-shrink-0">@{contact.username}</span>
                                 {contact.fullName && <span className="text-xs text-[#a0a0a0] truncate max-w-[120px]">{contact.fullName}</span>}
                                 <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.suiviPar || "—"}</span>
                                 <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
@@ -2390,49 +2485,9 @@ export default function AdminClient({
                                 <span className={`text-[10px] px-1.5 py-px rounded-full border flex-shrink-0 ${contact.hasTemplate ? "bg-green-500/10 border-green-500/20 text-green-400/70" : "bg-white/[0.04] border-white/[0.06] text-[#404040]"}`}>
                                   {contact.hasTemplate ? "template ✓" : "no template"}
                                 </span>
-                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-                                  <button
-                                    onClick={() => setExpandedContactEdit(isExpanded ? null : contact.id)}
-                                    className="text-[11px] px-2 py-1 rounded-lg border border-white/[0.08] text-[#606060] hover:text-white hover:border-white/[0.2] transition-colors"
-                                  >
-                                    {isExpanded ? "▾ Close" : "✏️ Edit"}
-                                  </button>
-                                  <button
-                                    onClick={() => setDeleteTargetFull(contact)}
-                                    disabled={deletingContact === contact.id}
-                                    className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
-                                  >
-                                    {deletingContact === contact.id ? (
-                                      <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    )}
-                                  </button>
-                                </div>
+                                {onSite && <span className="text-[10px] text-green-400/60 flex-shrink-0 hidden sm:inline">✅ on site</span>}
                               </div>
-
-                              {/* Expandable edit panel */}
-                              {isExpanded && (
-                                <div className="border-t border-white/[0.06] px-4 pb-4 pt-3">
-                                  <div className="grid sm:grid-cols-2 gap-3 mb-3">
-                                    <Field label="Followers">
-                                      <input type="number" className={inputCls} value={edit.followers}
-                                        onChange={(e) => setContactEdit(contact.id, { followers: parseInt(e.target.value) || 0 })} />
-                                    </Field>
-                                    <Field label="Profile Type">
-                                      <CustomSelect
-                                        value={edit.profileType}
-                                        onChange={(v) => setContactEdit(contact.id, { profileType: v })}
-                                        placeholder="— select type —"
-                                        options={PROFILE_TYPE_OPTIONS.map((t) => ({ value: t, label: t }))}
-                                      />
-                                    </Field>
-                                  </div>
-                                  <div className="flex justify-end">
-                                    <SaveButton onClick={() => handleSaveContactFull(contact)} saving={savingContact === contact.id} label="Save contact" />
-                                  </div>
-                                </div>
-                              )}
+                              {isExpanded && renderExpandedPanel(contact)}
                             </div>
                           );
                         })}
@@ -2527,16 +2582,16 @@ export default function AdminClient({
                         {filteredSiteOnly.slice(0, 200).map((contact) => {
                           const rangeInfo = siteRangeInfoMap[contact.id];
                           const pos = sitePositionMap[contact.id];
+                          const isExpanded = expandedContactEdit === contact.id;
                           return (
-                            <div key={contact.id} className="bg-white/[0.025] border border-white/[0.08] rounded-xl overflow-hidden">
-                              <div className="flex items-center gap-2 px-4 py-2.5 flex-wrap">
-                                <a
-                                  href={`https://www.instagram.com/${contact.username}/`}
-                                  target="_blank" rel="noopener noreferrer"
-                                  className="text-sm font-semibold text-orange-400 hover:underline flex-shrink-0"
-                                >
-                                  @{contact.username}
-                                </a>
+                            <div key={contact.id} className={`bg-white/[0.025] border rounded-2xl overflow-hidden transition-colors ${isExpanded ? "border-white/[0.15]" : "border-white/[0.08] hover:border-white/[0.12]"}`}>
+                              {/* Compact row — click to expand */}
+                              <div
+                                className="flex items-center gap-2 px-4 py-3 cursor-pointer select-none flex-wrap"
+                                onClick={() => setExpandedContactEdit(isExpanded ? null : contact.id)}
+                              >
+                                <svg className={`w-3 h-3 text-[#505050] flex-shrink-0 transition-transform duration-200 ${isExpanded ? "rotate-90" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" /></svg>
+                                <span className="text-sm font-semibold text-orange-400 flex-shrink-0">@{contact.username}</span>
                                 {contact.fullName && <span className="text-xs text-[#a0a0a0] truncate max-w-[120px]">{contact.fullName}</span>}
                                 <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.suiviPar || "—"}</span>
                                 <span className="text-[11px] text-[#505050] flex-shrink-0">{contact.followers > 0 ? formatFollowersBadge(contact.followers) : "—"}</span>
@@ -2545,37 +2600,12 @@ export default function AdminClient({
                                   {contact.hasTemplate ? "template ✓" : "no template"}
                                 </span>
                                 {rangeInfo && (
-                                  <a
-                                    href={rangeInfo.href}
-                                    target="_blank" rel="noopener noreferrer"
-                                    className="text-[10px] text-[#505050] hover:text-orange-400/70 transition-colors flex-shrink-0 hidden sm:inline"
-                                  >
+                                  <span className="text-[10px] text-[#505050] flex-shrink-0 hidden sm:inline">
                                     {rangeInfo.label}{pos ? ` · #${pos}` : ""}
-                                  </a>
+                                  </span>
                                 )}
-                                <div className="ml-auto flex items-center gap-1.5 flex-shrink-0">
-                                  <button
-                                    onClick={() => setDeleteTargetFull(contact)}
-                                    disabled={deletingContact === contact.id}
-                                    className="p-1.5 text-[#505050] hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/[0.08] disabled:opacity-40"
-                                  >
-                                    {deletingContact === contact.id ? (
-                                      <span className="w-3.5 h-3.5 block border-2 border-[#606060] border-t-transparent rounded-full animate-spin" />
-                                    ) : (
-                                      <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-                                    )}
-                                  </button>
-                                </div>
                               </div>
-                              {/* Range page link on mobile (inline row) */}
-                              {rangeInfo && (
-                                <div className="sm:hidden px-4 pb-2">
-                                  <a href={rangeInfo.href} target="_blank" rel="noopener noreferrer"
-                                    className="text-[10px] text-[#505050] hover:text-orange-400/70 transition-colors">
-                                    {rangeInfo.label}{pos ? ` · #${pos}` : ""}
-                                  </a>
-                                </div>
-                              )}
+                              {isExpanded && renderExpandedPanel(contact)}
                             </div>
                           );
                         })}
