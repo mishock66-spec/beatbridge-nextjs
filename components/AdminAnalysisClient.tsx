@@ -390,6 +390,13 @@ IF the profile has NO posts, NO highlights, AND NO bio:
   → Set analysis_note to "Profile has no visible content"
   → Do NOT include this contact in the final JSON results
 
+STEP 4b — Check highlights and stories (ALWAYS, even if posts exist)
+Look at the highlight bubbles below the bio.
+- Note all highlight titles visible
+- Click on each highlight and watch the first 3-5 frames
+- Note what you see: studio sessions, performances, behind the scenes, equipment, events, etc.
+- Highlights often reveal more than posts about what someone actually does
+
 STEP 5 — Analyze and classify
 Based on EVERYTHING you saw (not just the bio), determine:
 
@@ -442,8 +449,9 @@ Contacts to analyze (${selectedContacts.length} total):
 ${contactList}`;
 
     navigator.clipboard.writeText(prompt).then(() => {
+      window.open("https://claude.ai", "_blank", "noopener,noreferrer");
       setCopyToast(true);
-      setTimeout(() => setCopyToast(false), 3000);
+      setTimeout(() => setCopyToast(false), 4000);
     });
   }
 
@@ -950,7 +958,7 @@ ${contactList}`;
                 </button>
                 {copyToast && (
                   <div className="absolute left-0 -bottom-9 bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
-                    ✅ Copied! Paste it into Claude in Chrome
+                    ✅ Prompt copied — Claude opened in a new tab. Paste the prompt there.
                   </div>
                 )}
               </div>
