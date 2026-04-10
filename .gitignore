@@ -35,4 +35,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# local-only scripts (do not push)
+scripts/generate-*-templates.mjs
+
 .vercel
