@@ -1,5 +1,13 @@
 # Claude Code Instructions — BeatBridge
 
+## CONTEXT FILES
+Always read these files at the start of each session:
+- ARTIST_ONBOARDING.md — artist onboarding pipeline
+
+## ARTIST ONBOARDING
+When adding a new artist to BeatBridge, ALWAYS read ARTIST_ONBOARDING.md first and follow every step exactly.
+Never skip steps or improvise the onboarding pipeline.
+
 ## 🚨 CRITICAL RULES — NEVER BREAK THESE
 
 ### DOCUMENTATION FILES
