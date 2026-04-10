@@ -70,6 +70,7 @@ export default function AdminAnalysisClient() {
   const [manualFilterArtist, setManualFilterArtist] = useState("");
   const [manualFilterType, setManualFilterType] = useState("");
   const [manualHideEmpty, setManualHideEmpty] = useState(true);
+  const [manualAnalyzedTab, setManualAnalyzedTab] = useState<"all" | "pending" | "analyzed">("pending");
   const [manualVisibleCount, setManualVisibleCount] = useState(100);
 
   // Filters — analyzed contacts section
@@ -203,8 +204,13 @@ export default function AdminAnalysisClient() {
     if (manualHideEmpty) {
       result = result.filter((c) => c.bio.trim().length > 0 || c.template.trim().length > 0);
     }
+    if (manualAnalyzedTab === "pending") {
+      result = result.filter((c) => !c.analyzed);
+    } else if (manualAnalyzedTab === "analyzed") {
+      result = result.filter((c) => c.analyzed);
+    }
     return result;
-  }, [contacts, manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty]);
+  }, [contacts, manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty, manualAnalyzedTab]);
 
   // Filtered + limited contacts for queue (mode-aware)
   const selectedContacts = useMemo(() => {
@@ -282,7 +288,7 @@ export default function AdminAnalysisClient() {
   // Reset visible count when search/filters change
   useEffect(() => {
     setManualVisibleCount(100);
-  }, [manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty]);
+  }, [manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty, manualAnalyzedTab]);
 
   function buildContactPayload() {
     return selectedContacts.map((c) => ({
@@ -658,6 +664,15 @@ ${contactList}`;
               </button>
             </div>
 
+            {/* ── Progress stat line ── */}
+            {!loading && contacts.length > 0 && (
+              <div className="px-5 py-2.5 border-b border-white/[0.06] flex items-center gap-3 text-xs text-[#606060]">
+                <span className="text-green-400/80">✅ {totalAnalyzed.toLocaleString()} analyzed</span>
+                <span className="text-[#303030]">·</span>
+                <span>⏳ {totalPending.toLocaleString()} remaining</span>
+              </div>
+            )}
+
             <div className="p-6 flex flex-col gap-5">
 
               {/* ── FILTER MODE ── */}
@@ -738,6 +753,31 @@ ${contactList}`;
                     </select>
                   </div>
 
+                  {/* Analysis status tabs */}
+                  {(() => {
+                    const pendingCount = contacts.filter((c) => !c.analyzed).length;
+                    const analyzedCount = contacts.filter((c) => c.analyzed).length;
+                    const tabCls = (active: boolean) =>
+                      `px-3 py-1.5 rounded-lg text-xs font-medium transition-colors whitespace-nowrap ${
+                        active
+                          ? "bg-white/[0.08] text-white"
+                          : "text-[#505050] hover:text-white"
+                      }`;
+                    return (
+                      <div className="flex gap-1 flex-wrap">
+                        <button onClick={() => setManualAnalyzedTab("pending")} className={tabCls(manualAnalyzedTab === "pending")}>
+                          ⏳ Not analyzed ({pendingCount.toLocaleString()})
+                        </button>
+                        <button onClick={() => setManualAnalyzedTab("analyzed")} className={tabCls(manualAnalyzedTab === "analyzed")}>
+                          ✅ Analyzed ({analyzedCount.toLocaleString()})
+                        </button>
+                        <button onClick={() => setManualAnalyzedTab("all")} className={tabCls(manualAnalyzedTab === "all")}>
+                          All ({contacts.length.toLocaleString()})
+                        </button>
+                      </div>
+                    );
+                  })()}
+
                   {/* Hide empty toggle */}
                   <label className="flex items-center gap-2 cursor-pointer select-none self-start">
                     <input
@@ -797,9 +837,10 @@ ${contactList}`;
                         return (
                           <label
                             key={c.id}
-                            className={`flex items-center gap-3 px-6 py-2.5 cursor-pointer transition-colors ${
+                            className={`flex items-center gap-3 pl-5 pr-6 py-2.5 cursor-pointer transition-colors ${
                               isChecked ? "bg-orange-500/[0.06]" : "hover:bg-white/[0.02]"
                             }`}
+                            style={c.analyzed ? { borderLeft: "2px solid rgba(34,197,94,0.3)" } : { borderLeft: "2px solid transparent" }}
                           >
                             <input
                               type="checkbox"
@@ -846,7 +887,9 @@ ${contactList}`;
                               </span>
                             )}
                             {c.analyzed && (
-                              <span className="flex-shrink-0 text-xs text-green-500/70" title="Already analyzed">✅</span>
+                              <span className="flex-shrink-0 text-xs font-medium px-1.5 py-0.5 rounded bg-green-500/10 text-green-400/80 border border-green-500/20 whitespace-nowrap">
+                                ✅ Analyzed
+                              </span>
                             )}
                           </label>
                         );
