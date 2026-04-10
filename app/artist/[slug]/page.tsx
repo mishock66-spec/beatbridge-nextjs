@@ -103,50 +103,35 @@ export default async function ArtistNetwork({
         <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
-        <ArtistNetworkClient
-          records={records}
-          loading={false}
-          error={error}
-          dmPriorityOrder={dmPriorityOrder}
-          artistSlug={slug}
-          artistName={meta.name}
-        />
-
-        {/* Explore Full Network — any artist with ranges */}
-        {meta.ranges.length > 0 && (
-          <div className="mt-16 border-t border-[#1f1f1f] pt-12">
+        {meta.ranges.length > 0 ? (
+          <div className="mt-8">
             <div className="mb-6">
-              <h2 className="text-2xl font-light tracking-[0.02em] mb-2">
-                Explore Full Network
-              </h2>
-              <p className="text-[#a0a0a0] text-sm">
-                Browse all contacts by follower range.{" "}
-                <span className="text-orange-400">Smaller accounts reply faster</span> — start low.
-              </p>
+              <h2 className="text-2xl font-light tracking-[0.02em] mb-2">Browse by Follower Range</h2>
+              <p className="text-[#a0a0a0] text-sm">Browse all contacts by follower range. <span className="text-orange-400">Smaller accounts reply faster</span> — start low.</p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {meta.ranges.map(({ slug: rangeSlug, label, desc, premium }) => (
                 <Link
                   key={rangeSlug}
                   href={`/artist/${slug}/${rangeSlug}`}
-                  className={`border rounded-xl p-4 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group text-center ${
-                    premium
-                      ? "bg-purple-500/[0.04] border-purple-500/20 hover:border-purple-500/40"
-                      : "bg-white/[0.025] border-white/[0.08] hover:border-orange-500/30"
-                  }`}
+                  className={`border rounded-xl p-4 hover:-translate-y-0.5 transition-all duration-200 text-center ${premium ? "border-purple-500/20 hover:border-purple-500/40" : "border-white/[0.08] hover:border-orange-500/30"}`}
                 >
-                  <p className={`text-sm font-semibold transition-colors ${
-                    premium
-                      ? "text-purple-300 group-hover:text-purple-200"
-                      : "text-white group-hover:text-orange-400"
-                  }`}>
-                    {label}{premium && " 🔒"}
-                  </p>
-                  {desc && <p className="text-xs text-[#505050] mt-1">{desc}</p>}
+                  <p className={`text-sm font-semibold mb-1 ${premium ? "text-purple-400" : "text-white"}`}>{label}</p>
+                  {desc && <p className="text-xs text-[#606060]">{desc}</p>}
+                  {premium && <p className="text-[10px] text-purple-400/70 mt-1">🔒 Premium</p>}
                 </Link>
               ))}
             </div>
           </div>
+        ) : (
+          <ArtistNetworkClient
+            records={records}
+            loading={false}
+            error={error}
+            dmPriorityOrder={dmPriorityOrder}
+            artistSlug={slug}
+            artistName={meta.name}
+          />
         )}
 
         {/* Top Contacts — artists with a curated /top page */}
