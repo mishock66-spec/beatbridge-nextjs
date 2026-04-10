@@ -63,6 +63,7 @@ export default function AdminAnalysisClient() {
 
   // Filters — analyzed contacts section
   const [analyzedFilterArtist, setAnalyzedFilterArtist] = useState("");
+  const [copyToast, setCopyToast] = useState(false);
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   function toggleExpanded(id: string) {
@@ -263,6 +264,51 @@ export default function AdminAnalysisClient() {
     const now = new Date().toISOString();
     localStorage.setItem(LAST_RUN_KEY, now);
     setLastRun(now);
+  }
+
+  function handleCopyPrompt() {
+    const contactList = selectedContacts
+      .map((c) => {
+        const handle = c.username.replace(/^@/, "");
+        const bio = c.bio?.trim() ? `\n   Bio: ${c.bio.trim().slice(0, 200)}` : "";
+        return `- @${handle} (record_id: ${c.id})${bio}`;
+      })
+      .join("\n");
+
+    const prompt = `I need you to analyze Instagram profiles for BeatBridge.
+
+For each username in this list, visit their Instagram profile, take a screenshot, and analyze:
+1. What type of profile is this? (Beatmaker/Producteur, Artiste/Rappeur, Manager, Ingé son, Label, DJ, Photographe/Vidéaste, or Autre)
+2. Write a personalized 1-2 sentence DM template that references something specific from their profile.
+   Start with "Hey [name], I'm [BEATMAKER_NAME],"
+   End with one of: "think we could build something?" / "would love to connect." / "open to hear your thoughts."
+   Never include a link or URL.
+3. Write a 1-line analysis note explaining your classification.
+
+After analyzing ALL profiles, call this API to save results:
+POST https://beatbridge.live/api/admin/save-analysis
+Headers: Content-Type: application/json
+Body:
+{
+  "adminSecret": "beatbridge-analyzer-2026",
+  "results": [
+    {
+      "record_id": "recXXX (use the record_id from the list below)",
+      "username": "@handle",
+      "profile_type": "...",
+      "template": "Hey [name], I'm [BEATMAKER_NAME]...",
+      "analysis_note": "..."
+    }
+  ]
+}
+
+Contacts to analyze (${selectedContacts.length} total):
+${contactList}`;
+
+    navigator.clipboard.writeText(prompt).then(() => {
+      setCopyToast(true);
+      setTimeout(() => setCopyToast(false), 3000);
+    });
   }
 
   function closeOverlay() {
@@ -523,15 +569,73 @@ export default function AdminAnalysisClient() {
                     </span>
                   )}
                 </button>
-                {selectedContacts.length > 0 && (
-                  <button
-                    onClick={triggerDownload}
-                    className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
-                  >
-                    ⬇️ Download queue JSON
-                  </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── SECTION 1b — Claude in Chrome Mode ─────────────────────────────── */}
+        <section>
+          <h2 className="text-xl font-light tracking-[0.02em] mb-1">Claude in Chrome Mode</h2>
+          <p className="text-sm text-[#606060] mb-6">
+            Paste a generated prompt into Claude in your Chrome browser — Claude visits each profile visually and saves results back to Airtable automatically.
+          </p>
+
+          <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-5">
+            {/* How it works */}
+            <ol className="flex flex-col gap-3">
+              {[
+                "Use the queue builder above to select contacts",
+                "Click \"📋 Copy prompt for Claude in Chrome\" below",
+                "Open Claude in Chrome and paste the prompt",
+                "Claude visits each Instagram profile, analyzes with vision, and calls the save API",
+                "Results are saved to Airtable automatically — refresh this page to see them",
+              ].map((step, i) => (
+                <li key={i} className="flex gap-3 items-start">
+                  <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/15 border border-blue-500/30 text-blue-400 text-xs font-bold flex items-center justify-center mt-0.5">
+                    {i + 1}
+                  </span>
+                  <span className="text-sm text-[#a0a0a0]">{step}</span>
+                </li>
+              ))}
+            </ol>
+
+            {/* API endpoint info */}
+            <div className="bg-[#0d0d0d] border border-white/[0.06] rounded-xl px-4 py-3 text-xs font-mono text-[#606060]">
+              <p className="text-[#404040] mb-1">Save endpoint (Claude calls this automatically):</p>
+              <p className="text-blue-400">POST https://beatbridge.live/api/admin/save-analysis</p>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 pt-1 border-t border-white/[0.06]">
+              <div className="relative">
+                <button
+                  onClick={handleCopyPrompt}
+                  disabled={selectedContacts.length === 0 || loading}
+                  className="flex items-center gap-2 bg-blue-600/80 hover:bg-blue-600 text-white text-sm font-semibold px-5 py-2.5 rounded-lg transition-all disabled:opacity-40 disabled:cursor-not-allowed min-h-[44px] whitespace-nowrap"
+                >
+                  <span>📋</span>
+                  Copy prompt for Claude in Chrome
+                  {selectedContacts.length > 0 && (
+                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                      {selectedContacts.length}
+                    </span>
+                  )}
+                </button>
+                {copyToast && (
+                  <div className="absolute left-0 -bottom-9 bg-green-600 text-white text-xs font-semibold px-3 py-1.5 rounded-lg whitespace-nowrap shadow-lg">
+                    ✅ Copied! Paste it into Claude in Chrome
+                  </div>
                 )}
               </div>
+              {selectedContacts.length > 0 && (
+                <button
+                  onClick={triggerDownload}
+                  className="text-xs text-[#505050] hover:text-orange-400 transition-colors"
+                >
+                  ⬇️ Download queue JSON
+                </button>
+              )}
             </div>
           </div>
         </section>
