@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 import Stripe from "stripe";
 import { createClient } from "@supabase/supabase-js";
+import { ARTISTS_CONFIG, getArtistPrimaryFilter } from "@/lib/artists.config";
 
 export const dynamic = "force-dynamic";
 
@@ -69,7 +70,7 @@ const SYSTEM_PROMPT = `You are the BeatBridge Admin AI — a powerful assistant 
 5. Give stats and insights about the platform
 
 BEATBRIDGE CONTEXT:
-- 6 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin
+- 7 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin, Tay Keith
 - Airtable base: appW42oNhB9Hl14bq, table: tbl0nVXbK5BQnU5FM
 
 AIRTABLE FIELD NAMES (exact):
@@ -77,9 +78,10 @@ AIRTABLE FIELD NAMES (exact):
 - "Nom complet" → full name
 - "Nombre de followers" → follower count (number)
 - "Type de profil" → profile type. Values: "Beatmaker/Producteur", "Ingé son", "Manager", "Artiste/Rappeur", "Photographe/Vidéaste", "DJ", "Autre"
-- "Suivi par" → artist network. Values: "Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin"
+- "Suivi par" → artist network. Values: "Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin", "Tay Keith"
 - "Statut de contact" → status (e.g. "Archivé")
 - "template" → DM template text (empty string if none)
+- "follow_up" → Step 2 follow-up DM (sent after contact replies)
 - "Notes" → bio/description (empty string if none)
 
 AIRTABLE FIELD IDs (for import/update operations):
@@ -92,6 +94,7 @@ AIRTABLE FIELD IDs (for import/update operations):
 - fld7C9ekFhBlwcy2L — Suivi par (artist name)
 - fldpLozVCrvYj62i0 — Notes (bio)
 - fldy8ho1lxBh8iB3n — template
+- fldvT8Qq6LDFzcRgJ — follow_up
 - fldLRttkukXJiVs0u — analyzed (checkbox)
 
 BUSINESS RULES:
@@ -176,8 +179,8 @@ EXAMPLES:
 const AGENT_SYSTEM_PROMPT = `You are the BeatBridge Admin AI — a powerful assistant with direct API access to platform data via tools.
 
 BEATBRIDGE CONTEXT:
-- 6 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin
-- ~3900 contacts across these networks in Airtable
+- 7 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin, Tay Keith
+- ~5000+ contacts across these networks in Airtable (Tay Keith alone has ~1081)
 - Live SaaS platform with paying users
 
 AIRTABLE FIELD IDs (always use these for update/import, never field names):
@@ -189,7 +192,8 @@ AIRTABLE FIELD IDs (always use these for update/import, never field names):
 - fldgITyqXWRJMA5tV = Statut de contact (default: "À contacter")
 - fld7C9ekFhBlwcy2L = Suivi par (artist name)
 - fldpLozVCrvYj62i0 = Notes (bio)
-- fldy8ho1lxBh8iB3n = template
+- fldy8ho1lxBh8iB3n = template (Step 1 DM — no link, ends with question)
+- fldvT8Qq6LDFzcRgJ = follow_up (Step 2 DM — sent after contact replies, contains [LINK])
 - fldLRttkukXJiVs0u = analyzed (checkbox boolean)
 
 AIRTABLE FILTER FORMULA SYNTAX (for airtable_query):
@@ -315,12 +319,13 @@ Choice ID for Autre: selmOadl7YJihw4H9
 - Update CLAUDE.md with new artist slug, Airtable filter, social links
 
 ## CURRENT ARTISTS
-- Wheezy | slug: wheezy | filter: "Wheezy" | @wheezy | @wheezy0uttahere
 - Curren$y | slug: currensy | filter: "Curren$y" or "CurrenSy" | @spitta_andretti | @CurrenSy_Spitta
 - Harry Fraud | slug: harry-fraud | filter: "Harry Fraud" | @harryfraud | @HarryFraud
+- Wheezy | slug: wheezy | filter: "Wheezy" | @wheezy | @wheezy0uttahere
 - Juke Wong | slug: juke-wong | filter: "Juke Wong" | @jukewong
 - Southside | slug: southside | filter: "Southside" | @808mafiaboss | @808mafiaboss
 - Metro Boomin | slug: metro-boomin | filter: "Metro Boomin" | @metroboomin | @MetroBoomin
+- Tay Keith | slug: tay-keith | filter: "Tay Keith" | ~1081 contacts
 
 ## AIRTABLE FIELD IDs (confirmed)
 - fldNrahDUrSgVljvc — Pseudo Instagram
@@ -331,9 +336,15 @@ Choice ID for Autre: selmOadl7YJihw4H9
 - fldgITyqXWRJMA5tV — Statut de contact
 - fld7C9ekFhBlwcy2L — Suivi par
 - fldpLozVCrvYj62i0 — Notes (bio)
-- fldy8ho1lxBh8iB3n — template
-- fldvT8Qq6LDFzcRgJ — follow_up
+- fldy8ho1lxBh8iB3n — template (Step 1 — ice-breaker, no link)
+- fldvT8Qq6LDFzcRgJ — follow_up (Step 2 — contains [LINK], shown after "Replied")
 - fldLRttkukXJiVs0u — analyzed (checkbox)
+
+## GENERATING DM TEMPLATES
+You can generate DM templates for any artist network using the generate_dm_templates tool.
+When asked to generate templates, use batchSize: 100 and repeat until all contacts are processed.
+The tool finds contacts where template is empty OR starts with "Bio:" (incorrectly populated during import).
+It generates a personalized ice-breaker (no link) and sets follow_up to the standard Step 2 message.
 
 ## SEND DM FORMAT
 - Always use: https://ig.me/m/USERNAME (official Meta format)
@@ -522,7 +533,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
         fields: {
           type: "object",
           description:
-            "Field ID → value pairs. Field IDs: fldNrahDUrSgVljvc (username), fldJEVNir9beLv8Ph (fullName), fldvT6sZIjc1ypnMw (followers), fld8dCqjrnqCsRSog (profileType), fldgITyqXWRJMA5tV (status), fld7C9ekFhBlwcy2L (suiviPar), fldpLozVCrvYj62i0 (notes), fldy8ho1lxBh8iB3n (template), fldLRttkukXJiVs0u (analyzed bool)",
+            "Field ID → value pairs. Field IDs: fldNrahDUrSgVljvc (username), fldJEVNir9beLv8Ph (fullName), fldvT6sZIjc1ypnMw (followers), fld8dCqjrnqCsRSog (profileType), fldgITyqXWRJMA5tV (status), fld7C9ekFhBlwcy2L (suiviPar), fldpLozVCrvYj62i0 (notes), fldy8ho1lxBh8iB3n (template — Step 1 ice-breaker), fldvT8Qq6LDFzcRgJ (follow_up — Step 2 with [LINK]), fldLRttkukXJiVs0u (analyzed bool)",
         },
       },
       required: ["recordIds", "fields"],
@@ -565,7 +576,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
               },
               suiviPar: {
                 type: "string",
-                enum: ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin"],
+                enum: ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin", "Tay Keith"],
               },
               bio: { type: "string" },
               template: { type: "string" },
@@ -626,6 +637,25 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       required: ["query_type"],
     },
   },
+  {
+    name: "generate_dm_templates",
+    description:
+      "Generate personalized DM templates for contacts in an artist network. Finds contacts where the template is empty or starts with 'Bio:' (bad import), calls Claude Haiku to write an ice-breaker using the contact's bio, and updates fldy8ho1lxBh8iB3n (template) + fldvT8Qq6LDFzcRgJ (follow_up) in Airtable. Contacts without a bio get the default fallback template. Max 100 per call — repeat until all are processed.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        artist: {
+          type: "string",
+          description: 'The Suivi par value for the artist network. E.g. "Tay Keith", "Metro Boomin"',
+        },
+        batchSize: {
+          type: "number",
+          description: "Number of contacts to process in this call (default 100, max 100)",
+        },
+      },
+      required: ["artist"],
+    },
+  },
   // Built-in Anthropic web search tool — executed server-side, no client implementation needed
   {
     type: "web_search_20250305",
@@ -641,6 +671,7 @@ type ToolKeys = {
   supabaseKey: string;
   stripeKey?: string;
   clerkKey?: string;
+  anthropicKey?: string;
 };
 
 async function executeTool(
@@ -923,7 +954,154 @@ async function executeTool(
     return { error: "Unknown query_type" };
   }
 
+  // ── generate_dm_templates ───────────────────────────────────────────────────
+  if (name === "generate_dm_templates") {
+    if (!keys.anthropicKey) return { error: "ANTHROPIC_API_KEY not configured" };
+    const artist = (input.artist as string).trim();
+    const batchSize = Math.min((input.batchSize as number) || 100, 100);
+
+    const FOLLOW_UP = "Appreciate the reply — here it is: [LINK]";
+    const defaultTemplate = (username: string) =>
+      `Hey ${username || "there"}, I'm [BEATMAKER_NAME] — noticed you're connected to ${artist}'s network. Would love to connect.`;
+
+    // Fetch contacts needing templates
+    const formula = `AND({Suivi par}="${artist}",OR({template}="",{template}=BLANK(),LEFT({template},4)="Bio:"))`;
+    const fetchParams = new URLSearchParams({
+      filterByFormula: formula,
+      pageSize: String(batchSize),
+    });
+    (["fldNrahDUrSgVljvc", "fldJEVNir9beLv8Ph", "fldpLozVCrvYj62i0", "fld8dCqjrnqCsRSog"] as const).forEach(
+      (f) => fetchParams.append("fields[]", f)
+    );
+    const fetchRes = await fetch(
+      `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}?${fetchParams.toString()}`,
+      { headers: { Authorization: `Bearer ${keys.airtableKey}` } }
+    );
+    if (!fetchRes.ok) return { error: `Airtable fetch failed: ${fetchRes.status}` };
+    const fetchData = await fetchRes.json();
+    const contacts: Array<{ id: string; fields: Record<string, string> }> = fetchData.records ?? [];
+
+    let processed = 0;
+    let updated = 0;
+    const errors: string[] = [];
+    const updates: Array<{ id: string; fields: Record<string, string> }> = [];
+
+    for (const record of contacts) {
+      processed++;
+      const username = (record.fields["fldNrahDUrSgVljvc"] ?? "").trim();
+      const fullName = (record.fields["fldJEVNir9beLv8Ph"] ?? "").trim();
+      let bio = (record.fields["fldpLozVCrvYj62i0"] ?? "").trim();
+      bio = bio.replace(/^Bio:\s*/i, "").trim();
+      const profileType = (record.fields["fld8dCqjrnqCsRSog"] ?? "").trim();
+      const name = fullName && fullName.length > 1 && fullName !== username ? fullName : username || "there";
+
+      let template = defaultTemplate(username || name);
+
+      if (bio && bio.length >= 5) {
+        try {
+          const typeHint =
+            profileType && profileType !== "Autre"
+              ? ` They appear to be a ${profileType.toLowerCase()}.`
+              : "";
+          const haikuRes = await fetch("https://api.anthropic.com/v1/messages", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-api-key": keys.anthropicKey,
+              "anthropic-version": "2023-06-01",
+            },
+            body: JSON.stringify({
+              model: "claude-haiku-4-5-20251001",
+              max_tokens: 150,
+              system: `You write short, natural ice-breaker DMs for a beatmaker reaching out to contacts in ${artist}'s network.\n\nRules:\n- Max 2 sentences. Conversational tone.\n- Reference ONE specific detail from the bio.\n- End with a short question.\n- NEVER include a link or URL.\n- Use [BEATMAKER_NAME] literally as a placeholder.\n- Do NOT mention "cold DM" or anything salesy.\n- Start with "Yo," or "Hey [name]," — vary the opener.\n- Contact's name/username: "${name}"`,
+              messages: [
+                {
+                  role: "user",
+                  content: `Contact bio: "${bio}"${typeHint}\n\nWrite a single ice-breaker DM (1-2 sentences, ending with a question). Output ONLY the message text.`,
+                },
+              ],
+            }),
+          });
+          if (haikuRes.ok) {
+            const haikuData = await haikuRes.json();
+            const generated = ((haikuData.content[0] as { text?: string })?.text ?? "").trim();
+            if (generated && generated.length > 10) template = generated;
+          }
+        } catch (e) {
+          errors.push(`${username}: ${e instanceof Error ? e.message : String(e)}`);
+        }
+      }
+
+      updates.push({ id: record.id, fields: { fldy8ho1lxBh8iB3n: template, fldvT8Qq6LDFzcRgJ: FOLLOW_UP } });
+
+      // Flush batch of 10
+      if (updates.length === 10) {
+        const batch = updates.splice(0, 10);
+        const patchRes = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${keys.airtableKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ records: batch }),
+        });
+        if (patchRes.ok) {
+          const patchData = await patchRes.json();
+          updated += (patchData.records ?? []).length;
+        } else {
+          errors.push(`Batch update failed: ${patchRes.status}`);
+        }
+      }
+    }
+
+    // Flush remaining
+    if (updates.length > 0) {
+      for (let i = 0; i < updates.length; i += 10) {
+        const batch = updates.slice(i, i + 10);
+        const patchRes = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
+          method: "PATCH",
+          headers: { Authorization: `Bearer ${keys.airtableKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ records: batch }),
+        });
+        if (patchRes.ok) {
+          const patchData = await patchRes.json();
+          updated += (patchData.records ?? []).length;
+        } else {
+          errors.push(`Final batch update failed: ${patchRes.status}`);
+        }
+      }
+    }
+
+    return { processed, updated, errors };
+  }
+
   return { error: `Unknown tool: ${name}` };
+}
+
+// ── Dynamic artist context (auto-synced from config) ──────────────────────────
+
+function buildDynamicArtistContext(): string {
+  const lines = ARTISTS_CONFIG.map((a) => {
+    const filters = Array.isArray(a.airtableFilter)
+      ? a.airtableFilter.map((f) => `"${f}"`).join(" or ")
+      : `"${a.airtableFilter}"`;
+    return `- ${a.name} | slug: ${a.slug} | filter: ${filters}`;
+  });
+  return [
+    `## CURRENT ARTISTS (${ARTISTS_CONFIG.length} total — auto-synced from config)`,
+    ...lines,
+  ].join("\n");
+}
+
+function buildDynamicAgentPrompt(): string {
+  const marker = "## CURRENT ARTISTS";
+  const nextSection = "\n## ";
+  const startIdx = AGENT_SYSTEM_PROMPT.indexOf(marker);
+  if (startIdx === -1) return AGENT_SYSTEM_PROMPT + "\n\n" + buildDynamicArtistContext();
+  const afterMarker = startIdx + marker.length;
+  const endIdx = AGENT_SYSTEM_PROMPT.indexOf(nextSection, afterMarker);
+  const dynamicContext = buildDynamicArtistContext();
+  if (endIdx === -1) {
+    return AGENT_SYSTEM_PROMPT.slice(0, startIdx) + dynamicContext;
+  }
+  return AGENT_SYSTEM_PROMPT.slice(0, startIdx) + dynamicContext + "\n" + AGENT_SYSTEM_PROMPT.slice(endIdx);
 }
 
 // ── Main handler ───────────────────────────────────────────────────────────────
@@ -957,7 +1135,9 @@ export async function POST(req: NextRequest) {
       supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
       stripeKey: process.env.STRIPE_SECRET_KEY,
       clerkKey: process.env.CLERK_SECRET_KEY,
+      anthropicKey,
     };
+    const agentSystemPrompt = buildDynamicAgentPrompt();
 
     // Build messages from conversation history
     type MsgParam = { role: "user" | "assistant"; content: unknown };
@@ -993,7 +1173,7 @@ export async function POST(req: NextRequest) {
         response = await client.messages.create({
           model: "claude-sonnet-4-20250514",
           max_tokens: 4096,
-          system: AGENT_SYSTEM_PROMPT,
+          system: agentSystemPrompt,
           tools: AGENT_TOOLS,
           messages: messages as Anthropic.MessageParam[],
         });
