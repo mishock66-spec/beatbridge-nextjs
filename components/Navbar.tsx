@@ -99,7 +99,7 @@ export default function Navbar() {
       <div className="max-w-6xl mx-auto px-4 h-14 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/images/logo.webp" alt="BeatBridge" className="h-8 w-auto object-contain" />
+          <img src="/images/logo.webp" alt="BeatBridge" className="h-12 w-auto object-contain" />
         </Link>
 
         <div className="flex items-center gap-3 sm:gap-6">
