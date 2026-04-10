@@ -58,7 +58,13 @@ export type DupGroup = {
 
 // ── System prompt ──────────────────────────────────────────────────────────────
 
-const SYSTEM_PROMPT = `You are the BeatBridge Admin AI. You translate natural language admin commands into structured JSON action plans.
+const SYSTEM_PROMPT = `You are the BeatBridge Admin AI — a powerful assistant for managing the BeatBridge platform. You can:
+
+1. Answer questions about BeatBridge data
+2. Analyze uploaded images and screenshots
+3. Parse and import CSV files with Instagram contacts
+4. Query and update Airtable records
+5. Give stats and insights about the platform
 
 BEATBRIDGE CONTEXT:
 - 6 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin
@@ -74,13 +80,36 @@ AIRTABLE FIELD NAMES (exact):
 - "template" → DM template text (empty string if none)
 - "Notes" → bio/description (empty string if none)
 
+AIRTABLE FIELD IDs (for import/update operations):
+- fldNrahDUrSgVljvc — Pseudo Instagram (username)
+- fldJEVNir9beLv8Ph — Nom complet (full name)
+- fldKKIDVHyYSg2lNh — Lien profil (profile URL)
+- fldvT6sZIjc1ypnMw — Nombre de followers
+- fld8dCqjrnqCsRSog — Type de profil
+- fldgITyqXWRJMA5tV — Statut de contact (default: 'À contacter')
+- fld7C9ekFhBlwcy2L — Suivi par (artist name)
+- fldpLozVCrvYj62i0 — Notes (bio)
+- fldy8ho1lxBh8iB3n — template
+
 BUSINESS RULES:
 - "Autre" = unclassified profile type (contacts with no type yet)
 - "no template" = template field is empty
 - Top contacts cap is 50K followers max (10K for Juke Wong)
 - ~6000+ total contacts across all networks
 
-RETURN FORMAT: Return ONLY a raw JSON object, no markdown fences, no explanation text outside the JSON.
+WHEN THE USER UPLOADS A CSV:
+- First show a preview: "I can see X rows with these columns: ..."
+- Ask which artist network to assign them to (Suivi par field)
+- Confirm before importing: "Ready to import X contacts to Airtable for [Artist]. Confirm?"
+- To import, call POST /api/admin/import-contacts with adminSecret: "beatbridge-analyzer-2026"
+- Report results: how many imported, any errors
+
+WHEN THE USER UPLOADS A SCREENSHOT OR IMAGE:
+- Describe what you see in detail
+- Take action if relevant (e.g. if it's an Instagram profile, extract the data and offer to add to Airtable)
+- If it shows analytics or stats, summarize the key numbers
+
+RETURN FORMAT for structured commands: Return ONLY a raw JSON object, no markdown fences, no explanation text outside the JSON.
 
 JSON SCHEMA:
 {
@@ -410,6 +439,59 @@ export async function POST(req: NextRequest) {
     } catch (e) {
       return NextResponse.json(
         { error: e instanceof Error ? e.message : "Execution failed" },
+        { status: 500 }
+      );
+    }
+  }
+
+  // ── Phase "chat": free-form conversation, optionally with image or CSV ────────
+  if (phase === "chat") {
+    const { message, image, csvText } = body as {
+      message?: string;
+      image?: { base64: string; mediaType: string };
+      csvText?: string;
+    };
+
+    const client = new Anthropic({ apiKey: anthropicKey });
+
+    // Build message content
+    type ContentBlock =
+      | { type: "text"; text: string }
+      | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+
+    const content: ContentBlock[] = [];
+
+    if (image) {
+      content.push({
+        type: "image",
+        source: { type: "base64", media_type: image.mediaType, data: image.base64 },
+      });
+    }
+
+    const textParts: string[] = [];
+    if (csvText) {
+      textParts.push(`CSV file contents (first 100 rows):\n\`\`\`\n${csvText}\n\`\`\``);
+    }
+    if (message?.trim()) {
+      textParts.push(message.trim());
+    }
+    if (textParts.length === 0) {
+      textParts.push("Please analyze this.");
+    }
+    content.push({ type: "text", text: textParts.join("\n\n") });
+
+    try {
+      const response = await client.messages.create({
+        model: "claude-sonnet-4-20250514",
+        max_tokens: 1024,
+        system: SYSTEM_PROMPT,
+        messages: [{ role: "user", content }],
+      });
+      const reply = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+      return NextResponse.json({ reply });
+    } catch (e) {
+      return NextResponse.json(
+        { error: `Claude API error: ${e instanceof Error ? e.message : String(e)}` },
         { status: 500 }
       );
     }

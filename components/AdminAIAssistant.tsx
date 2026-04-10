@@ -15,7 +15,8 @@ type ChatStatus =
   | "done"
   | "cancelled"
   | "error"
-  | "explain";
+  | "explain"
+  | "chat";
 
 type ChatEntry = {
   id: string;
@@ -41,8 +42,10 @@ type ChatEntry = {
     dmsSentTotal: number;
   };
   explanation?: string;
+  chatReply?: string;
   result?: { deleted?: number; updated?: number };
   error?: string;
+  attachmentLabel?: string;
 };
 
 function formatFollowers(n: number) {
@@ -159,6 +162,9 @@ function ChatBubble({
       {/* User message */}
       <div className="flex justify-end">
         <div className="max-w-[85%] bg-orange-500/20 border border-orange-500/30 rounded-2xl rounded-tr-sm px-3.5 py-2.5">
+          {entry.attachmentLabel && (
+            <p className="text-[11px] text-orange-300/70 mb-1">📎 {entry.attachmentLabel}</p>
+          )}
           <p className="text-sm text-white">{entry.userMessage}</p>
           <p className="text-[10px] text-orange-400/50 mt-0.5 text-right">{formatTime(entry.timestamp)}</p>
         </div>
@@ -198,7 +204,12 @@ function ChatBubble({
 
             {/* Explain / read-only text answer */}
             {entry.status === "explain" && (
-              <p className="text-sm text-[#a0a0a0] leading-relaxed">{entry.explanation}</p>
+              <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.explanation}</p>
+            )}
+
+            {/* Free-form chat reply (image / CSV analysis) */}
+            {entry.status === "chat" && (
+              <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.chatReply}</p>
             )}
 
             {/* Stats */}
@@ -388,13 +399,47 @@ function ChatBubble({
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+// ── Simple CSV parser (no external deps) ──────────────────────────────────────
+
+function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 1) return { headers: [], rows: [] };
+  const splitLine = (line: string) => {
+    const result: string[] = [];
+    let cur = "";
+    let inQuote = false;
+    for (let i = 0; i < line.length; i++) {
+      const ch = line[i];
+      if (ch === '"') { inQuote = !inQuote; continue; }
+      if (ch === "," && !inQuote) { result.push(cur.trim()); cur = ""; continue; }
+      cur += ch;
+    }
+    result.push(cur.trim());
+    return result;
+  };
+  const headers = splitLine(lines[0]);
+  const rows = lines.slice(1, 101).map((l) => {
+    const vals = splitLine(l);
+    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
+  });
+  return { headers, rows };
+}
+
+type AttachedFile =
+  | { kind: "image"; name: string; base64: string; mediaType: string; label: string }
+  | { kind: "csv"; name: string; csvText: string; rowCount: number; label: string };
+
+// ── Main component ─────────────────────────────────────────────────────────────
+
 export default function AdminAIAssistant({ adminUserId }: { adminUserId: string }) {
   const [previewMode, setPreviewMode] = useState(true);
   const [input, setInput] = useState("");
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [loading, setLoading] = useState(false);
+  const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom when entries change
   useEffect(() => {
@@ -411,14 +456,51 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
     setInput("");
     setLoading(true);
 
+    const currentFile = attachedFile;
+    setAttachedFile(null);
+
     const entryId = `e_${Date.now()}`;
     const newEntry: ChatEntry = {
       id: entryId,
       userMessage: msg,
       timestamp: new Date(),
       status: "loading",
+      attachmentLabel: currentFile?.label,
     };
     setEntries((prev) => [...prev, newEntry]);
+
+    // File attached — route to chat phase
+    if (currentFile) {
+      try {
+        const body: Record<string, unknown> = {
+          userId: adminUserId,
+          phase: "chat",
+          message: msg,
+        };
+        if (currentFile.kind === "image") {
+          body.image = { base64: currentFile.base64, mediaType: currentFile.mediaType };
+        } else {
+          body.csvText = currentFile.csvText;
+        }
+        const res = await fetch("/api/admin/ai-assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Request failed");
+        updateEntry(entryId, { status: "chat", chatReply: data.reply });
+      } catch (e) {
+        updateEntry(entryId, {
+          status: "error",
+          error: e instanceof Error ? e.message : "Unknown error",
+        });
+      } finally {
+        setLoading(false);
+        inputRef.current?.focus();
+      }
+      return;
+    }
 
     try {
       const res = await fetch("/api/admin/ai-assistant", {
@@ -574,6 +656,38 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
     }
   }
 
+  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.type.startsWith("image/")) {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const dataUrl = reader.result as string;
+        const base64 = dataUrl.split(",")[1];
+        setAttachedFile({
+          kind: "image",
+          name: file.name,
+          base64,
+          mediaType: file.type,
+          label: file.name,
+        });
+      };
+      reader.readAsDataURL(file);
+    } else if (file.name.endsWith(".csv")) {
+      const text = await file.text();
+      const { headers, rows } = parseCSV(text);
+      const csvText = JSON.stringify(rows, null, 2);
+      setAttachedFile({
+        kind: "csv",
+        name: file.name,
+        csvText,
+        rowCount: rows.length,
+        label: `${file.name} (${rows.length} rows, columns: ${headers.join(", ")})`,
+      });
+    }
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }
+
   return (
     <div className="flex flex-col h-[calc(100vh-180px)] min-h-[500px]">
       {/* Header */}
@@ -658,7 +772,40 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
             ))}
           </div>
         )}
+
+        {/* Attachment badge */}
+        {attachedFile && (
+          <div className="flex items-center gap-2 mb-2 px-1">
+            <span className="flex items-center gap-1.5 text-xs bg-orange-500/10 border border-orange-500/20 text-orange-300/80 rounded-lg px-2.5 py-1.5 max-w-full truncate">
+              📎 {attachedFile.label}
+            </span>
+            <button
+              onClick={() => setAttachedFile(null)}
+              className="text-[#505050] hover:text-white transition-colors flex-shrink-0 text-sm leading-none"
+              title="Remove attachment"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*,.csv"
+          className="hidden"
+          onChange={handleFileSelect}
+        />
+
         <div className="flex gap-2">
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={loading}
+            title="Attach image or CSV"
+            className="px-3 py-3 rounded-xl bg-white/[0.04] border border-white/[0.08] text-[#606060] hover:text-orange-400 hover:border-orange-500/30 transition-colors disabled:opacity-40 flex-shrink-0 min-h-[44px]"
+          >
+            📎
+          </button>
           <textarea
             ref={inputRef}
             rows={1}
@@ -666,7 +813,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading}
-            placeholder="Tell the AI what to do…"
+            placeholder={attachedFile ? "Describe what to do with this file…" : "Tell the AI what to do…"}
             className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-none disabled:opacity-60 min-h-[44px] max-h-[120px]"
             style={{ height: "auto" }}
             onInput={(e) => {
@@ -677,7 +824,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
           />
           <button
             onClick={() => handleSend()}
-            disabled={loading || !input.trim()}
+            disabled={loading || (!input.trim() && !attachedFile)}
             className="px-4 py-3 rounded-xl bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white font-semibold text-sm hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 flex-shrink-0"
           >
             {loading ? (
@@ -688,7 +835,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
           </button>
         </div>
         <p className="text-[10px] text-[#404040] mt-1.5 text-center">
-          Enter to send · Shift+Enter for new line · Destructive actions require confirmation when Preview is on
+          Enter to send · Shift+Enter for new line · Attach images or CSVs with 📎
         </p>
       </div>
     </div>
