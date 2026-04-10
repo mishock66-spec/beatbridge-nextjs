@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import type { ActionPlan, PreviewRecord, DupGroup } from "@/app/api/admin/ai-assistant/route";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -191,7 +191,6 @@ function ChatBubble({
           </div>
 
           <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl rounded-tl-sm px-4 py-3">
-            {/* Loading */}
             {entry.status === "loading" && (
               <div className="flex items-center gap-2 text-[#606060] text-sm">
                 <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -199,7 +198,6 @@ function ChatBubble({
               </div>
             )}
 
-            {/* Executing */}
             {entry.status === "executing" && (
               <div className="flex items-center gap-2 text-[#606060] text-sm">
                 <span className="w-3.5 h-3.5 border-2 border-orange-500 border-t-transparent rounded-full animate-spin" />
@@ -207,27 +205,18 @@ function ChatBubble({
               </div>
             )}
 
-            {/* Error */}
             {entry.status === "error" && (
               <p className="text-sm text-red-400">⚠ {entry.error}</p>
             )}
 
-            {/* Explain / read-only text answer */}
             {entry.status === "explain" && (
               <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.explanation}</p>
             )}
 
-            {/* Free-form chat reply (image / CSV analysis) */}
-            {entry.status === "chat" && (
+            {(entry.status === "chat" || entry.status === "agent") && (
               <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.chatReply}</p>
             )}
 
-            {/* Agent reply (tool-calling mode) */}
-            {entry.status === "agent" && (
-              <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.chatReply}</p>
-            )}
-
-            {/* Stats */}
             {entry.status === "stats" && (
               <div className="flex flex-col gap-3">
                 <p className="text-sm text-[#a0a0a0]">{entry.plan?.description}</p>
@@ -271,7 +260,6 @@ function ChatBubble({
               </div>
             )}
 
-            {/* Duplicate preview */}
             {entry.status === "dup_preview" && entry.dupGroups !== undefined && (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-[#a0a0a0]">
@@ -288,25 +276,16 @@ function ChatBubble({
                           ⚠ Delete {entry.totalDups} duplicate records? This cannot be undone.
                         </p>
                         <div className="flex gap-2">
-                          <button
-                            onClick={() => onCancel(entry.id)}
-                            className="flex-1 text-xs py-1.5 px-3 rounded-lg bg-white/[0.06] text-[#a0a0a0] hover:bg-white/[0.1] transition-colors"
-                          >
+                          <button onClick={() => onCancel(entry.id)} className="flex-1 text-xs py-1.5 px-3 rounded-lg bg-white/[0.06] text-[#a0a0a0] hover:bg-white/[0.1] transition-colors">
                             Cancel
                           </button>
-                          <button
-                            onClick={() => onConfirmDups(entry)}
-                            className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors"
-                          >
+                          <button onClick={() => onConfirmDups(entry)} className="flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors">
                             Yes, delete {entry.totalDups} duplicates
                           </button>
                         </div>
                       </div>
                     ) : (
-                      <button
-                        onClick={() => onConfirmDups(entry)}
-                        className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors mt-1"
-                      >
+                      <button onClick={() => onConfirmDups(entry)} className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors mt-1">
                         Delete {entry.totalDups} duplicates (preview off)
                       </button>
                     )}
@@ -315,82 +294,54 @@ function ChatBubble({
               </div>
             )}
 
-            {/* Read-only filter results */}
             {entry.status === "preview" && !isDestructive && (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-[#a0a0a0]">
                   {entry.plan?.description} — found <strong className="text-white">{entry.count?.toLocaleString()}</strong> contacts.
                 </p>
-                {entry.records && entry.records.length > 0 && (
-                  <RecordTable records={entry.records} />
-                )}
+                {entry.records && entry.records.length > 0 && <RecordTable records={entry.records} />}
                 {entry.count === 0 && (
                   <p className="text-xs text-[#505050] italic">No contacts matched this filter.</p>
                 )}
               </div>
             )}
 
-            {/* Destructive preview — delete/update */}
             {entry.status === "preview" && isDestructive && (
               <div className="flex flex-col gap-2">
                 <p className="text-sm text-[#a0a0a0]">
                   {entry.plan?.description} — found{" "}
                   <strong className="text-white">{entry.count?.toLocaleString()}</strong> contacts.
                 </p>
-                {entry.records && entry.records.length > 0 && (
-                  <RecordTable records={entry.records} />
-                )}
+                {entry.records && entry.records.length > 0 && <RecordTable records={entry.records} />}
                 {entry.count === 0 ? (
                   <p className="text-xs text-[#505050] italic">No contacts matched. Nothing to do.</p>
                 ) : previewMode ? (
-                  <div className={`rounded-xl px-3 py-2.5 mt-1 border ${
-                    entry.plan?.action === "delete_by_filter"
-                      ? "bg-red-500/[0.08] border-red-500/20"
-                      : "bg-orange-500/[0.08] border-orange-500/20"
-                  }`}>
-                    <p className={`text-xs font-semibold mb-2 ${
-                      entry.plan?.action === "delete_by_filter" ? "text-red-400" : "text-orange-400"
-                    }`}>
+                  <div className={`rounded-xl px-3 py-2.5 mt-1 border ${entry.plan?.action === "delete_by_filter" ? "bg-red-500/[0.08] border-red-500/20" : "bg-orange-500/[0.08] border-orange-500/20"}`}>
+                    <p className={`text-xs font-semibold mb-2 ${entry.plan?.action === "delete_by_filter" ? "text-red-400" : "text-orange-400"}`}>
                       {entry.plan?.action === "delete_by_filter"
                         ? `⚠ Delete ${entry.count} contacts? This cannot be undone.`
                         : `Update ${entry.count} contacts? Fields: ${Object.entries(entry.plan?.updateFields ?? {}).map(([k, v]) => `${k} → "${v}"`).join(", ")}`}
                     </p>
                     <div className="flex gap-2">
-                      <button
-                        onClick={() => onCancel(entry.id)}
-                        className="flex-1 text-xs py-1.5 px-3 rounded-lg bg-white/[0.06] text-[#a0a0a0] hover:bg-white/[0.1] transition-colors"
-                      >
+                      <button onClick={() => onCancel(entry.id)} className="flex-1 text-xs py-1.5 px-3 rounded-lg bg-white/[0.06] text-[#a0a0a0] hover:bg-white/[0.1] transition-colors">
                         Cancel
                       </button>
                       <button
                         onClick={() => onConfirm(entry)}
-                        className={`flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg text-white transition-colors ${
-                          entry.plan?.action === "delete_by_filter"
-                            ? "bg-red-600 hover:bg-red-500"
-                            : "bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90"
-                        }`}
+                        className={`flex-1 text-xs font-semibold py-1.5 px-3 rounded-lg text-white transition-colors ${entry.plan?.action === "delete_by_filter" ? "bg-red-600 hover:bg-red-500" : "bg-gradient-to-br from-[#f97316] to-[#f85c00] hover:opacity-90"}`}
                       >
-                        {entry.plan?.action === "delete_by_filter"
-                          ? `Yes, delete ${entry.count}`
-                          : `Yes, update ${entry.count}`}
+                        {entry.plan?.action === "delete_by_filter" ? `Yes, delete ${entry.count}` : `Yes, update ${entry.count}`}
                       </button>
                     </div>
                   </div>
                 ) : (
-                  // Preview mode off — still show a quick confirm button
-                  <button
-                    onClick={() => onConfirm(entry)}
-                    className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors mt-1"
-                  >
-                    {entry.plan?.action === "delete_by_filter"
-                      ? `Delete ${entry.count} contacts`
-                      : `Update ${entry.count} contacts`}
+                  <button onClick={() => onConfirm(entry)} className="w-full text-xs font-semibold py-1.5 px-3 rounded-lg bg-red-600 text-white hover:bg-red-500 transition-colors mt-1">
+                    {entry.plan?.action === "delete_by_filter" ? `Delete ${entry.count} contacts` : `Update ${entry.count} contacts`}
                   </button>
                 )}
               </div>
             )}
 
-            {/* Done */}
             {entry.status === "done" && (
               <p className="text-sm text-green-400">
                 {entry.result?.deleted !== undefined
@@ -401,7 +352,6 @@ function ChatBubble({
               </p>
             )}
 
-            {/* Cancelled */}
             {entry.status === "cancelled" && (
               <p className="text-sm text-[#505050]">Cancelled.</p>
             )}
@@ -412,9 +362,7 @@ function ChatBubble({
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-
-// ── Simple CSV parser (no external deps) ──────────────────────────────────────
+// ── Simple CSV parser ──────────────────────────────────────────────────────────
 
 function parseCSV(text: string): { headers: string[]; rows: Record<string, string>[] } {
   const lines = text.trim().split(/\r?\n/);
@@ -454,19 +402,128 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState<AttachedFile | null>(null);
+  const [historyLoading, setHistoryLoading] = useState(true);
+  const [historyToast, setHistoryToast] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Auto-scroll to bottom when entries change
+  // ── Init fullscreen from localStorage ────────────────────────────────────────
+  useEffect(() => {
+    const saved = localStorage.getItem("admin_ai_fullscreen");
+    if (saved === "true") setIsFullscreen(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem("admin_ai_fullscreen", String(isFullscreen));
+  }, [isFullscreen]);
+
+  // ── Escape key closes fullscreen ──────────────────────────────────────────────
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && isFullscreen) setIsFullscreen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [isFullscreen]);
+
+  // ── Load history on mount ─────────────────────────────────────────────────────
+  const loadHistory = useCallback(async () => {
+    setHistoryLoading(true);
+    try {
+      const res = await fetch(`/api/admin/ai-history?userId=${adminUserId}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const msgs: Array<{ id: string; role: string; content: string; mode: string; created_at: string }> =
+        data.messages ?? [];
+      if (msgs.length === 0) return;
+
+      // Pair up user/assistant messages into ChatEntry objects
+      const loaded: ChatEntry[] = [];
+      const agentCtx: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+      for (let i = 0; i < msgs.length; i++) {
+        const m = msgs[i];
+        if (m.role === "user") {
+          const next = msgs[i + 1];
+          if (next?.role === "assistant") {
+            loaded.push({
+              id: m.id,
+              userMessage: m.content,
+              timestamp: new Date(m.created_at),
+              status: "agent",
+              chatReply: next.content,
+            });
+            if (m.mode === "agent") {
+              agentCtx.push({ role: "user", content: m.content });
+              agentCtx.push({ role: "assistant", content: next.content });
+            }
+            i++; // skip assistant message
+          }
+        }
+      }
+
+      setEntries(loaded);
+      setAgentHistory(agentCtx);
+
+      if (loaded.length > 0) {
+        setHistoryToast(true);
+        setTimeout(() => setHistoryToast(false), 3000);
+      }
+    } catch {
+      // Silently fail — history is a convenience feature
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [adminUserId]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
+
+  // ── Auto-scroll ───────────────────────────────────────────────────────────────
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries]);
+
+  // ── Save a pair of messages to history ────────────────────────────────────────
+  async function saveMessages(userMsg: string, assistantReply: string, mode: string) {
+    try {
+      await Promise.all([
+        fetch("/api/admin/ai-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: adminUserId, role: "user", content: userMsg, mode }),
+        }),
+        fetch("/api/admin/ai-history", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userId: adminUserId, role: "assistant", content: assistantReply, mode }),
+        }),
+      ]);
+    } catch {
+      // Non-critical — don't surface to user
+    }
+  }
+
+  // ── Clear history ─────────────────────────────────────────────────────────────
+  async function clearHistory() {
+    setAgentHistory([]);
+    setEntries([]);
+    try {
+      await fetch(`/api/admin/ai-history?userId=${adminUserId}`, { method: "DELETE" });
+    } catch {
+      // Non-critical
+    }
+  }
 
   function updateEntry(id: string, patch: Partial<ChatEntry>) {
     setEntries((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
   }
 
+  // ── handleSend ────────────────────────────────────────────────────────────────
   async function handleSend(message?: string) {
     const msg = (message ?? input).trim();
     if (!msg || loading) return;
@@ -486,7 +543,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
     };
     setEntries((prev) => [...prev, newEntry]);
 
-    // Agent mode (no file) — use native tool-calling flow
+    // ── Agent mode (text only) ────────────────────────────────────────────────
     if (agentMode && !currentFile) {
       try {
         const res = await fetch("/api/admin/ai-assistant", {
@@ -501,12 +558,14 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Request failed");
+        const reply: string = data.reply ?? "";
         setAgentHistory((prev) => [
           ...prev,
           { role: "user", content: msg },
-          { role: "assistant", content: data.reply },
+          { role: "assistant", content: reply },
         ]);
-        updateEntry(entryId, { status: "agent", chatReply: data.reply });
+        updateEntry(entryId, { status: "agent", chatReply: reply });
+        await saveMessages(msg, reply, "agent");
       } catch (e) {
         updateEntry(entryId, {
           status: "error",
@@ -519,7 +578,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       return;
     }
 
-    // File attached — route to chat phase
+    // ── File attached — chat phase ────────────────────────────────────────────
     if (currentFile) {
       try {
         const body: Record<string, unknown> = {
@@ -539,7 +598,9 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error ?? "Request failed");
-        updateEntry(entryId, { status: "chat", chatReply: data.reply });
+        const reply: string = data.reply ?? "";
+        updateEntry(entryId, { status: "chat", chatReply: reply });
+        await saveMessages(msg, reply, "chat");
       } catch (e) {
         updateEntry(entryId, {
           status: "error",
@@ -552,6 +613,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       return;
     }
 
+    // ── Classic plan/execute flow ─────────────────────────────────────────────
     try {
       const res = await fetch("/api/admin/ai-assistant", {
         method: "POST",
@@ -559,64 +621,37 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
         body: JSON.stringify({ userId: adminUserId, phase: "plan", message: msg }),
       });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error ?? "Request failed");
 
       const plan: ActionPlan = data.plan;
 
-      // Explain / read-only text
       if (plan.intent === "explain") {
-        updateEntry(entryId, { status: "explain", plan, explanation: data.explanation });
+        const explanation = data.explanation ?? "";
+        updateEntry(entryId, { status: "explain", plan, explanation });
+        await saveMessages(msg, explanation, "classic");
         return;
       }
 
-      // Stats
       if (plan.action === "get_stats") {
-        updateEntry(entryId, {
-          status: "stats",
-          plan,
-          contactStats: data.contactStats,
-          supabaseStats: data.stats,
-        });
+        updateEntry(entryId, { status: "stats", plan, contactStats: data.contactStats, supabaseStats: data.stats });
         return;
       }
 
-      // Duplicates
       if (plan.action === "find_duplicates") {
-        updateEntry(entryId, {
-          status: "dup_preview",
-          plan,
-          dupGroups: data.dupGroups ?? [],
-          totalDups: data.totalDups ?? 0,
-        });
+        updateEntry(entryId, { status: "dup_preview", plan, dupGroups: data.dupGroups ?? [], totalDups: data.totalDups ?? 0 });
         return;
       }
 
-      // Filter / delete / update
-      const isDestructive =
-        plan.action === "delete_by_filter" || plan.action === "update_by_filter";
+      const isDestructive = plan.action === "delete_by_filter" || plan.action === "update_by_filter";
 
       if (!isDestructive) {
-        // Read-only: show results immediately
-        updateEntry(entryId, {
-          status: "preview",
-          plan,
-          records: data.records ?? [],
-          count: data.count ?? 0,
-        });
+        updateEntry(entryId, { status: "preview", plan, records: data.records ?? [], count: data.count ?? 0 });
         return;
       }
 
-      // Destructive: show preview for confirmation
       if (previewMode) {
-        updateEntry(entryId, {
-          status: "preview",
-          plan,
-          records: data.records ?? [],
-          count: data.count ?? 0,
-        });
+        updateEntry(entryId, { status: "preview", plan, records: data.records ?? [], count: data.count ?? 0 });
       } else {
-        // Preview mode off — auto-execute
         updateEntry(entryId, { status: "executing", plan, records: data.records ?? [], count: data.count });
         await executeAction(entryId, plan, data.records ?? []);
       }
@@ -633,31 +668,19 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
 
   async function executeAction(entryId: string, plan: ActionPlan, records: PreviewRecord[]) {
     updateEntry(entryId, { status: "executing" });
-
     const ids = records.map((r) => r.id);
-    const actionType =
-      plan.action === "delete_by_filter" ? "delete_contacts" : "update_contacts";
-
+    const actionType = plan.action === "delete_by_filter" ? "delete_contacts" : "update_contacts";
     try {
       const res = await fetch("/api/admin/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: adminUserId,
-          phase: "execute",
-          action: actionType,
-          recordIds: ids,
-          updateFields: plan.updateFields,
-        }),
+        body: JSON.stringify({ userId: adminUserId, phase: "execute", action: actionType, recordIds: ids, updateFields: plan.updateFields }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Execution failed");
       updateEntry(entryId, { status: "done", result: data });
     } catch (e) {
-      updateEntry(entryId, {
-        status: "error",
-        error: e instanceof Error ? e.message : "Execution failed",
-      });
+      updateEntry(entryId, { status: "error", error: e instanceof Error ? e.message : "Execution failed" });
     }
   }
 
@@ -667,21 +690,13 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       const res = await fetch("/api/admin/ai-assistant", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          userId: adminUserId,
-          phase: "execute",
-          action: "delete_duplicates",
-          dupGroups,
-        }),
+        body: JSON.stringify({ userId: adminUserId, phase: "execute", action: "delete_duplicates", dupGroups }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Execution failed");
       updateEntry(entryId, { status: "done", result: data });
     } catch (e) {
-      updateEntry(entryId, {
-        status: "error",
-        error: e instanceof Error ? e.message : "Execution failed",
-      });
+      updateEntry(entryId, { status: "error", error: e instanceof Error ? e.message : "Execution failed" });
     }
   }
 
@@ -714,99 +729,101 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       reader.onload = () => {
         const dataUrl = reader.result as string;
         const base64 = dataUrl.split(",")[1];
-        setAttachedFile({
-          kind: "image",
-          name: file.name,
-          base64,
-          mediaType: file.type,
-          label: file.name,
-        });
+        setAttachedFile({ kind: "image", name: file.name, base64, mediaType: file.type, label: file.name });
       };
       reader.readAsDataURL(file);
     } else if (file.name.endsWith(".csv")) {
       const text = await file.text();
       const { headers, rows } = parseCSV(text);
       const csvText = JSON.stringify(rows, null, 2);
-      setAttachedFile({
-        kind: "csv",
-        name: file.name,
-        csvText,
-        rowCount: rows.length,
-        label: `${file.name} (${rows.length} rows, columns: ${headers.join(", ")})`,
-      });
+      setAttachedFile({ kind: "csv", name: file.name, csvText, rowCount: rows.length, label: `${file.name} (${rows.length} rows, columns: ${headers.join(", ")})` });
     }
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
-  return (
-    <div className="flex flex-col h-[calc(100vh-180px)] min-h-[500px]">
+  // ── Shared inner content ──────────────────────────────────────────────────────
+  const chatContent = (
+    <>
       {/* Header */}
       <div className="flex items-center justify-between mb-4 flex-shrink-0 flex-wrap gap-3">
-        <div>
+        <div className="min-w-0">
           <h2 className="text-xl font-light tracking-[0.02em]">AI Assistant</h2>
-          <p className="text-xs text-[#505050] mt-0.5">
+          <p className="text-xs text-[#505050] mt-0.5 truncate">
             {agentMode
-              ? "Agent mode — direct API access via tools (Airtable, Supabase, Stripe, Clerk)"
-              : "Classic mode — structured plan/preview/execute flow"}
+              ? "Agent mode — direct API access via tools"
+              : "Classic mode — structured plan/preview/execute"}
           </p>
         </div>
-        <div className="flex items-center gap-4 flex-wrap">
-          {/* Agent mode toggle */}
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Agent toggle */}
           <div className="flex items-center gap-2">
             <span className={`text-xs ${agentMode ? "text-orange-400" : "text-[#606060]"}`}>
               {agentMode ? "⚡ Agent" : "Classic"}
             </span>
             <button
-              onClick={() => {
-                setAgentMode((v) => !v);
-                setAgentHistory([]);
-              }}
-              className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
-                agentMode ? "bg-orange-500" : "bg-white/[0.1]"
-              }`}
+              onClick={() => { setAgentMode((v) => !v); setAgentHistory([]); }}
+              className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${agentMode ? "bg-orange-500" : "bg-white/[0.1]"}`}
             >
-              <span
-                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
-                  agentMode ? "translate-x-5" : "translate-x-0.5"
-                }`}
-              />
+              <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${agentMode ? "translate-x-5" : "translate-x-0.5"}`} />
             </button>
           </div>
 
-          {/* Clear history (agent mode only) */}
-          {agentMode && agentHistory.length > 0 && (
+          {/* Clear history */}
+          {entries.length > 0 && (
             <button
-              onClick={() => setAgentHistory([])}
+              onClick={clearHistory}
               className="text-[10px] px-2 py-1 rounded-lg border border-white/[0.08] text-[#505050] hover:text-orange-400 hover:border-orange-500/20 transition-colors"
             >
-              Clear context
+              Clear
             </button>
           )}
 
-          {/* Preview toggle (classic mode only) */}
+          {/* Preview toggle (classic only) */}
           {!agentMode && (
             <div className="flex items-center gap-2">
               <span className="text-xs text-[#606060]">Preview</span>
               <button
                 onClick={() => setPreviewMode((v) => !v)}
-                className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
-                  previewMode ? "bg-orange-500" : "bg-white/[0.1]"
-                }`}
+                className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${previewMode ? "bg-orange-500" : "bg-white/[0.1]"}`}
               >
-                <span
-                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
-                    previewMode ? "translate-x-5" : "translate-x-0.5"
-                  }`}
-                />
+                <span className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${previewMode ? "translate-x-5" : "translate-x-0.5"}`} />
               </button>
             </div>
           )}
+
+          {/* Fullscreen toggle */}
+          <button
+            onClick={() => setIsFullscreen((v) => !v)}
+            title={isFullscreen ? "Exit fullscreen (Esc)" : "Expand fullscreen"}
+            className="text-[#606060] hover:text-orange-400 transition-colors p-1 rounded-lg hover:bg-white/[0.04] text-base leading-none"
+          >
+            {isFullscreen ? "✕" : "⛶"}
+          </button>
         </div>
       </div>
 
+      {/* History toast */}
+      {historyToast && (
+        <div className="flex-shrink-0 mb-2 text-[11px] text-[#505050] text-center animate-pulse">
+          History loaded
+        </div>
+      )}
+
       {/* Chat area */}
       <div className="flex-1 overflow-y-auto flex flex-col gap-5 pr-1 pb-2">
-        {entries.length === 0 && (
+        {historyLoading ? (
+          <div className="flex flex-col gap-4 py-4">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex flex-col gap-2 animate-pulse">
+                <div className="flex justify-end">
+                  <div className="h-8 w-48 rounded-2xl bg-white/[0.04]" />
+                </div>
+                <div className="h-12 w-64 rounded-2xl bg-white/[0.025]" />
+              </div>
+            ))}
+          </div>
+        ) : entries.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-full gap-6 text-center py-8">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-2xl shadow-lg">
               {agentMode ? "⚡" : "🤖"}
@@ -837,18 +854,18 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
               ))}
             </div>
           </div>
+        ) : (
+          entries.map((entry) => (
+            <ChatBubble
+              key={entry.id}
+              entry={entry}
+              previewMode={previewMode}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+              onConfirmDups={handleConfirmDups}
+            />
+          ))
         )}
-
-        {entries.map((entry) => (
-          <ChatBubble
-            key={entry.id}
-            entry={entry}
-            previewMode={previewMode}
-            onConfirm={handleConfirm}
-            onCancel={handleCancel}
-            onConfirmDups={handleConfirmDups}
-          />
-        ))}
         <div ref={bottomRef} />
       </div>
 
@@ -869,29 +886,18 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
           </div>
         )}
 
-        {/* Attachment badge */}
         {attachedFile && (
           <div className="flex items-center gap-2 mb-2 px-1">
             <span className="flex items-center gap-1.5 text-xs bg-orange-500/10 border border-orange-500/20 text-orange-300/80 rounded-lg px-2.5 py-1.5 max-w-full truncate">
               📎 {attachedFile.label}
             </span>
-            <button
-              onClick={() => setAttachedFile(null)}
-              className="text-[#505050] hover:text-white transition-colors flex-shrink-0 text-sm leading-none"
-              title="Remove attachment"
-            >
+            <button onClick={() => setAttachedFile(null)} className="text-[#505050] hover:text-white transition-colors flex-shrink-0 text-sm leading-none" title="Remove attachment">
               ✕
             </button>
           </div>
         )}
 
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept="image/*,.csv"
-          className="hidden"
-          onChange={handleFileSelect}
-        />
+        <input ref={fileInputRef} type="file" accept="image/*,.csv" className="hidden" onChange={handleFileSelect} />
 
         <div className="flex gap-2">
           <button
@@ -913,7 +919,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
               attachedFile
                 ? "Describe what to do with this file…"
                 : agentMode
-                ? "Ask anything — I have direct access to Airtable, Stripe, Supabase & Clerk…"
+                ? "Ask anything — direct access to Airtable, Stripe, Supabase & Clerk…"
                 : "Tell the AI what to do…"
             }
             className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-none disabled:opacity-60 min-h-[44px] max-h-[120px]"
@@ -938,10 +944,26 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
         </div>
         <p className="text-[10px] text-[#404040] mt-1.5 text-center">
           {agentMode
-            ? "⚡ Agent mode — I can query and modify Airtable, Stripe, Supabase & Clerk directly"
-            : "Enter to send · Shift+Enter for new line · Attach images or CSVs with 📎"}
+            ? "⚡ Agent mode — queries Airtable, Stripe, Supabase & Clerk directly"
+            : "Enter to send · Shift+Enter for new line · 📎 attach images or CSVs"}
         </p>
       </div>
+    </>
+  );
+
+  // ── Fullscreen overlay ────────────────────────────────────────────────────────
+  if (isFullscreen) {
+    return (
+      <div className="fixed inset-0 z-50 bg-[#080808] flex flex-col p-4 sm:p-6 transition-all duration-300">
+        {chatContent}
+      </div>
+    );
+  }
+
+  // ── Normal inline layout ──────────────────────────────────────────────────────
+  return (
+    <div className="flex flex-col h-[calc(100vh-180px)] min-h-[500px]">
+      {chatContent}
     </div>
   );
 }

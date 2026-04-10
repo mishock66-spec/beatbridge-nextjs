@@ -901,7 +901,10 @@ export async function POST(req: NextRequest) {
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content: message }],
       });
-      raw = response.content[0].type === "text" ? response.content[0].text.trim() : "";
+      // Extract text from first text block; skip tool_use or other block types
+      const textBlock = response.content.find((b) => b.type === "text");
+      raw = textBlock?.type === "text" ? textBlock.text.trim() : "";
+      if (!raw) console.error("[ai-assistant/plan] No text block in Claude response. Content types:", response.content.map((b) => b.type));
     } catch (e) {
       return NextResponse.json(
         { error: `Claude API error: ${e instanceof Error ? e.message : String(e)}` },
@@ -911,13 +914,22 @@ export async function POST(req: NextRequest) {
 
     let plan: ActionPlan;
     try {
-      const jsonMatch = raw.match(/\{[\s\S]*\}/);
-      plan = JSON.parse(jsonMatch?.[0] ?? raw);
+      // Strip markdown code fences if Claude wraps the response
+      const cleaned = raw
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```\s*$/, "")
+        .trim();
+      const jsonMatch = cleaned.match(/\{[\s\S]*\}/);
+      plan = JSON.parse(jsonMatch?.[0] ?? cleaned);
     } catch {
-      return NextResponse.json(
-        { error: "Failed to parse AI response", raw },
-        { status: 500 }
-      );
+      console.error("[ai-assistant/plan] Failed to parse Claude response as JSON. Raw:", raw.slice(0, 400));
+      // Graceful fallback: treat as plain text explanation rather than crashing
+      plan = {
+        intent: "explain",
+        action: "explain",
+        description: "Plain text response",
+        explanation: raw || "I could not produce a structured response.",
+      };
     }
 
     if (plan.intent === "explain" || plan.action === "explain") {
