@@ -5,6 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { ARTISTS_CONFIG, getArtistPrimaryFilter } from "@/lib/artists.config";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 300; // Allow up to 300s for long-running agent/template-gen calls
 
 function isAdmin(userId: string) {
   const adminId = process.env.ADMIN_CLERK_USER_ID;
@@ -1189,7 +1190,7 @@ export async function POST(req: NextRequest) {
       let response: Anthropic.Message;
       try {
         response = await client.messages.create({
-          model: "claude-sonnet-4-20250514",
+          model: "claude-sonnet-4-6",
           max_tokens: 4096,
           system: agentSystemPrompt,
           tools: AGENT_TOOLS,
@@ -1257,7 +1258,7 @@ export async function POST(req: NextRequest) {
     let raw = "";
     try {
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         tools: [{ type: "web_search_20250305", name: "web_search" }] as unknown as Anthropic.Tool[],
@@ -1432,7 +1433,7 @@ export async function POST(req: NextRequest) {
 
     try {
       const response = await client.messages.create({
-        model: "claude-sonnet-4-20250514",
+        model: "claude-sonnet-4-6",
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
         messages: [{ role: "user", content }],
