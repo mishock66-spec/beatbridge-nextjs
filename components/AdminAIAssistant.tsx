@@ -16,7 +16,8 @@ type ChatStatus =
   | "cancelled"
   | "error"
   | "explain"
-  | "chat";
+  | "chat"
+  | "agent";
 
 type ChatEntry = {
   id: string;
@@ -68,6 +69,15 @@ const SUGGESTIONS = [
   "Find duplicate contacts",
   "Give me platform stats",
   "Show contacts from Southside with under 1K followers",
+];
+
+const AGENT_SUGGESTIONS = [
+  "How many users do we have?",
+  "What's our MRR from Stripe?",
+  "How many DMs were sent today?",
+  "Show contacts with no template for Harry Fraud",
+  "What's the plan breakdown (free/trial/paid)?",
+  "List the 10 most recent signups",
 ];
 
 // ── Preview record table ───────────────────────────────────────────────────────
@@ -209,6 +219,11 @@ function ChatBubble({
 
             {/* Free-form chat reply (image / CSV analysis) */}
             {entry.status === "chat" && (
+              <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.chatReply}</p>
+            )}
+
+            {/* Agent reply (tool-calling mode) */}
+            {entry.status === "agent" && (
               <p className="text-sm text-[#a0a0a0] leading-relaxed whitespace-pre-wrap">{entry.chatReply}</p>
             )}
 
@@ -433,6 +448,8 @@ type AttachedFile =
 
 export default function AdminAIAssistant({ adminUserId }: { adminUserId: string }) {
   const [previewMode, setPreviewMode] = useState(true);
+  const [agentMode, setAgentMode] = useState(false);
+  const [agentHistory, setAgentHistory] = useState<Array<{ role: "user" | "assistant"; content: string }>>([]);
   const [input, setInput] = useState("");
   const [entries, setEntries] = useState<ChatEntry[]>([]);
   const [loading, setLoading] = useState(false);
@@ -468,6 +485,39 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       attachmentLabel: currentFile?.label,
     };
     setEntries((prev) => [...prev, newEntry]);
+
+    // Agent mode (no file) — use native tool-calling flow
+    if (agentMode && !currentFile) {
+      try {
+        const res = await fetch("/api/admin/ai-assistant", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            userId: adminUserId,
+            phase: "agent",
+            message: msg,
+            conversationHistory: agentHistory,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Request failed");
+        setAgentHistory((prev) => [
+          ...prev,
+          { role: "user", content: msg },
+          { role: "assistant", content: data.reply },
+        ]);
+        updateEntry(entryId, { status: "agent", chatReply: data.reply });
+      } catch (e) {
+        updateEntry(entryId, {
+          status: "error",
+          error: e instanceof Error ? e.message : "Unknown error",
+        });
+      } finally {
+        setLoading(false);
+        inputRef.current?.focus();
+      }
+      return;
+    }
 
     // File attached — route to chat phase
     if (currentFile) {
@@ -694,22 +744,63 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       <div className="flex items-center justify-between mb-4 flex-shrink-0 flex-wrap gap-3">
         <div>
           <h2 className="text-xl font-light tracking-[0.02em]">AI Assistant</h2>
-          <p className="text-xs text-[#505050] mt-0.5">Natural language commands for Airtable & platform data</p>
+          <p className="text-xs text-[#505050] mt-0.5">
+            {agentMode
+              ? "Agent mode — direct API access via tools (Airtable, Supabase, Stripe, Clerk)"
+              : "Classic mode — structured plan/preview/execute flow"}
+          </p>
         </div>
-        <div className="flex items-center gap-2.5">
-          <span className="text-xs text-[#606060]">Preview before executing</span>
-          <button
-            onClick={() => setPreviewMode((v) => !v)}
-            className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
-              previewMode ? "bg-orange-500" : "bg-white/[0.1]"
-            }`}
-          >
-            <span
-              className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
-                previewMode ? "translate-x-5" : "translate-x-0.5"
+        <div className="flex items-center gap-4 flex-wrap">
+          {/* Agent mode toggle */}
+          <div className="flex items-center gap-2">
+            <span className={`text-xs ${agentMode ? "text-orange-400" : "text-[#606060]"}`}>
+              {agentMode ? "⚡ Agent" : "Classic"}
+            </span>
+            <button
+              onClick={() => {
+                setAgentMode((v) => !v);
+                setAgentHistory([]);
+              }}
+              className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
+                agentMode ? "bg-orange-500" : "bg-white/[0.1]"
               }`}
-            />
-          </button>
+            >
+              <span
+                className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
+                  agentMode ? "translate-x-5" : "translate-x-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Clear history (agent mode only) */}
+          {agentMode && agentHistory.length > 0 && (
+            <button
+              onClick={() => setAgentHistory([])}
+              className="text-[10px] px-2 py-1 rounded-lg border border-white/[0.08] text-[#505050] hover:text-orange-400 hover:border-orange-500/20 transition-colors"
+            >
+              Clear context
+            </button>
+          )}
+
+          {/* Preview toggle (classic mode only) */}
+          {!agentMode && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-[#606060]">Preview</span>
+              <button
+                onClick={() => setPreviewMode((v) => !v)}
+                className={`w-10 h-5 rounded-full relative transition-colors flex-shrink-0 ${
+                  previewMode ? "bg-orange-500" : "bg-white/[0.1]"
+                }`}
+              >
+                <span
+                  className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform shadow-sm ${
+                    previewMode ? "translate-x-5" : "translate-x-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -718,18 +809,23 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
         {entries.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full gap-6 text-center py-8">
             <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center text-2xl shadow-lg">
-              🤖
+              {agentMode ? "⚡" : "🤖"}
             </div>
             <div>
-              <p className="text-[#a0a0a0] text-sm mb-1">
-                Tell me what to do with BeatBridge data.
-              </p>
-              <p className="text-[#505050] text-xs">
-                I can filter, delete, update contacts and pull stats.
-              </p>
+              {agentMode ? (
+                <>
+                  <p className="text-[#a0a0a0] text-sm mb-1">Agent mode — I have direct API access.</p>
+                  <p className="text-[#505050] text-xs">Query Airtable, Supabase, Stripe & Clerk in plain English.</p>
+                </>
+              ) : (
+                <>
+                  <p className="text-[#a0a0a0] text-sm mb-1">Tell me what to do with BeatBridge data.</p>
+                  <p className="text-[#505050] text-xs">I can filter, delete, update contacts and pull stats.</p>
+                </>
+              )}
             </div>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
-              {SUGGESTIONS.map((s) => (
+              {(agentMode ? AGENT_SUGGESTIONS : SUGGESTIONS).map((s) => (
                 <button
                   key={s}
                   onClick={() => handleSend(s)}
@@ -760,7 +856,7 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
       <div className="flex-shrink-0 mt-3 border-t border-white/[0.06] pt-3">
         {entries.length > 0 && (
           <div className="flex gap-1.5 mb-2 flex-wrap">
-            {SUGGESTIONS.slice(0, 3).map((s) => (
+            {(agentMode ? AGENT_SUGGESTIONS : SUGGESTIONS).slice(0, 3).map((s) => (
               <button
                 key={s}
                 onClick={() => handleSend(s)}
@@ -813,7 +909,13 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
             disabled={loading}
-            placeholder={attachedFile ? "Describe what to do with this file…" : "Tell the AI what to do…"}
+            placeholder={
+              attachedFile
+                ? "Describe what to do with this file…"
+                : agentMode
+                ? "Ask anything — I have direct access to Airtable, Stripe, Supabase & Clerk…"
+                : "Tell the AI what to do…"
+            }
             className="flex-1 bg-white/[0.03] border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-[#505050] focus:outline-none focus:border-orange-500/50 transition-colors resize-none disabled:opacity-60 min-h-[44px] max-h-[120px]"
             style={{ height: "auto" }}
             onInput={(e) => {
@@ -835,7 +937,9 @@ export default function AdminAIAssistant({ adminUserId }: { adminUserId: string 
           </button>
         </div>
         <p className="text-[10px] text-[#404040] mt-1.5 text-center">
-          Enter to send · Shift+Enter for new line · Attach images or CSVs with 📎
+          {agentMode
+            ? "⚡ Agent mode — I can query and modify Airtable, Stripe, Supabase & Clerk directly"
+            : "Enter to send · Shift+Enter for new line · Attach images or CSVs with 📎"}
         </p>
       </div>
     </div>

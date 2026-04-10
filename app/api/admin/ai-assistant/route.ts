@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
+import Stripe from "stripe";
+import { createClient } from "@supabase/supabase-js";
 
 export const dynamic = "force-dynamic";
 
@@ -56,7 +58,7 @@ export type DupGroup = {
   keepId: string;
 };
 
-// ── System prompt ──────────────────────────────────────────────────────────────
+// ── System prompt (classic plan/execute flow) ──────────────────────────────────
 
 const SYSTEM_PROMPT = `You are the BeatBridge Admin AI — a powerful assistant for managing the BeatBridge platform. You can:
 
@@ -90,6 +92,7 @@ AIRTABLE FIELD IDs (for import/update operations):
 - fld7C9ekFhBlwcy2L — Suivi par (artist name)
 - fldpLozVCrvYj62i0 — Notes (bio)
 - fldy8ho1lxBh8iB3n — template
+- fldLRttkukXJiVs0u — analyzed (checkbox)
 
 BUSINESS RULES:
 - "Autre" = unclassified profile type (contacts with no type yet)
@@ -153,7 +156,50 @@ EXAMPLES:
 - "Delete all archived contacts" → intent=mutate, action=delete_by_filter, filter={statutDeContact:"Archivé"}
 - "What is the top contacts follower cap?" → intent=explain, action=explain, explanation="The top contacts cap is 50K followers max (10K for Juke Wong)."`;
 
-// ── Airtable helpers ───────────────────────────────────────────────────────────
+// ── Agent system prompt (tool-calling flow) ─────────────────────────────────────
+
+const AGENT_SYSTEM_PROMPT = `You are the BeatBridge Admin AI — a powerful assistant with direct API access to platform data via tools.
+
+BEATBRIDGE CONTEXT:
+- 6 artist networks: Curren$y, Harry Fraud, Wheezy, Juke Wong, Southside, Metro Boomin
+- ~3900 contacts across these networks in Airtable
+- Live SaaS platform with paying users
+
+AIRTABLE FIELD IDs (always use these for update/import, never field names):
+- fldNrahDUrSgVljvc = Pseudo Instagram (username)
+- fldJEVNir9beLv8Ph = Nom complet (full name)
+- fldKKIDVHyYSg2lNh = Lien profil (profile URL)
+- fldvT6sZIjc1ypnMw = Nombre de followers
+- fld8dCqjrnqCsRSog = Type de profil (Beatmaker/Producteur | Ingé son | Manager | Artiste/Rappeur | Photographe/Vidéaste | DJ | Autre)
+- fldgITyqXWRJMA5tV = Statut de contact (default: "À contacter")
+- fld7C9ekFhBlwcy2L = Suivi par (artist name)
+- fldpLozVCrvYj62i0 = Notes (bio)
+- fldy8ho1lxBh8iB3n = template
+- fldLRttkukXJiVs0u = analyzed (checkbox boolean)
+
+AIRTABLE FILTER FORMULA SYNTAX (for airtable_query):
+- {Suivi par}="Metro Boomin"
+- {Type de profil}="Autre"
+- {Nombre de followers}>50000
+- OR({template}="",{template}=BLANK())  ← no template
+- AND({Notes}!="",{Notes}!=BLANK())  ← has bio
+- SEARCH("keyword",LOWER({Pseudo Instagram}))
+
+TOOL USE GUIDELINES:
+1. Always explain what you're about to do before calling a tool
+2. For destructive operations (delete/update many records): first call airtable_query to show what will be affected, then ask "Shall I proceed?" — only call airtable_delete/airtable_update after the user confirms
+3. After executing: summarize what was done with specific numbers
+4. For stats requests: use supabase_query + stripe_query + clerk_query together for a complete picture
+5. For CSV imports: verify the data looks correct before calling airtable_import
+6. When querying Airtable: use empty formula string "" to get all records (warning: slow for 3900+ records)
+
+RESPONSE STYLE:
+- Be concise and actionable
+- Use numbers and specifics
+- Format counts, lists, and results clearly
+- When showing contact data, highlight username, artist, followers, type`;
+
+// ── Airtable helpers (classic flow) ───────────────────────────────────────────
 
 function buildFormula(filter: ActionFilter): string {
   const parts: string[] = [];
@@ -235,7 +281,7 @@ async function fetchAllMatching(
 }
 
 async function fetchAllForDuplicates(apiKey: string): Promise<PreviewRecord[]> {
-  return fetchAllMatching(apiKey, {}); // no filter = all records
+  return fetchAllMatching(apiKey, {});
 }
 
 async function batchDelete(apiKey: string, recordIds: string[]): Promise<number> {
@@ -285,6 +331,438 @@ function scoreRecord(r: PreviewRecord): number {
   return s;
 }
 
+// ── Agent tools ────────────────────────────────────────────────────────────────
+
+const AGENT_TOOLS: Anthropic.Tool[] = [
+  {
+    name: "airtable_query",
+    description:
+      "Fetch contacts from Airtable with an optional filter formula. Returns records with id, username, fullName, followers, profileType, suiviPar, template, bio, profileUrl, status.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        formula: {
+          type: "string",
+          description:
+            'Airtable filterByFormula. Use empty string "" for all records. Examples: {Suivi par}="Metro Boomin", OR({template}="",{template}=BLANK()), {Nombre de followers}>50000',
+        },
+        maxRecords: {
+          type: "number",
+          description: "Max records to return (default 100, max 1000)",
+        },
+      },
+      required: ["formula"],
+    },
+  },
+  {
+    name: "airtable_update",
+    description:
+      "Update Airtable records by record ID. Use Airtable field IDs (not field names) in the fields object.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        recordIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Airtable record IDs to update",
+        },
+        fields: {
+          type: "object",
+          description:
+            "Field ID → value pairs. Field IDs: fldNrahDUrSgVljvc (username), fldJEVNir9beLv8Ph (fullName), fldvT6sZIjc1ypnMw (followers), fld8dCqjrnqCsRSog (profileType), fldgITyqXWRJMA5tV (status), fld7C9ekFhBlwcy2L (suiviPar), fldpLozVCrvYj62i0 (notes), fldy8ho1lxBh8iB3n (template), fldLRttkukXJiVs0u (analyzed bool)",
+        },
+      },
+      required: ["recordIds", "fields"],
+    },
+  },
+  {
+    name: "airtable_delete",
+    description: "Permanently delete Airtable records by ID. Irreversible — only call after user confirms.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        recordIds: {
+          type: "array",
+          items: { type: "string" },
+          description: "Airtable record IDs to delete",
+        },
+      },
+      required: ["recordIds"],
+    },
+  },
+  {
+    name: "airtable_import",
+    description: "Import new contact records to Airtable. Each record is created as a new row.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        records: {
+          type: "array",
+          description: "Contact records to create",
+          items: {
+            type: "object",
+            properties: {
+              username: { type: "string", description: "Instagram username (no @ prefix)" },
+              fullName: { type: "string" },
+              profileUrl: { type: "string" },
+              followers: { type: "number" },
+              profileType: {
+                type: "string",
+                enum: ["Beatmaker/Producteur", "Ingé son", "Manager", "Artiste/Rappeur", "Photographe/Vidéaste", "DJ", "Autre"],
+              },
+              suiviPar: {
+                type: "string",
+                enum: ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin"],
+              },
+              bio: { type: "string" },
+              template: { type: "string" },
+            },
+          },
+        },
+      },
+      required: ["records"],
+    },
+  },
+  {
+    name: "supabase_query",
+    description: "Query Supabase for platform data: user counts, DM stats, plan breakdown, recent signups.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query_type: {
+          type: "string",
+          enum: ["user_count", "dm_stats", "plan_breakdown", "recent_signups"],
+          description:
+            "user_count: total registered users | dm_stats: DMs sent today + total | plan_breakdown: free/trial/paid counts | recent_signups: last 10 users",
+        },
+      },
+      required: ["query_type"],
+    },
+  },
+  {
+    name: "stripe_query",
+    description: "Get Stripe subscription data: active subscriber count, MRR, plan breakdown.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query_type: {
+          type: "string",
+          enum: ["overview"],
+          description: "overview: active subscribers count, MRR, and plan breakdown",
+        },
+      },
+      required: ["query_type"],
+    },
+  },
+  {
+    name: "clerk_query",
+    description: "Query Clerk user directory for registration stats or find specific users.",
+    input_schema: {
+      type: "object" as const,
+      properties: {
+        query_type: {
+          type: "string",
+          enum: ["user_count", "list_users", "user_by_email"],
+          description: "user_count: total Clerk users | list_users: recent 20 users with emails | user_by_email: find user by email",
+        },
+        email: {
+          type: "string",
+          description: "Email to search (only for user_by_email)",
+        },
+      },
+      required: ["query_type"],
+    },
+  },
+];
+
+// ── Agent tool execution ────────────────────────────────────────────────────────
+
+type ToolKeys = {
+  airtableKey: string;
+  supabaseUrl: string;
+  supabaseKey: string;
+  stripeKey?: string;
+  clerkKey?: string;
+};
+
+async function executeTool(
+  name: string,
+  input: Record<string, unknown>,
+  keys: ToolKeys
+): Promise<unknown> {
+  // ── airtable_query ──────────────────────────────────────────────────────────
+  if (name === "airtable_query") {
+    const formula = (input.formula as string) || "";
+    const maxRecords = Math.min((input.maxRecords as number) || 100, 1000);
+    const records: unknown[] = [];
+    let offset: string | undefined;
+    do {
+      const params = new URLSearchParams({ pageSize: "100" });
+      if (formula) params.set("filterByFormula", formula);
+      (
+        [
+          "Pseudo Instagram",
+          "Nom complet",
+          "Nombre de followers",
+          "Type de profil",
+          "Suivi par",
+          "template",
+          "Notes",
+          "Lien profil",
+          "Statut de contact",
+        ] as const
+      ).forEach((f) => params.append("fields[]", f));
+      if (offset) params.set("offset", offset);
+      const res = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}?${params.toString()}`,
+        { headers: { Authorization: `Bearer ${keys.airtableKey}` } }
+      );
+      if (!res.ok) throw new Error(`Airtable query failed: ${res.status}`);
+      const data = await res.json();
+      for (const r of data.records ?? []) {
+        records.push({
+          id: r.id,
+          username: r.fields["Pseudo Instagram"] ?? "",
+          fullName: r.fields["Nom complet"] ?? "",
+          followers: r.fields["Nombre de followers"] ?? 0,
+          profileType: r.fields["Type de profil"] ?? "",
+          suiviPar: r.fields["Suivi par"] ?? "",
+          template: r.fields["template"] ?? "",
+          bio: r.fields["Notes"] ?? "",
+          profileUrl: r.fields["Lien profil"] ?? "",
+          status: r.fields["Statut de contact"] ?? "",
+        });
+        if (records.length >= maxRecords) break;
+      }
+      offset = records.length >= maxRecords ? undefined : (data.offset as string | undefined);
+    } while (offset);
+    return { count: records.length, records };
+  }
+
+  // ── airtable_update ─────────────────────────────────────────────────────────
+  if (name === "airtable_update") {
+    const recordIds = input.recordIds as string[];
+    const fields = input.fields as Record<string, unknown>;
+    let updated = 0;
+    const errors: string[] = [];
+    const BATCH = 10;
+    for (let i = 0; i < recordIds.length; i += BATCH) {
+      const batch = recordIds.slice(i, i + BATCH).map((id) => ({ id, fields }));
+      const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${keys.airtableKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ records: batch }),
+      });
+      if (!res.ok) {
+        errors.push(`Batch ${Math.floor(i / BATCH) + 1}: ${res.status}`);
+      } else {
+        const data = await res.json();
+        updated += (data.records ?? []).length;
+      }
+    }
+    return { updated, errors };
+  }
+
+  // ── airtable_delete ─────────────────────────────────────────────────────────
+  if (name === "airtable_delete") {
+    const recordIds = input.recordIds as string[];
+    let deleted = 0;
+    const errors: string[] = [];
+    const BATCH = 10;
+    for (let i = 0; i < recordIds.length; i += BATCH) {
+      const batch = recordIds.slice(i, i + BATCH);
+      const params = new URLSearchParams();
+      batch.forEach((id) => params.append("records[]", id));
+      const res = await fetch(
+        `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}?${params.toString()}`,
+        { method: "DELETE", headers: { Authorization: `Bearer ${keys.airtableKey}` } }
+      );
+      if (!res.ok) {
+        errors.push(`Batch ${Math.floor(i / BATCH) + 1}: ${res.status}`);
+      } else {
+        const data = await res.json();
+        deleted += (data.records ?? []).length;
+      }
+    }
+    return { deleted, errors };
+  }
+
+  // ── airtable_import ─────────────────────────────────────────────────────────
+  if (name === "airtable_import") {
+    type ImportRec = {
+      username?: string;
+      fullName?: string;
+      profileUrl?: string;
+      followers?: number;
+      profileType?: string;
+      suiviPar?: string;
+      bio?: string;
+      template?: string;
+    };
+    const rows = input.records as ImportRec[];
+    let imported = 0;
+    const errors: string[] = [];
+    const BATCH = 10;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH).map((r) => {
+        const fields: Record<string, unknown> = { fldgITyqXWRJMA5tV: "À contacter" };
+        if (r.username) fields["fldNrahDUrSgVljvc"] = r.username.replace(/^@/, "");
+        if (r.fullName) fields["fldJEVNir9beLv8Ph"] = r.fullName;
+        if (r.profileUrl) fields["fldKKIDVHyYSg2lNh"] = r.profileUrl;
+        if (r.followers) fields["fldvT6sZIjc1ypnMw"] = r.followers;
+        if (r.profileType) fields["fld8dCqjrnqCsRSog"] = r.profileType;
+        if (r.suiviPar) fields["fld7C9ekFhBlwcy2L"] = r.suiviPar;
+        if (r.bio) fields["fldpLozVCrvYj62i0"] = r.bio;
+        if (r.template) fields["fldy8ho1lxBh8iB3n"] = r.template;
+        return { fields };
+      });
+      const res = await fetch(`https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${keys.airtableKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ records: batch }),
+      });
+      if (!res.ok) {
+        errors.push(`Batch ${Math.floor(i / BATCH) + 1}: ${res.status}`);
+      } else {
+        const data = await res.json();
+        imported += (data.records ?? []).length;
+      }
+    }
+    return { imported, errors };
+  }
+
+  // ── supabase_query ──────────────────────────────────────────────────────────
+  if (name === "supabase_query") {
+    const supabase = createClient(keys.supabaseUrl, keys.supabaseKey);
+    const queryType = input.query_type as string;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+    if (queryType === "user_count") {
+      const { count } = await supabase
+        .from("user_profiles")
+        .select("*", { count: "exact", head: true });
+      return { totalUsers: count ?? 0 };
+    }
+    if (queryType === "dm_stats") {
+      const [today, total] = await Promise.all([
+        supabase
+          .from("dm_activity")
+          .select("*", { count: "exact", head: true })
+          .eq("action", "sent")
+          .gte("dm_sent_at", todayStart.toISOString()),
+        supabase
+          .from("dm_activity")
+          .select("*", { count: "exact", head: true })
+          .eq("action", "sent"),
+      ]);
+      return { dmsSentToday: today.count ?? 0, dmsSentTotal: total.count ?? 0 };
+    }
+    if (queryType === "plan_breakdown") {
+      const [freeRes, trialRes, paidRes] = await Promise.all([
+        supabase
+          .from("user_profiles")
+          .select("*", { count: "exact", head: true })
+          .is("plan", null)
+          .is("trial_start", null),
+        supabase
+          .from("user_profiles")
+          .select("*", { count: "exact", head: true })
+          .is("plan", null)
+          .not("trial_start", "is", null),
+        supabase
+          .from("user_profiles")
+          .select("*", { count: "exact", head: true })
+          .in("plan", ["pro", "premium", "lifetime"]),
+      ]);
+      return {
+        free: freeRes.count ?? 0,
+        trial: trialRes.count ?? 0,
+        paid: paidRes.count ?? 0,
+      };
+    }
+    if (queryType === "recent_signups") {
+      const { data } = await supabase
+        .from("user_profiles")
+        .select("user_id, producer_name, plan, created_at")
+        .order("created_at", { ascending: false })
+        .limit(10);
+      return { users: data ?? [] };
+    }
+    return { error: "Unknown query_type" };
+  }
+
+  // ── stripe_query ─────────────────────────────────────────────────────────────
+  if (name === "stripe_query") {
+    if (!keys.stripeKey) return { error: "STRIPE_SECRET_KEY not configured" };
+    const stripe = new Stripe(keys.stripeKey);
+    const subs = await stripe.subscriptions.list({ status: "active", limit: 100, expand: ["data.items.data.price"] });
+    let mrr = 0;
+    const planCounts: Record<string, number> = {};
+    for (const sub of subs.data) {
+      for (const item of sub.items.data) {
+        const amount = (item.price.unit_amount ?? 0) / 100;
+        const interval = item.price.recurring?.interval;
+        mrr += interval === "year" ? amount / 12 : amount;
+        const label = item.price.nickname ?? item.price.id;
+        planCounts[label] = (planCounts[label] ?? 0) + 1;
+      }
+    }
+    return {
+      activeSubscribers: subs.data.length,
+      mrr: Math.round(mrr),
+      plans: planCounts,
+    };
+  }
+
+  // ── clerk_query ──────────────────────────────────────────────────────────────
+  if (name === "clerk_query") {
+    if (!keys.clerkKey) return { error: "CLERK_SECRET_KEY not configured" };
+    const queryType = input.query_type as string;
+    const headers = { Authorization: `Bearer ${keys.clerkKey}` };
+
+    if (queryType === "user_count") {
+      const res = await fetch("https://api.clerk.com/v1/users/count", { headers });
+      const data = res.ok ? await res.json() : null;
+      return { totalUsers: data?.total_count ?? 0 };
+    }
+    if (queryType === "list_users") {
+      const res = await fetch("https://api.clerk.com/v1/users?limit=20&order_by=-created_at", { headers });
+      const users = res.ok ? await res.json() : [];
+      return {
+        users: Array.isArray(users)
+          ? users.slice(0, 20).map((u: Record<string, unknown>) => ({
+              id: u.id,
+              email:
+                (u.email_addresses as Array<{ email_address: string }>)?.[0]
+                  ?.email_address ?? "",
+              firstName: u.first_name,
+              lastName: u.last_name,
+              createdAt: u.created_at,
+            }))
+          : [],
+      };
+    }
+    if (queryType === "user_by_email" && input.email) {
+      const res = await fetch(
+        `https://api.clerk.com/v1/users?email_address=${encodeURIComponent(input.email as string)}`,
+        { headers }
+      );
+      const users = res.ok ? await res.json() : [];
+      return { users: Array.isArray(users) ? users : [] };
+    }
+    return { error: "Unknown query_type" };
+  }
+
+  return { error: `Unknown tool: ${name}` };
+}
+
 // ── Main handler ───────────────────────────────────────────────────────────────
 
 export async function POST(req: NextRequest) {
@@ -300,6 +778,113 @@ export async function POST(req: NextRequest) {
 
   const { phase } = body;
 
+  // ── Phase "agent": Claude native tool calling ──────────────────────────────
+  if (phase === "agent") {
+    const { message, conversationHistory, image, csvText } = body as {
+      message?: string;
+      conversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
+      image?: { base64: string; mediaType: string };
+      csvText?: string;
+    };
+
+    const client = new Anthropic({ apiKey: anthropicKey });
+    const keys: ToolKeys = {
+      airtableKey,
+      supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      supabaseKey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      stripeKey: process.env.STRIPE_SECRET_KEY,
+      clerkKey: process.env.CLERK_SECRET_KEY,
+    };
+
+    // Build messages from conversation history
+    type MsgParam = { role: "user" | "assistant"; content: unknown };
+    const messages: MsgParam[] = [];
+
+    for (const turn of conversationHistory ?? []) {
+      messages.push({ role: turn.role, content: turn.content });
+    }
+
+    // Build current user message
+    type ContentBlock =
+      | { type: "text"; text: string }
+      | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+    const userContent: ContentBlock[] = [];
+    if (image) {
+      userContent.push({
+        type: "image",
+        source: { type: "base64", media_type: image.mediaType, data: image.base64 },
+      });
+    }
+    const textParts: string[] = [];
+    if (csvText) textParts.push(`CSV contents (first 100 rows):\n\`\`\`\n${csvText}\n\`\`\``);
+    if (message?.trim()) textParts.push(message.trim());
+    if (textParts.length === 0) textParts.push("Please analyze this.");
+    userContent.push({ type: "text", text: textParts.join("\n\n") });
+    messages.push({ role: "user", content: userContent });
+
+    // Agentic loop (max 6 iterations)
+    let reply = "";
+    for (let iter = 0; iter < 6; iter++) {
+      let response: Anthropic.Message;
+      try {
+        response = await client.messages.create({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 4096,
+          system: AGENT_SYSTEM_PROMPT,
+          tools: AGENT_TOOLS,
+          messages: messages as Anthropic.MessageParam[],
+        });
+      } catch (e) {
+        return NextResponse.json(
+          { error: `Claude API error: ${e instanceof Error ? e.message : String(e)}` },
+          { status: 500 }
+        );
+      }
+
+      if (response.stop_reason === "end_turn") {
+        const textBlock = response.content.find((b) => b.type === "text");
+        reply = textBlock?.type === "text" ? textBlock.text : "";
+        break;
+      }
+
+      if (response.stop_reason === "tool_use") {
+        messages.push({ role: "assistant", content: response.content });
+
+        const toolResults: Array<{
+          type: "tool_result";
+          tool_use_id: string;
+          content: string;
+        }> = [];
+
+        for (const block of response.content) {
+          if (block.type === "tool_use") {
+            let result: unknown;
+            try {
+              result = await executeTool(block.name, block.input as Record<string, unknown>, keys);
+            } catch (e) {
+              result = { error: e instanceof Error ? e.message : String(e) };
+            }
+            toolResults.push({
+              type: "tool_result",
+              tool_use_id: block.id,
+              content: JSON.stringify(result),
+            });
+          }
+        }
+
+        messages.push({ role: "user", content: toolResults });
+        // Continue loop
+      } else {
+        // Unexpected stop reason — extract any text and stop
+        const textBlock = response.content.find((b) => b.type === "text");
+        reply = textBlock?.type === "text" ? textBlock.text : "Unexpected response.";
+        break;
+      }
+    }
+
+    return NextResponse.json({ reply });
+  }
+
   // ── Phase "plan": call Claude, get action plan, fetch preview data ──────────
   if (phase === "plan") {
     const { message } = body;
@@ -307,7 +892,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Empty message" }, { status: 400 });
     }
 
-    // 1. Call Claude
     const client = new Anthropic({ apiKey: anthropicKey });
     let raw = "";
     try {
@@ -325,7 +909,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 2. Parse JSON from Claude's response
     let plan: ActionPlan;
     try {
       const jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -337,14 +920,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // 3. For explain intent: return immediately
     if (plan.intent === "explain" || plan.action === "explain") {
       return NextResponse.json({ plan, explanation: plan.explanation ?? raw });
     }
 
-    // 4. For get_stats: fetch from Supabase (handled in existing stats route)
     if (plan.action === "get_stats") {
-      // Call internal stats API
       const statsRes = await fetch(
         `${process.env.NEXT_PUBLIC_SITE_URL ?? "https://beatbridge-nextjs.vercel.app"}/api/admin/stats`,
         {
@@ -355,7 +935,6 @@ export async function POST(req: NextRequest) {
       ).catch(() => null);
       const stats = statsRes?.ok ? await statsRes.json().catch(() => null) : null;
 
-      // Also count contacts per artist from Airtable
       const allRecords = await fetchAllForDuplicates(airtableKey);
       const countsByArtist: Record<string, number> = {};
       for (const r of allRecords) {
@@ -374,7 +953,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 5. For find_duplicates
     if (plan.action === "find_duplicates") {
       const allRecords = await fetchAllForDuplicates(airtableKey);
       const byUsername = new Map<string, PreviewRecord[]>();
@@ -400,7 +978,6 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 6. For filter_contacts / delete_by_filter / update_by_filter: fetch matching records
     const records = await fetchAllMatching(airtableKey, plan.filter ?? {}).catch(
       () => [] as PreviewRecord[]
     );
@@ -444,7 +1021,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // ── Phase "chat": free-form conversation, optionally with image or CSV ────────
+  // ── Phase "chat": free-form with optional image or CSV ────────────────────────
   if (phase === "chat") {
     const { message, image, csvText } = body as {
       message?: string;
@@ -454,7 +1031,6 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: anthropicKey });
 
-    // Build message content
     type ContentBlock =
       | { type: "text"; text: string }
       | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
