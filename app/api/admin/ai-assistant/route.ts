@@ -1405,16 +1405,16 @@ export async function POST(req: NextRequest) {
 
     const client = new Anthropic({ apiKey: anthropicKey });
 
-    type ContentBlock =
-      | { type: "text"; text: string }
-      | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
-
-    const content: ContentBlock[] = [];
+    const content: Anthropic.MessageParam["content"] = [];
 
     if (image) {
       content.push({
         type: "image",
-        source: { type: "base64", media_type: image.mediaType, data: image.base64 },
+        source: {
+          type: "base64",
+          media_type: image.mediaType as "image/jpeg" | "image/png" | "image/gif" | "image/webp",
+          data: image.base64,
+        },
       });
     }
 
