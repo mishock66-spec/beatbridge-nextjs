@@ -69,6 +69,7 @@ export default function AdminAnalysisClient() {
   const [manualSearch, setManualSearch] = useState("");
   const [manualFilterArtist, setManualFilterArtist] = useState("");
   const [manualFilterType, setManualFilterType] = useState("");
+  const [manualHideEmpty, setManualHideEmpty] = useState(true);
   const [manualVisibleCount, setManualVisibleCount] = useState(100);
 
   // Filters — analyzed contacts section
@@ -199,8 +200,11 @@ export default function AdminAnalysisClient() {
     if (manualFilterType) {
       result = result.filter((c) => c.profileType === manualFilterType);
     }
+    if (manualHideEmpty) {
+      result = result.filter((c) => c.bio.trim().length > 0 || c.template.trim().length > 0);
+    }
     return result;
-  }, [contacts, manualSearch, manualFilterArtist, manualFilterType]);
+  }, [contacts, manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty]);
 
   // Filtered + limited contacts for queue (mode-aware)
   const selectedContacts = useMemo(() => {
@@ -278,7 +282,7 @@ export default function AdminAnalysisClient() {
   // Reset visible count when search/filters change
   useEffect(() => {
     setManualVisibleCount(100);
-  }, [manualSearch, manualFilterArtist, manualFilterType]);
+  }, [manualSearch, manualFilterArtist, manualFilterType, manualHideEmpty]);
 
   function buildContactPayload() {
     return selectedContacts.map((c) => ({
@@ -357,16 +361,34 @@ STEP 2 — Read the full profile
 - Note the follower count and number of posts
 - Look at the profile photo
 
-STEP 3 — Scroll the post grid
-Scroll down slowly through the post grid.
-Look at the first 12-15 posts carefully:
-- What do the thumbnails show? (studio, concerts, lifestyle, sports, food, fashion, music equipment, etc.)
-- Are there any visible captions or text overlays in the images?
-- What is the overall vibe of the content?
+STEP 3 — Assess what's available
+After the page loads, check:
+- Does the profile have posts? (note the post count)
+- Is the profile private? (look for "This account is private")
+- Are there highlight bubbles visible below the bio?
 
-STEP 4 — Check highlights
-Look at the highlight bubbles (circles below the bio).
-What are the highlight titles? (e.g. "Beats", "Studio", "Shows")
+STEP 4 — Explore available content
+Follow this logic:
+
+IF the profile has posts (post count > 0):
+  → Scroll the post grid slowly, examine the first 12-15 posts
+  → Note: what do thumbnails show? any text overlays? overall vibe?
+
+IF the profile has 0 posts BUT has highlight bubbles:
+  → Click on each highlight bubble and watch the first 2-3 frames
+  → Note: what do the stories/highlights show?
+  → This is important — many producers post only in stories/highlights
+
+IF the profile is private:
+  → You can still see: bio, follower count, highlight bubble titles
+  → Analyze what you CAN see (bio text + highlight titles)
+  → Do NOT mark as "Autre" just because it's private — use the bio
+
+IF the profile has NO posts, NO highlights, AND NO bio:
+  → Set profile_type to "skip"
+  → Set template to "SKIP — no content available"
+  → Set analysis_note to "Profile has no visible content"
+  → Do NOT include this contact in the final JSON results
 
 STEP 5 — Analyze and classify
 Based on EVERYTHING you saw (not just the bio), determine:
@@ -383,6 +405,9 @@ Profile type (choose ONE):
 
 STEP 6 — Write personalized DM template
 Write a 1-2 sentence DM that references something SPECIFIC and VISUAL you actually saw on their profile (a post, a highlight, a specific photo, a caption) — NOT just the bio text.
+
+If the profile was private but had a bio, reference the bio text specifically.
+If highlights were the main source, reference a specific highlight title or content you saw.
 
 Start with: "Hey [first name or handle], I'm [BEATMAKER_NAME],"
 End with one of:
@@ -408,6 +433,8 @@ After completing ALL profiles, output the results as a JSON array like this:
     "analysis_note": "..."
   }
 ]
+
+IMPORTANT: If a profile had no posts, no highlights, and no bio, exclude it from the JSON entirely — do not include contacts with profile_type "skip" in the array.
 
 DO NOT try to call any API. Just paste the JSON results back in this chat so they can be saved to Airtable.
 
@@ -703,6 +730,17 @@ ${contactList}`;
                     </select>
                   </div>
 
+                  {/* Hide empty toggle */}
+                  <label className="flex items-center gap-2 cursor-pointer select-none self-start">
+                    <input
+                      type="checkbox"
+                      checked={manualHideEmpty}
+                      onChange={(e) => setManualHideEmpty(e.target.checked)}
+                      className="w-4 h-4 accent-orange-500 cursor-pointer"
+                    />
+                    <span className="text-xs text-[#606060]">Hide empty profiles (no bio or template)</span>
+                  </label>
+
                   {/* Select all / clear bar */}
                   {(() => {
                     const visible = manualFilteredContacts.slice(0, manualVisibleCount);
@@ -747,6 +785,7 @@ ${contactList}`;
                         const handle = c.username.replace(/^@/, "");
                         const artist = c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar || "";
                         const bioSnippet = c.bio?.trim().slice(0, 60);
+                        const isEmpty = !c.bio?.trim() && !c.template?.trim();
                         return (
                           <label
                             key={c.id}
@@ -792,7 +831,12 @@ ${contactList}`;
                               {bioSnippet || ""}
                             </span>
 
-                            {/* Analyzed badge */}
+                            {/* Badges */}
+                            {isEmpty && (
+                              <span className="flex-shrink-0 text-xs text-[#404040] border border-white/[0.06] rounded px-1.5 py-0.5">
+                                No content
+                              </span>
+                            )}
                             {c.analyzed && (
                               <span className="flex-shrink-0 text-xs text-green-500/70" title="Already analyzed">✅</span>
                             )}
