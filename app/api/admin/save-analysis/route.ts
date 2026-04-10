@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 
+const CORS_HEADERS = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+
+export async function OPTIONS() {
+  return new Response(null, { status: 200, headers: CORS_HEADERS });
+}
+
 const ADMIN_SECRET = process.env.ANALYZER_SECRET || "beatbridge-analyzer-2026";
 const BASE_ID = "appW42oNhB9Hl14bq";
 const TABLE_ID = "tbl0nVXbK5BQnU5FM";
@@ -92,5 +102,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, updated, errors });
+  return NextResponse.json({ success: true, updated, errors }, { headers: CORS_HEADERS });
 }
