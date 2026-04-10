@@ -961,16 +961,14 @@ async function executeTool(
     const batchSize = Math.min((input.batchSize as number) || 100, 100);
 
     const FOLLOW_UP = "Appreciate the reply — here it is: [LINK]";
-    const defaultTemplate = (username: string) =>
-      `Hey ${username || "there"}, I'm [BEATMAKER_NAME] — noticed you're connected to ${artist}'s network. Would love to connect.`;
+    // Default: use the contact's display name (not "there") for a more personal feel
+    const defaultTemplate = (displayName: string) =>
+      `Hey ${displayName}, I'm [BEATMAKER_NAME] — noticed you're connected to ${artist}'s network. Would love to connect.`;
 
-    // Fetch contacts needing templates
+    // Fetch contacts needing templates — use field NAMES (Airtable returns fields keyed by name, not ID)
     const formula = `AND({Suivi par}="${artist}",OR({template}="",{template}=BLANK(),LEFT({template},4)="Bio:"))`;
-    const fetchParams = new URLSearchParams({
-      filterByFormula: formula,
-      pageSize: String(batchSize),
-    });
-    (["fldNrahDUrSgVljvc", "fldJEVNir9beLv8Ph", "fldpLozVCrvYj62i0", "fld8dCqjrnqCsRSog"] as const).forEach(
+    const fetchParams = new URLSearchParams({ filterByFormula: formula, pageSize: String(batchSize) });
+    ["Pseudo Instagram", "Nom complet", "Notes", "Type de profil"].forEach(
       (f) => fetchParams.append("fields[]", f)
     );
     const fetchRes = await fetch(
@@ -981,6 +979,16 @@ async function executeTool(
     const fetchData = await fetchRes.json();
     const contacts: Array<{ id: string; fields: Record<string, string> }> = fetchData.records ?? [];
 
+    // Log bio breakdown for debugging
+    let withBio = 0;
+    let withoutBio = 0;
+    for (const r of contacts) {
+      const rawBio = (r.fields["Notes"] ?? "").trim();
+      const bio = rawBio.replace(/^Bio:\s*/i, "").trim();
+      if (bio.length >= 5) withBio++; else withoutBio++;
+    }
+    console.log(`[generate_dm_templates] ${artist}: ${contacts.length} contacts — ${withBio} with bio, ${withoutBio} without`);
+
     let processed = 0;
     let updated = 0;
     const errors: string[] = [];
@@ -988,16 +996,21 @@ async function executeTool(
 
     for (const record of contacts) {
       processed++;
-      const username = (record.fields["fldNrahDUrSgVljvc"] ?? "").trim();
-      const fullName = (record.fields["fldJEVNir9beLv8Ph"] ?? "").trim();
-      let bio = (record.fields["fldpLozVCrvYj62i0"] ?? "").trim();
-      bio = bio.replace(/^Bio:\s*/i, "").trim();
-      const profileType = (record.fields["fld8dCqjrnqCsRSog"] ?? "").trim();
-      const name = fullName && fullName.length > 1 && fullName !== username ? fullName : username || "there";
+      // Access by field NAME — Airtable always returns field names as keys in GET responses
+      const username = (record.fields["Pseudo Instagram"] ?? "").trim();
+      const fullName = (record.fields["Nom complet"] ?? "").trim();
+      const rawBio = (record.fields["Notes"] ?? "").trim();
+      const bio = rawBio.replace(/^Bio:\s*/i, "").trim();
+      const profileType = (record.fields["Type de profil"] ?? "").trim();
 
-      let template = defaultTemplate(username || name);
+      // Display name: prefer full name, fall back to username (never "there")
+      const displayName = fullName && fullName.length > 1 && fullName !== username
+        ? fullName
+        : username || "there";
 
-      if (bio && bio.length >= 5) {
+      let template = defaultTemplate(displayName);
+
+      if (bio.length >= 5) {
         try {
           const typeHint =
             profileType && profileType !== "Autre"
@@ -1013,11 +1026,11 @@ async function executeTool(
             body: JSON.stringify({
               model: "claude-haiku-4-5-20251001",
               max_tokens: 150,
-              system: `You write short, natural ice-breaker DMs for a beatmaker reaching out to contacts in ${artist}'s network.\n\nRules:\n- Max 2 sentences. Conversational tone.\n- Reference ONE specific detail from the bio.\n- End with a short question.\n- NEVER include a link or URL.\n- Use [BEATMAKER_NAME] literally as a placeholder.\n- Do NOT mention "cold DM" or anything salesy.\n- Start with "Yo," or "Hey [name]," — vary the opener.\n- Contact's name/username: "${name}"`,
+              system: `You write short, natural ice-breaker DMs for a beatmaker reaching out to contacts in ${artist}'s network.\n\nRules:\n- Max 2 sentences. Conversational tone.\n- Reference ONE specific detail from the bio.\n- End with a short question.\n- NEVER include a link or URL.\n- Use [BEATMAKER_NAME] literally as a placeholder — never replace it.\n- Do NOT mention "cold DM" or anything salesy.\n- ALWAYS start with "Hey ${displayName}," — never use any other opener.\n- Do NOT use "Yo," — always use "Hey ${displayName},"`,
               messages: [
                 {
                   role: "user",
-                  content: `Contact bio: "${bio}"${typeHint}\n\nWrite a single ice-breaker DM (1-2 sentences, ending with a question). Output ONLY the message text.`,
+                  content: `Contact bio: "${bio}"${typeHint}\n\nWrite a single ice-breaker DM (1-2 sentences, ending with a question). Must start with "Hey ${displayName},". Output ONLY the message text.`,
                 },
               ],
             }),
@@ -1026,12 +1039,17 @@ async function executeTool(
             const haikuData = await haikuRes.json();
             const generated = ((haikuData.content[0] as { text?: string })?.text ?? "").trim();
             if (generated && generated.length > 10) template = generated;
+            else errors.push(`${username}: Haiku returned empty/short response`);
+          } else {
+            const errBody = await haikuRes.text();
+            errors.push(`${username}: Haiku ${haikuRes.status} — ${errBody.slice(0, 100)}`);
           }
         } catch (e) {
           errors.push(`${username}: ${e instanceof Error ? e.message : String(e)}`);
         }
       }
 
+      // Write uses field IDs — Airtable accepts field IDs in PATCH/POST bodies
       updates.push({ id: record.id, fields: { fldy8ho1lxBh8iB3n: template, fldvT8Qq6LDFzcRgJ: FOLLOW_UP } });
 
       // Flush batch of 10
