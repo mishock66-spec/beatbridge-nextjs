@@ -343,7 +343,7 @@ Choice ID for Autre: selmOadl7YJihw4H9
 ## GENERATING DM TEMPLATES
 You can generate DM templates for any artist network using the generate_dm_templates tool.
 When asked to generate templates, use batchSize: 100 and repeat until all contacts are processed.
-The tool finds contacts where template is empty OR starts with "Bio:" (incorrectly populated during import).
+The tool finds contacts where template is empty, starts with "Bio:", or contains "noticed you're connected to" (default fallback template).
 It generates a personalized ice-breaker (no link) and sets follow_up to the standard Step 2 message.
 
 ## SEND DM FORMAT
@@ -640,7 +640,7 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
   {
     name: "generate_dm_templates",
     description:
-      "Generate personalized DM templates for contacts in an artist network. Finds contacts where the template is empty or starts with 'Bio:' (bad import), calls Claude Haiku to write an ice-breaker using the contact's bio, and updates fldy8ho1lxBh8iB3n (template) + fldvT8Qq6LDFzcRgJ (follow_up) in Airtable. Contacts without a bio get the default fallback template. Max 100 per call — repeat until all are processed.",
+      "Generate personalized DM templates for contacts in an artist network. Finds contacts where the template is empty, starts with 'Bio:' (bad import), or contains 'noticed you\\'re connected to' (default fallback). Calls Claude Haiku to write a personalized ice-breaker using the contact's bio. Updates fldy8ho1lxBh8iB3n (template) + fldvT8Qq6LDFzcRgJ (follow_up) in Airtable. Contacts without a bio keep/get the default fallback. Max 100 per call — repeat until all are processed.",
     input_schema: {
       type: "object" as const,
       properties: {
@@ -966,7 +966,7 @@ async function executeTool(
       `Hey ${displayName}, I'm [BEATMAKER_NAME] — noticed you're connected to ${artist}'s network. Would love to connect.`;
 
     // Fetch contacts needing templates — use field NAMES (Airtable returns fields keyed by name, not ID)
-    const formula = `AND({Suivi par}="${artist}",OR({template}="",{template}=BLANK(),LEFT({template},4)="Bio:"))`;
+    const formula = `AND({Suivi par}="${artist}",OR({template}="",{template}=BLANK(),LEFT({template},4)="Bio:",SEARCH("noticed you're connected to",{template})))`;
     const fetchParams = new URLSearchParams({ filterByFormula: formula, pageSize: String(batchSize) });
     ["Pseudo Instagram", "Nom complet", "Notes", "Type de profil"].forEach(
       (f) => fetchParams.append("fields[]", f)
