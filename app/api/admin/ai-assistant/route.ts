@@ -100,6 +100,21 @@ BUSINESS RULES:
 - Top contacts cap is 50K followers max (10K for Juke Wong)
 - ~6000+ total contacts across all networks
 
+WEB SEARCH:
+You have access to real-time web search. Use it when:
+- Asked about current events, recent news, or live data
+- Researching a music artist, producer, or label
+- Looking up Instagram profiles or social media presence
+- Checking if an artist is currently active or relevant
+- Finding information about a producer's discography or credits
+- Any question that requires up-to-date information
+
+Examples:
+- "Search for Metro Boomin's latest projects"
+- "Find producers who have worked with Drake recently"
+- "What is Southside's real name?"
+- "Look up the net worth of [artist]"
+
 WHEN THE USER UPLOADS A CSV:
 - First show a preview: "I can see X rows with these columns: ..."
 - Ask which artist network to assign them to (Suivi par field)
@@ -184,6 +199,21 @@ AIRTABLE FILTER FORMULA SYNTAX (for airtable_query):
 - OR({template}="",{template}=BLANK())  ← no template
 - AND({Notes}!="",{Notes}!=BLANK())  ← has bio
 - SEARCH("keyword",LOWER({Pseudo Instagram}))
+
+WEB SEARCH:
+You have access to real-time web search. Use it when:
+- Asked about current events, recent news, or live data
+- Researching a music artist, producer, or label
+- Looking up Instagram profiles or social media presence
+- Checking if an artist is currently active or relevant
+- Finding information about a producer's discography or credits
+- Any question that requires up-to-date information
+
+Examples:
+- "Search for Metro Boomin's latest projects"
+- "Find producers who have worked with Drake recently"
+- "What is Southside's real name?"
+- "Look up the net worth of [artist]"
 
 TOOL USE GUIDELINES:
 1. Always explain what you're about to do before calling a tool
@@ -596,6 +626,11 @@ const AGENT_TOOLS: Anthropic.Tool[] = [
       required: ["query_type"],
     },
   },
+  // Built-in Anthropic web search tool — executed server-side, no client implementation needed
+  {
+    type: "web_search_20250305",
+    name: "web_search",
+  } as unknown as Anthropic.Tool,
 ];
 
 // ── Agent tool execution ────────────────────────────────────────────────────────
@@ -613,6 +648,11 @@ async function executeTool(
   input: Record<string, unknown>,
   keys: ToolKeys
 ): Promise<unknown> {
+  // web_search is a built-in Anthropic tool executed server-side — no client action needed
+  if (name === "web_search") {
+    return { ok: true };
+  }
+
   // ── airtable_query ──────────────────────────────────────────────────────────
   if (name === "airtable_query") {
     const formula = (input.formula as string) || "";
@@ -1022,6 +1062,7 @@ export async function POST(req: NextRequest) {
         model: "claude-sonnet-4-20250514",
         max_tokens: 1024,
         system: SYSTEM_PROMPT,
+        tools: [{ type: "web_search_20250305", name: "web_search" }] as unknown as Anthropic.Tool[],
         messages: [{ role: "user", content: message }],
       });
       // Extract text from first text block; skip tool_use or other block types
