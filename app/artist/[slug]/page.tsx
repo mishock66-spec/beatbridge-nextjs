@@ -99,12 +99,8 @@ export default async function ArtistNetwork({
           </div>
         </div>
 
-        <DailyWarningBanner />
-        <InstagramSafetyGuide />
-        <ScoringDisclaimer />
-
-        {meta.ranges.length > 0 ? (
-          <div className="mt-8">
+        {meta.ranges.length > 0 && (
+          <div className="mt-8 mb-10">
             <div className="mb-6">
               <h2 className="text-2xl font-light tracking-[0.02em] mb-2">Browse by Follower Range</h2>
               <p className="text-[#a0a0a0] text-sm">Browse all contacts by follower range. <span className="text-orange-400">Smaller accounts reply faster</span> — start low.</p>
@@ -123,7 +119,13 @@ export default async function ArtistNetwork({
               ))}
             </div>
           </div>
-        ) : (
+        )}
+
+        <DailyWarningBanner />
+        <InstagramSafetyGuide />
+        <ScoringDisclaimer />
+
+        {meta.ranges.length === 0 && (
           <ArtistNetworkClient
             records={records}
             loading={false}
