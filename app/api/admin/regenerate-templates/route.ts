@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { ARTISTS_CONFIG, getArtistPrimaryFilter } from "@/lib/artists.config";
 
 export const maxDuration = 300;
 export const dynamic = "force-dynamic";
@@ -12,24 +13,20 @@ const BASE_ID = "appW42oNhB9Hl14bq";
 const TABLE_ID = "tbl0nVXbK5BQnU5FM";
 const BASE_URL = `https://api.airtable.com/v0/${BASE_ID}/${TABLE_ID}`;
 
-const ARTIST_FILTERS: Record<string, string | string[]> = {
-  "currensy":     ["Curren$y", "CurrenSy"],
-  "harry-fraud":  "Harry Fraud",
-  "wheezy":       "Wheezy",
-  "juke-wong":    "Juke Wong",
-  "southside":    "Southside",
-  "metro-boomin": "Metro Boomin",
-};
+const ARTIST_FILTERS: Record<string, string | string[]> = ARTISTS_CONFIG.reduce(
+  (acc, a) => { acc[a.slug] = a.airtableFilter; return acc; },
+  {} as Record<string, string | string[]>
+);
 
-const ARTIST_DISPLAY: Record<string, string> = {
-  "Wheezy":       "Wheezy",
-  "Curren$y":     "Curren$y",
-  "CurrenSy":     "Curren$y",
-  "Harry Fraud":  "Harry Fraud",
-  "Juke Wong":    "Juke Wong",
-  "Southside":    "Southside",
-  "Metro Boomin": "Metro Boomin",
-};
+const ARTIST_DISPLAY: Record<string, string> = ARTISTS_CONFIG.reduce(
+  (acc, a) => {
+    const primary = getArtistPrimaryFilter(a);
+    const keys = Array.isArray(a.airtableFilter) ? a.airtableFilter : [a.airtableFilter];
+    keys.forEach((k) => { acc[k] = primary; });
+    return acc;
+  },
+  {} as Record<string, string>
+);
 
 function getArtistName(suiviPar: string) {
   return ARTIST_DISPLAY[suiviPar] || suiviPar || "this artist";

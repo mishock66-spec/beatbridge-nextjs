@@ -2,19 +2,25 @@ import { Suspense } from "react";
 import { fetchAllAirtableGrouped } from "@/lib/airtable";
 import DashboardClient from "@/components/DashboardClient";
 import SuccessToast from "@/components/SuccessToast";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 
 export const revalidate = 0;
 
-// Metadata for known artists — slug + photo path.
-// Any artist in Airtable without an entry here gets a generated slug and no photo.
-const ARTIST_METADATA: Record<string, { slug: string; photo: string }> = {
-  "Curren$y":   { slug: "currensy",    photo: "/images/currensy.png" },
-  "Harry Fraud": { slug: "harry-fraud", photo: "/images/harryfraud.jpg" },
-  "Wheezy":     { slug: "wheezy",      photo: "/images/wheezy.jpg" },
-  "Juke Wong":  { slug: "juke-wong",   photo: "/images/juke-wong.jpg" },
-  "Southside":     { slug: "southside",     photo: "/images/southside.jpg" },
-  "Metro Boomin":  { slug: "metro-boomin", photo: "/images/metro-boomin.jpg" },
-};
+// Derived from config — maps "Suivi par" value → { slug, photo }
+const ARTIST_METADATA: Record<string, { slug: string; photo: string }> =
+  ARTISTS_CONFIG.reduce(
+    (acc, artist) => {
+      const keys = Array.isArray(artist.airtableFilter)
+        ? artist.airtableFilter
+        : [artist.airtableFilter];
+      keys.forEach((key) => {
+        acc[key] = { slug: artist.slug, photo: artist.photo };
+      });
+      return acc;
+    },
+    {} as Record<string, { slug: string; photo: string }>
+  );
+
 
 export default async function DashboardPage() {
   let groups: { artistName: string; records: import("@/lib/airtable").AirtableRecord[] }[] = [];

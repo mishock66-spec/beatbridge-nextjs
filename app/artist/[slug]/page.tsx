@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { fetchAirtableRecords } from "@/lib/airtable";
 import ArtistNetworkClient from "@/components/ArtistNetworkClient";
 import ScoringDisclaimer from "@/components/ScoringDisclaimer";
@@ -9,70 +10,13 @@ import InstagramSafetyGuide from "@/components/InstagramSafetyGuide";
 import { SocialLinks } from "@/components/SocialLinks";
 import AuthGateClient from "@/components/AuthGateClient";
 import { getArtistOverride } from "@/lib/artistOverrides";
+import { getArtist, getAllSlugs } from "@/lib/artists.config";
 
 export const revalidate = 0;
 
-const ARTIST_META: Record<
-  string,
-  {
-    name: string;
-    subtitle: string;
-    igHandle: string | null;
-    bio: string;
-    photo?: string;
-    suiviPar: string | string[];
-    socials: { instagram?: string; twitter?: string };
-    email?: string;
-  }
-> = {
-  currensy: {
-    name: "Curren$y",
-    subtitle: "Jet Life Recordings · New Orleans, LA",
-    igHandle: "spitta_andretti",
-    photo: "/images/currensy.png",
-    suiviPar: ["Curren$y", "CurrenSy"],
-    bio: "Prolific New Orleans rapper and founder of Jet Life Recordings. Spitta has cultivated one of the most loyal and talented networks in independent hip-hop — from beatmakers to A&R reps to engineers who all share his laid-back, smoke-filled aesthetic.",
-    socials: {
-      instagram: "https://www.instagram.com/spitta_andretti/",
-      twitter:   "https://x.com/CurrenSy_Spitta",
-    },
-  },
-  "harry-fraud": {
-    name: "Harry Fraud",
-    subtitle: "New York City · Cinematic Boom-Bap",
-    igHandle: "harryfraud",
-    photo: "/images/harryfraud.jpg",
-    suiviPar: "Harry Fraud",
-    bio: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
-    socials: {
-      instagram: "https://www.instagram.com/harryfraud/",
-      twitter:   "https://x.com/HarryFraud",
-    },
-    email: "HarryFraudBeats@gmail.com",
-  },
-  wheezy: {
-    name: "Wheezy",
-    subtitle: "Atlanta · Trap · Certified Trapper",
-    igHandle: "wheezyouttahere",
-    photo: "/images/wheezy.jpg",
-    suiviPar: "Wheezy",
-    bio: "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper, Wheezy's sound defines modern Atlanta trap.",
-    socials: {
-      instagram: "https://www.instagram.com/wheezy/",
-      twitter:   "https://x.com/wheezy0uttahere",
-    },
-  },
-  "juke-wong": {
-    name: "Juke Wong",
-    subtitle: "Melodic Trap · Wheezy's Circle",
-    igHandle: "jukewong",
-    suiviPar: "Juke Wong",
-    bio: "Producer known for his work with Wheezy and his signature melodic trap sound.",
-    socials: {
-      instagram: "https://www.instagram.com/jukewong/",
-    },
-  },
-};
+export function generateStaticParams() {
+  return getAllSlugs().map((slug) => ({ slug }));
+}
 
 export default async function ArtistNetwork({
   params,
@@ -80,34 +24,16 @@ export default async function ArtistNetwork({
   params: { slug: string };
 }) {
   const { slug } = params;
+  const meta = getArtist(slug);
 
-  if (!ARTIST_META[slug]) {
-    return (
-      <div className="min-h-screen flex items-center justify-center px-4">
-        <div className="text-center">
-          <p className="text-6xl mb-6">🔒</p>
-          <h1 className="text-3xl font-black mb-3">Pro Artist</h1>
-          <p className="text-gray-400 mb-8">
-            This artist&apos;s network is available with a Pro subscription.
-          </p>
-          <Link
-            href="/artists"
-            className="text-orange-500 font-semibold hover:text-orange-400"
-          >
-            ← Back to artists
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!meta) notFound();
 
-  const meta = ARTIST_META[slug];
   const override = await getArtistOverride(slug).catch(() => ({}));
-  const effectiveBio = override.description ?? meta.bio;
+  const effectiveBio = (override as { description?: string }).description ?? meta.bio;
   const effectiveSocials = {
     ...meta.socials,
-    ...(override.instagram ? { instagram: override.instagram } : {}),
-    ...(override.twitter ? { twitter: override.twitter } : {}),
+    ...((override as { instagram?: string }).instagram ? { instagram: (override as { instagram?: string }).instagram } : {}),
+    ...((override as { twitter?: string }).twitter ? { twitter: (override as { twitter?: string }).twitter } : {}),
   };
 
   let records: AirtableRecord[] = [];
@@ -115,12 +41,11 @@ export default async function ArtistNetwork({
   let dmPriorityOrder: string[] | undefined;
 
   try {
-    records = await fetchAirtableRecords(meta.suiviPar);
+    records = await fetchAirtableRecords(meta.airtableFilter);
   } catch (err) {
     error = err instanceof Error ? err.message : "Unknown error";
   }
 
-  // Derive dmPriorityOrder from fetched records (followers asc) for badge ordering
   if (records.length > 0) {
     dmPriorityOrder = [...records]
       .sort((a, b) => a.followers - b.followers)
@@ -131,7 +56,6 @@ export default async function ArtistNetwork({
     <AuthGateClient redirectUrl={`/artist/${slug}`}>
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-12 pb-20">
-        {/* Back */}
         <Link
           href="/artists"
           className="inline-flex items-center gap-2 text-gray-500 hover:text-orange-500 text-sm mb-10 transition-colors"
@@ -139,13 +63,12 @@ export default async function ArtistNetwork({
           ← All Artists
         </Link>
 
-        {/* Artist Header */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-12">
           <div className="w-32 h-32 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
-            {meta.photo || meta.igHandle ? (
+            {meta.photo ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={meta.photo ?? `https://unavatar.io/instagram/${meta.igHandle}`}
+                src={meta.photo}
                 alt={meta.name}
                 className="w-full h-full object-cover"
               />
@@ -180,7 +103,6 @@ export default async function ArtistNetwork({
         <InstagramSafetyGuide />
         <ScoringDisclaimer />
 
-        {/* Client component handles listening link, filter, search, and grid */}
         <ArtistNetworkClient
           records={records}
           loading={false}
@@ -190,8 +112,8 @@ export default async function ArtistNetwork({
           artistName={meta.name}
         />
 
-        {/* Explore Full Network — Wheezy only */}
-        {slug === "wheezy" && (
+        {/* Explore Full Network — any artist with ranges */}
+        {meta.ranges.length > 0 && (
           <div className="mt-16 border-t border-[#1f1f1f] pt-12">
             <div className="mb-6">
               <h2 className="text-2xl font-light tracking-[0.02em] mb-2">
@@ -203,34 +125,32 @@ export default async function ArtistNetwork({
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
-              {[
-                { slug: "500-5k",  label: "500 – 5K",   desc: "Best response rate" },
-                { slug: "5k-10k",  label: "5K – 10K",   desc: "High engagement" },
-                { slug: "10k-15k", label: "10K – 15K",  desc: "Mid-tier reach" },
-                { slug: "15k-20k", label: "15K – 20K",  desc: "Mid-tier reach" },
-                { slug: "20k-25k", label: "20K – 25K",  desc: "Growing accounts" },
-                { slug: "25k-30k", label: "25K – 30K",  desc: "Growing accounts" },
-                { slug: "30k-35k", label: "30K – 35K",  desc: "Established" },
-                { slug: "35k-40k", label: "35K – 40K",  desc: "Established" },
-                { slug: "40k-50k", label: "40K – 50K",  desc: "Large following" },
-              ].map(({ slug: rangeSlug, label, desc }) => (
+              {meta.ranges.map(({ slug: rangeSlug, label, desc, premium }) => (
                 <Link
                   key={rangeSlug}
-                  href={`/artist/wheezy/network/${rangeSlug}`}
-                  className="bg-white/[0.025] border border-white/[0.08] rounded-xl p-4 hover:border-orange-500/30 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group text-center"
+                  href={`/artist/${slug}/${rangeSlug}`}
+                  className={`border rounded-xl p-4 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-black/30 transition-all duration-200 group text-center ${
+                    premium
+                      ? "bg-purple-500/[0.04] border-purple-500/20 hover:border-purple-500/40"
+                      : "bg-white/[0.025] border-white/[0.08] hover:border-orange-500/30"
+                  }`}
                 >
-                  <p className="text-sm font-semibold text-white group-hover:text-orange-400 transition-colors">
-                    {label}
+                  <p className={`text-sm font-semibold transition-colors ${
+                    premium
+                      ? "text-purple-300 group-hover:text-purple-200"
+                      : "text-white group-hover:text-orange-400"
+                  }`}>
+                    {label}{premium && " 🔒"}
                   </p>
-                  <p className="text-xs text-[#505050] mt-1">{desc}</p>
+                  {desc && <p className="text-xs text-[#505050] mt-1">{desc}</p>}
                 </Link>
               ))}
             </div>
           </div>
         )}
 
-        {/* Top Contacts — Curren$y and Harry Fraud */}
-        {(slug === "currensy" || slug === "harry-fraud") && (
+        {/* Top Contacts — artists with a curated /top page */}
+        {meta.hasTop && (
           <div className="mt-16 border-t border-[#1f1f1f] pt-10">
             <div className="mb-4">
               <Link
@@ -246,7 +166,6 @@ export default async function ArtistNetwork({
           </div>
         )}
 
-        {/* Telegram community banner */}
         <div className="mt-16 border-t border-[#1f1f1f] pt-10 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p className="text-gray-400 text-sm">
             🎹 Got a reply? Share it with the community

@@ -3,6 +3,7 @@ import WaitlistForm from "@/components/WaitlistForm";
 import SignInValueProp from "@/components/SignInValueProp";
 import { TelegramButton } from "@/components/TelegramButton";
 import { fetchAirtableCount, fetchTotalConnectionsCount } from "@/lib/airtable";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 
 export const revalidate = 0;
 
@@ -27,62 +28,15 @@ const STEPS = [
   },
 ];
 
-const PREVIEW_ARTISTS = [
-  {
-    name: "Curren$y",
-    subtitle: "Jet Life Recordings",
-    slug: "currensy",
-    suiviPar: ["Curren$y", "CurrenSy"] as string | string[],
-    free: true,
-    igHandle: "currencyspitta",
-    photo: "/images/currensy.png",
-  },
-  {
-    name: "Harry Fraud",
-    subtitle: "NYC · Boom-Bap",
-    slug: "harry-fraud",
-    suiviPar: "Harry Fraud" as string | string[],
-    free: true,
-    igHandle: "harryfraud",
-    photo: "/images/harryfraud.jpg",
-  },
-  {
-    name: "Wheezy",
-    subtitle: "Atlanta · Trap",
-    slug: "wheezy",
-    suiviPar: "Wheezy" as string | string[],
-    free: true,
-    igHandle: "wheezyouttahere",
-    photo: "/images/wheezy.jpg",
-  },
-  {
-    name: "Juke Wong",
-    subtitle: "Melodic Trap",
-    slug: "juke-wong",
-    suiviPar: "Juke Wong" as string | string[],
-    free: true,
-    igHandle: "jukewong",
-    photo: "/images/juke-wong.jpg",
-  },
-  {
-    name: "Southside",
-    subtitle: "808 Mafia · Trap",
-    slug: "southside",
-    suiviPar: "Southside" as string | string[],
-    free: true,
-    igHandle: "808mafiaboss",
-    photo: "/images/southside.jpg",
-  },
-  {
-    name: "Metro Boomin",
-    subtitle: "Boominati · Trap",
-    slug: "metro-boomin",
-    suiviPar: "Metro Boomin" as string | string[],
-    free: true,
-    igHandle: "metroboomin",
-    photo: "/images/metro-boomin.jpg",
-  },
-];
+const PREVIEW_ARTISTS = ARTISTS_CONFIG.map((a) => ({
+  name: a.name,
+  subtitle: a.subtitle,
+  slug: a.slug,
+  suiviPar: a.airtableFilter as string | string[],
+  free: true,
+  igHandle: a.igHandle,
+  photo: a.photo,
+}));
 
 export default async function Home() {
   // Fetch total connections count + per-artist preview counts in parallel

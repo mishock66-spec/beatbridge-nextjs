@@ -1,3 +1,5 @@
+import { ARTISTS_CONFIG, getArtistPrimaryFilter } from "./artists.config";
+
 export type AirtableRecord = {
   id: string;
   username: string;
@@ -57,12 +59,21 @@ function mapRecord(record: {
   };
 }
 
-// Normalize inconsistent "Suivi par" values to canonical artist names
-const SUIVIPAR_NORMALIZE: Record<string, string> = {
-  "CurrenSy": "Curren$y",
-};
+// Build normalize map from config (aliases → primary name)
+const SUIVIPAR_NORMALIZE: Record<string, string> = ARTISTS_CONFIG.reduce(
+  (acc, artist) => {
+    if (Array.isArray(artist.airtableFilter)) {
+      const primary = artist.airtableFilter[0];
+      artist.airtableFilter.slice(1).forEach((alt) => {
+        acc[alt] = primary;
+      });
+    }
+    return acc;
+  },
+  {} as Record<string, string>
+);
 
-const ARTIST_ORDER = ["Curren$y", "Harry Fraud", "Wheezy", "Juke Wong", "Southside", "Metro Boomin"];
+const ARTIST_ORDER = ARTISTS_CONFIG.map(getArtistPrimaryFilter);
 
 export async function fetchAllAirtableGrouped(): Promise<
   { artistName: string; records: AirtableRecord[] }[]

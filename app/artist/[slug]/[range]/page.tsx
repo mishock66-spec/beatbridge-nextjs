@@ -9,61 +9,41 @@ import type { AirtableRecord } from "@/lib/airtable";
 import { TelegramButton } from "@/components/TelegramButton";
 import AuthGateClient from "@/components/AuthGateClient";
 import PremiumGateClient from "@/components/PremiumGateClient";
+import { getArtist, getArtistRange } from "@/lib/artists.config";
 
 export const revalidate = 0;
 
 const PAGE_SIZE = 50;
 
-const DEFAULT_TEMPLATE =
-  "Yo, caught you in Juke Wong's circle — got some melodic trap beats I've been sitting on, think it could fit your lane?";
-
-const RANGE_CONFIG: Record<
-  string,
-  { min: number; max: number; label: string; prev?: string; next?: string; premium?: boolean }
-> = {
-  "0-500":   { min: 0,     max: 499,   label: "0 – 500",    next: "500-5k" },
-  "500-5k":  { min: 500,   max: 4999,  label: "500 – 5K",   prev: "0-500",  next: "5k-10k" },
-  "5k-10k":  { min: 5000,  max: 9999,  label: "5K – 10K",   prev: "500-5k", next: "10k-20k" },
-  "10k-20k": { min: 10000, max: 19999, label: "10K – 20K",  prev: "5k-10k",  next: "20k-30k", premium: true },
-  "20k-30k": { min: 20000, max: 29999, label: "20K – 30K",  prev: "10k-20k", next: "30k-40k", premium: true },
-  "30k-40k": { min: 30000, max: 39999, label: "30K – 40K",  prev: "20k-30k", next: "40k-50k", premium: true },
-  "40k-50k": { min: 40000, max: 50000, label: "40K – 50K",  prev: "30k-40k",                  premium: true },
-};
-
-const ALL_RANGES = Object.entries(RANGE_CONFIG).map(([slug, cfg]) => ({
-  slug,
-  label: cfg.label,
-  premium: cfg.premium ?? false,
-}));
-
-const IS_NANO_RANGE = new Set(["0-500"]);
-
-export default async function JukeWongRangePage({
+export default async function ArtistRangePage({
   params,
   searchParams,
 }: {
-  params: { range: string };
+  params: { slug: string; range: string };
   searchParams: { page?: string };
 }) {
-  const { range } = params;
-  const config = RANGE_CONFIG[range];
+  const { slug, range: rangeSlug } = params;
 
-  if (!config) notFound();
+  const artist = getArtist(slug);
+  if (!artist || artist.ranges.length === 0) notFound();
 
-  const isPremiumLocked = config.premium === true;
+  const rangeConfig = getArtistRange(artist, rangeSlug);
+  if (!rangeConfig) notFound();
+
+  const isPremiumLocked = rangeConfig.premium === true;
   const currentPage = Math.max(1, parseInt(searchParams.page ?? "1", 10));
 
   let allRecords: AirtableRecord[] = [];
   let error: string | null = null;
 
   try {
-    const raw = await fetchAirtableRecords("Juke Wong", {
-      min: config.min,
-      max: config.max,
+    const raw = await fetchAirtableRecords(artist.airtableFilter, {
+      min: rangeConfig.min,
+      max: rangeConfig.max,
     });
     allRecords = raw.map((r) => ({
       ...r,
-      template: r.template || DEFAULT_TEMPLATE,
+      template: r.template || artist.defaultTemplate,
     }));
   } catch (err) {
     error = err instanceof Error ? err.message : "Unknown error";
@@ -78,9 +58,10 @@ export default async function JukeWongRangePage({
     .map((r) => r.username);
 
   const pageUrl = (p: number) =>
-    p === 1 ? `/artist/juke-wong/${range}` : `/artist/juke-wong/${range}?page=${p}`;
+    p === 1
+      ? `/artist/${slug}/${rangeSlug}`
+      : `/artist/${slug}/${rangeSlug}?page=${p}`;
 
-  // First 3 records for blurred preview (passed to PremiumGateClient)
   const previewContacts = allRecords.slice(0, 3).map((r) => ({
     username: r.username,
     fullName: r.fullName,
@@ -88,8 +69,43 @@ export default async function JukeWongRangePage({
     profileType: r.profileType,
   }));
 
+  const isNanoRange = rangeSlug === "0-500";
+
+  const paginationBar = totalPages > 1 ? (
+    <div className="mt-10 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
+      {safePage > 1 ? (
+        <Link href={pageUrl(safePage - 1)} className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30">
+          ← Previous
+        </Link>
+      ) : <div />}
+      <div className="hidden sm:flex items-center gap-1.5">
+        {Array.from({ length: totalPages }, (_, i) => i + 1)
+          .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
+          .reduce<(number | "…")[]>((acc, p, i, arr) => {
+            if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
+            acc.push(p);
+            return acc;
+          }, [])
+          .map((p, i) =>
+            p === "…" ? (
+              <span key={`ellipsis-${i}`} className="text-[#404040] px-1 text-sm">…</span>
+            ) : (
+              <Link key={p} href={pageUrl(p as number)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${p === safePage ? "bg-orange-500 text-white" : "text-[#606060] hover:text-orange-400 border border-white/[0.06] hover:border-orange-500/30"}`}>
+                {p}
+              </Link>
+            )
+          )}
+      </div>
+      {safePage < totalPages ? (
+        <Link href={pageUrl(safePage + 1)} className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30">
+          Next →
+        </Link>
+      ) : <div />}
+    </div>
+  ) : null;
+
   return (
-    <AuthGateClient redirectUrl={`/artist/juke-wong/${range}`}>
+    <AuthGateClient redirectUrl={`/artist/${slug}/${rangeSlug}`}>
     <div className="min-h-screen">
       <div className="max-w-7xl mx-auto px-4 py-12">
 
@@ -99,11 +115,11 @@ export default async function JukeWongRangePage({
             All Artists
           </Link>
           <span className="text-gray-600">›</span>
-          <Link href="/artist/juke-wong" className="text-gray-500 hover:text-orange-500 transition-colors">
-            Juke Wong
+          <Link href={`/artist/${slug}`} className="text-gray-500 hover:text-orange-500 transition-colors">
+            {artist.name}
           </Link>
           <span className="text-gray-600">›</span>
-          <span className="text-[#a0a0a0]">{config.label} followers</span>
+          <span className="text-[#a0a0a0]">{rangeConfig.label} followers</span>
           {isPremiumLocked && (
             <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 border border-purple-500/30 uppercase tracking-wider ml-1">
               Premium
@@ -114,21 +130,23 @@ export default async function JukeWongRangePage({
         {/* Artist header */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 mb-8">
           <div className="w-20 h-20 rounded-xl bg-[#111111] border border-[#1f1f1f] overflow-hidden flex-shrink-0">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/images/juke-wong.jpg" alt="Juke Wong" className="w-full h-full object-cover" />
+            {artist.photo && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={artist.photo} alt={artist.name} className="w-full h-full object-cover" />
+            )}
           </div>
           <div className="flex-1">
             <p className="text-[#606060] text-xs uppercase tracking-[0.1em] mb-1">
-              Juke Wong · Full Network
+              {artist.name} · Full Network
             </p>
             <h1 className="text-3xl sm:text-4xl font-light tracking-[0.02em] mb-1">
-              {config.label}{" "}
+              {rangeConfig.label}{" "}
               <span className="text-transparent bg-clip-text bg-gradient-to-r from-orange-400 to-[#f85c00]">
                 followers
               </span>
             </h1>
             <p className="text-[#a0a0a0] text-sm">
-              Contacts following Juke Wong with {config.label} followers
+              Contacts following {artist.name} with {rangeConfig.label} followers
             </p>
           </div>
           <div className="bg-[#111111] border border-[#1f1f1f] rounded-2xl px-6 py-4 text-center flex-shrink-0">
@@ -138,12 +156,12 @@ export default async function JukeWongRangePage({
         </div>
 
         {/* Tip banner */}
-        {IS_NANO_RANGE.has(range) ? (
+        {isNanoRange ? (
           <div className="bg-orange-500/[0.10] border border-orange-500/30 rounded-xl px-4 py-3 mb-8 flex items-start gap-3">
             <span className="text-base leading-none mt-0.5">⚡</span>
             <p className="text-sm text-[#a0a0a0] leading-relaxed">
               <span className="text-orange-400 font-semibold">
-                Under 500 followers — these are the most reachable people in Juke Wong&apos;s network.
+                Under 500 followers — these are the most reachable people in {artist.name}&apos;s network.
               </span>{" "}
               Expect the highest reply rates here.
             </p>
@@ -162,12 +180,12 @@ export default async function JukeWongRangePage({
 
         {/* Range navigation pills */}
         <div className="flex flex-wrap gap-2 mb-10">
-          {ALL_RANGES.map(({ slug, label, premium }) => (
+          {artist.ranges.map(({ slug: rs, label, premium }) => (
             <Link
-              key={slug}
-              href={`/artist/juke-wong/${slug}`}
+              key={rs}
+              href={`/artist/${slug}/${rs}`}
               className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-all duration-150 tracking-[0.05em] uppercase min-h-[36px] flex items-center gap-1.5 ${
-                slug === range
+                rs === rangeSlug
                   ? premium
                     ? "bg-purple-500/80 text-white border-purple-500 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
                     : "bg-orange-500 text-white border-orange-500 shadow-[0_0_12px_rgba(249,115,22,0.3)]"
@@ -183,11 +201,10 @@ export default async function JukeWongRangePage({
         </div>
 
         {isPremiumLocked ? (
-          /* Premium-locked content */
           <PremiumGateClient
             previewContacts={previewContacts}
             csvCount={allRecords.length}
-            artistSlug="juke-wong"
+            artistSlug={slug}
           >
             <>
               <DailyWarningBanner />
@@ -198,18 +215,16 @@ export default async function JukeWongRangePage({
                 loading={false}
                 error={error}
                 dmPriorityOrder={dmPriorityOrder}
-                artistSlug="juke-wong"
+                artistSlug={slug}
               />
             </>
           </PremiumGateClient>
         ) : (
-          /* Free content */
           <>
             <DailyWarningBanner />
             <InstagramSafetyGuide />
             <ScoringDisclaimer />
 
-            {/* Page indicator */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between mb-6">
                 <p className="text-sm text-[#606060]">
@@ -232,62 +247,30 @@ export default async function JukeWongRangePage({
               loading={false}
               error={error}
               dmPriorityOrder={dmPriorityOrder}
-              artistSlug="juke-wong"
+              artistSlug={slug}
             />
 
-            {/* Pagination */}
-            {totalPages > 1 && (
-              <div className="mt-10 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
-                {safePage > 1 ? (
-                  <Link href={pageUrl(safePage - 1)} className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30">
-                    ← Previous
-                  </Link>
-                ) : <div />}
-                <div className="hidden sm:flex items-center gap-1.5">
-                  {Array.from({ length: totalPages }, (_, i) => i + 1)
-                    .filter((p) => p === 1 || p === totalPages || Math.abs(p - safePage) <= 2)
-                    .reduce<(number | "…")[]>((acc, p, i, arr) => {
-                      if (i > 0 && p - (arr[i - 1] as number) > 1) acc.push("…");
-                      acc.push(p);
-                      return acc;
-                    }, [])
-                    .map((p, i) =>
-                      p === "…" ? (
-                        <span key={`ellipsis-${i}`} className="text-[#404040] px-1 text-sm">…</span>
-                      ) : (
-                        <Link key={p} href={pageUrl(p as number)} className={`w-8 h-8 flex items-center justify-center rounded-lg text-xs font-medium transition-all ${p === safePage ? "bg-orange-500 text-white" : "text-[#606060] hover:text-orange-400 border border-white/[0.06] hover:border-orange-500/30"}`}>
-                          {p}
-                        </Link>
-                      )
-                    )}
-                </div>
-                {safePage < totalPages ? (
-                  <Link href={pageUrl(safePage + 1)} className="flex items-center gap-2 text-sm font-medium text-gray-400 hover:text-orange-500 transition-colors px-4 py-2 rounded-lg border border-white/[0.08] hover:border-orange-500/30">
-                    Next →
-                  </Link>
-                ) : <div />}
-              </div>
-            )}
+            {paginationBar}
           </>
         )}
 
         {/* Prev / Next range navigation */}
         <div className="mt-8 flex items-center justify-between gap-4 border-t border-[#1f1f1f] pt-8">
-          {config.prev ? (
-            <Link href={`/artist/juke-wong/${config.prev}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
-              ← {RANGE_CONFIG[config.prev].label}
+          {rangeConfig.prev ? (
+            <Link href={`/artist/${slug}/${rangeConfig.prev}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
+              ← {getArtistRange(artist, rangeConfig.prev)?.label}
             </Link>
           ) : <div />}
-          {config.next ? (
-            <Link href={`/artist/juke-wong/${config.next}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
-              {RANGE_CONFIG[config.next].label} →
+          {rangeConfig.next ? (
+            <Link href={`/artist/${slug}/${rangeConfig.next}`} className="flex items-center gap-2 text-sm text-gray-500 hover:text-orange-500 transition-colors">
+              {getArtistRange(artist, rangeConfig.next)?.label} →
             </Link>
           ) : <div />}
         </div>
 
         <div className="mt-8 flex justify-center">
-          <Link href="/artist/juke-wong" className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
-            ← Back to Juke Wong
+          <Link href={`/artist/${slug}`} className="text-sm text-gray-500 hover:text-orange-500 transition-colors">
+            ← Back to {artist.name}
           </Link>
         </div>
 

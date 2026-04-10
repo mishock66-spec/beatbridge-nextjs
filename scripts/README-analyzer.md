@@ -1,8 +1,19 @@
 # Instagram Analyzer — Local Script
 
-Scrapes Instagram profiles using your existing Chrome session, analyzes them with Claude Haiku, and updates Airtable automatically.
+Scrapes Instagram profiles using a dedicated Chrome profile, analyzes them with Claude Haiku, and updates Airtable automatically.
 
 **This script is local only — never push to main.**
+
+---
+
+## How it works
+
+The script uses its own Chrome profile stored at:
+`C:\Users\crayx\beatbridge-analyzer-profile\`
+
+This is completely separate from your main Chrome. Both can be open at the same time — no conflicts.
+
+**First run:** The script opens Chrome and asks you to log into Instagram. Your session is saved to the profile directory and reused on every future run.
 
 ---
 
@@ -23,16 +34,21 @@ Scrapes Instagram profiles using your existing Chrome session, analyzes them wit
    ```
    This gives the script access to `AIRTABLE_API_KEY` and `ANTHROPIC_API_KEY`.
 
-2. Make sure you are logged into Instagram in your regular Chrome profile (Default). The script uses your existing session — no credentials required.
-
-3. **Close Chrome completely before running the script.** Chrome locks its profile directory; if Chrome is open, Playwright cannot launch with that profile and the script will fail.
+2. Run the script for the first time:
+   ```bash
+   node scripts/instagram-analyzer.js
+   ```
+   A Chrome window opens. Log into Instagram, then press Enter in the terminal.
+   Your session is saved — you won't need to log in again.
 
 ---
 
 ## Populate the Queue
 
-Edit `scripts/analysis-queue.json` with the contacts you want to analyze:
+Edit `scripts/analysis-queue.json` with the contacts you want to analyze.
+Use the **Analysis Session** page at `/admin/analysis` to generate this file automatically.
 
+Manual format:
 ```json
 [
   {
@@ -40,14 +56,8 @@ Edit `scripts/analysis-queue.json` with the contacts you want to analyze:
     "record_id": "recXXXXXXXXXXXXXX",
     "artist": "Wheezy",
     "current_type": "Autre",
-    "current_template": ""
-  },
-  {
-    "username": "beatsbyjayy",
-    "record_id": "recYYYYYYYYYYYYYY",
-    "artist": "Harry Fraud",
-    "current_type": "Beatmaker/Producteur",
-    "current_template": "Yo Jay..."
+    "current_template": "",
+    "bio": ""
   }
 ]
 ```
@@ -56,10 +66,9 @@ Edit `scripts/analysis-queue.json` with the contacts you want to analyze:
 - `username` — Instagram handle (no @)
 - `record_id` — Airtable record ID (starts with `rec`)
 - `artist` — Artist name (used as context in the DM template)
-- `current_type` — Current profile type in Airtable (e.g. `"Autre"`)
+- `current_type` — Current profile type in Airtable
 - `current_template` — Current DM template (can be empty string)
-
-To get record IDs from Airtable, open the Admin → Contacts table and copy from the URL or use the API.
+- `bio` — Current bio/notes from Airtable (can be empty)
 
 ---
 
@@ -70,7 +79,7 @@ node scripts/instagram-analyzer.js
 ```
 
 The script will:
-1. Open Chrome with your real profile
+1. Open Chrome with the analyzer profile (your main Chrome stays open)
 2. Go to each Instagram profile in the queue
 3. Scrape bio, followers, posts, highlights
 4. Send data to Claude Haiku for analysis
@@ -111,10 +120,12 @@ It reads `scripts/analysis-results.json` and skips any username already processe
 
 ## Troubleshooting
 
-**"Chrome profile is locked"** — Close all Chrome windows and try again.
+**First-run login prompt doesn't appear** — The profile directory may already exist from a partial run. Delete `C:\Users\crayx\beatbridge-analyzer-profile\` and run again.
 
 **"Rate limited / suspicious activity"** — Stop the script. Wait 30–60 minutes before resuming. Reduce session size by lowering `MAX_PER_SESSION` in the script.
 
 **"Unknown field: analyzed"** — The `analyzed` checkbox field doesn't exist in your Airtable table yet. Create a checkbox field named `analyzed` in the table, or the script will update all other fields and skip that one gracefully.
 
 **Profile is private** — The script detects private accounts and skips them, marking as `private: true` in results.
+
+**Session expired** — If Instagram logs you out of the analyzer profile, delete `C:\Users\crayx\beatbridge-analyzer-profile\` and run again to re-login.

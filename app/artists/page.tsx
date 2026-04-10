@@ -6,106 +6,22 @@ import { SocialLinks } from "@/components/SocialLinks";
 import ExploreNetworkButton from "@/components/ExploreNetworkButton";
 import { LATEST_DROP } from "@/lib/announcements";
 import { getAllArtistOverrides } from "@/lib/artistOverrides";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 
 export const revalidate = 0;
 
-const ARTISTS = [
-  {
-    name: "Curren$y",
-    subtitle: "Jet Life Recordings",
-    slug: "currensy",
-    suiviPar: ["Curren$y", "CurrenSy"] as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "New Orleans"],
-    igHandle: "currencyspitta",
-    photo: "/images/currensy.png",
-    description:
-      "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.",
-    socials: {
-      instagram: "https://www.instagram.com/spitta_andretti/",
-      twitter:   "https://x.com/CurrenSy_Spitta",
-    },
-  },
-  {
-    name: "Harry Fraud",
-    subtitle: "NYC · Cinematic Boom-Bap",
-    slug: "harry-fraud",
-    suiviPar: "Harry Fraud" as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "NYC"],
-    igHandle: "harryfraud",
-    photo: "/images/harryfraud.jpg",
-    description:
-      "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap. The mind behind Smoke DZA, Rome Streetz, Crimeapple, Benny the Butcher.",
-    socials: {
-      instagram: "https://www.instagram.com/harryfraud/",
-      twitter:   "https://x.com/HarryFraud",
-    },
-  },
-  {
-    name: "Wheezy",
-    subtitle: "Atlanta · Certified Trapper",
-    slug: "wheezy",
-    suiviPar: "Wheezy" as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "Atlanta", "Trap"],
-    igHandle: "wheezyouttahere",
-    photo: "/images/wheezy.jpg",
-    description:
-      "Atlanta's most in-demand producer. The architect behind Future, Gunna, Young Thug, and Lil Baby's biggest records. Co-founder of Certified Trapper.",
-    socials: {
-      instagram: "https://www.instagram.com/wheezy/",
-      twitter:   "https://x.com/wheezy0uttahere",
-    },
-  },
-  {
-    name: "Juke Wong",
-    subtitle: "Melodic Trap · Wheezy's Circle",
-    slug: "juke-wong",
-    suiviPar: "Juke Wong" as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "Trap", "Melodic"],
-    igHandle: "jukewong",
-    photo: "/images/juke-wong.jpg",
-    description:
-      "Producer known for his work with Wheezy and his signature melodic trap sound.",
-    socials: {
-      instagram: "https://www.instagram.com/jukewong/",
-    },
-  },
-  {
-    name: "Southside",
-    subtitle: "Atlanta · 808 Mafia · Trap",
-    slug: "southside",
-    suiviPar: "Southside" as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "Atlanta", "Trap"],
-    igHandle: "808mafiaboss",
-    photo: "/images/southside.jpg",
-    description:
-      "Co-founder of 808 Mafia. The architect behind Future, Drake, Travis Scott and Young Thug's biggest records.",
-    socials: {
-      instagram: "https://www.instagram.com/808mafiaboss/",
-      twitter:   "https://x.com/808mafiaboss",
-    },
-  },
-  {
-    name: "Metro Boomin",
-    subtitle: "Atlanta · Boominati Worldwide · Trap",
-    slug: "metro-boomin",
-    suiviPar: "Metro Boomin" as string | string[],
-    free: true,
-    genres: ["Hip-Hop", "Atlanta", "Trap"],
-    igHandle: "metroboomin",
-    photo: "/images/metro-boomin.jpg",
-    description:
-      "Founder of Boominati Worldwide. The architect behind 21 Savage, Future, Drake, Travis Scott and Gunna's biggest records.",
-    socials: {
-      instagram: "https://www.instagram.com/metroboomin/",
-      twitter:   "https://x.com/MetroBoomin",
-    },
-  },
-];
+const ARTISTS = ARTISTS_CONFIG.map((a) => ({
+  name: a.name,
+  subtitle: a.subtitle,
+  slug: a.slug,
+  suiviPar: a.airtableFilter as string | string[],
+  free: true,
+  genres: a.genres,
+  igHandle: a.igHandle,
+  photo: a.photo,
+  description: a.description,
+  socials: a.socials,
+}));
 
 type Artist = (typeof ARTISTS)[0];
 
