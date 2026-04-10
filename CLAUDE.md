@@ -2,6 +2,9 @@
 
 ## 🚨 CRITICAL RULES — NEVER BREAK THESE
 
+### DOCUMENTATION FILES
+- Documentation files (.md) always go in the ROOT of the project (same level as package.json). NEVER in app/, components/, or any subdirectory. This includes ARTIST_ONBOARDING.md, CLAUDE.md, README.md, and any future documentation files.
+
 ### STATUS PERSISTENCE
 - Contact statuses are ALWAYS stored in Supabase dm_status table
 - NEVER use localStorage, sessionStorage, or React state alone for statuses
