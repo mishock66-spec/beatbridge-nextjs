@@ -346,32 +346,70 @@ export default function AdminAnalysisClient() {
       })
       .join("\n");
 
-    const prompt = `I need you to analyze Instagram profiles for BeatBridge.
+    const prompt = `For each contact below, you MUST follow these exact steps:
 
-For each username in this list, visit their Instagram profile, take a screenshot, and analyze:
-1. What type of profile is this? (Beatmaker/Producteur, Artiste/Rappeur, Manager, Ingé son, Label, DJ, Photographe/Vidéaste, or Autre)
-2. Write a personalized 1-2 sentence DM template that references something specific from their profile.
-   Start with "Hey [name], I'm [BEATMAKER_NAME],"
-   End with one of: "think we could build something?" / "would love to connect." / "open to hear your thoughts."
-   Never include a link or URL.
-3. Write a 1-line analysis note explaining your classification.
+STEP 1 — Open the Instagram profile
+Navigate to https://www.instagram.com/[username]/
+Wait for the page to fully load.
 
-After analyzing ALL profiles, call this API to save results:
-POST https://beatbridge.live/api/admin/save-analysis
-Headers: Content-Type: application/json
-Body:
-{
-  "adminSecret": "beatbridge-analyzer-2026",
-  "results": [
-    {
-      "record_id": "recXXX (use the record_id from the list below)",
-      "username": "@handle",
-      "profile_type": "...",
-      "template": "Hey [name], I'm [BEATMAKER_NAME]...",
-      "analysis_note": "..."
-    }
-  ]
-}
+STEP 2 — Read the full profile
+- Read the bio text
+- Note the follower count and number of posts
+- Look at the profile photo
+
+STEP 3 — Scroll the post grid
+Scroll down slowly through the post grid.
+Look at the first 12-15 posts carefully:
+- What do the thumbnails show? (studio, concerts, lifestyle, sports, food, fashion, music equipment, etc.)
+- Are there any visible captions or text overlays in the images?
+- What is the overall vibe of the content?
+
+STEP 4 — Check highlights
+Look at the highlight bubbles (circles below the bio).
+What are the highlight titles? (e.g. "Beats", "Studio", "Shows")
+
+STEP 5 — Analyze and classify
+Based on EVERYTHING you saw (not just the bio), determine:
+
+Profile type (choose ONE):
+- Beatmaker/Producteur — makes beats, studio equipment visible, DAW screenshots, producer tags
+- Artiste/Rappeur — rapper, singer, performer, music videos, stage performances
+- Manager — manages artists, booking info, industry networking
+- Ingé son — mixing/mastering, recording engineer, studio work
+- Label — record label, signs artists, A&R
+- DJ — DJ sets, turntables, events, club nights
+- Photographe/Vidéaste — photo/video content, behind the scenes, cameras
+- Autre — cannot determine music connection from visual content
+
+STEP 6 — Write personalized DM template
+Write a 1-2 sentence DM that references something SPECIFIC and VISUAL you actually saw on their profile (a post, a highlight, a specific photo, a caption) — NOT just the bio text.
+
+Start with: "Hey [first name or handle], I'm [BEATMAKER_NAME],"
+End with one of:
+- "think we could build something?"
+- "would love to connect."
+- "open to hear your thoughts."
+
+Never include a link or URL.
+
+STEP 7 — Write analysis note
+1 line explaining: what you SAW on the profile that led to your classification. Be specific about visual content.
+
+---
+
+After completing ALL profiles, output the results as a JSON array like this:
+
+[
+  {
+    "record_id": "recXXX",
+    "username": "handle",
+    "profile_type": "...",
+    "template": "Hey [name], I'm [BEATMAKER_NAME]...",
+    "analysis_note": "..."
+  }
+]
+
+DO NOT try to call any API. Just paste the JSON results back in this chat so they can be saved to Airtable.
 
 Contacts to analyze (${selectedContacts.length} total):
 ${contactList}`;
