@@ -57,9 +57,19 @@ export default function AdminAnalysisClient() {
   const [analyzedFieldExists, setAnalyzedFieldExists] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
 
-  // Filters — queue builder
+  // Queue mode
+  const [queueMode, setQueueMode] = useState<"filter" | "manual">("filter");
+
+  // Filters — queue builder (filter mode)
   const [filterArtist, setFilterArtist] = useState("");
   const [filterType, setFilterType] = useState("Autre");
+
+  // Manual selection mode
+  const [manualSelected, setManualSelected] = useState<Set<string>>(new Set());
+  const [manualSearch, setManualSearch] = useState("");
+  const [manualFilterArtist, setManualFilterArtist] = useState("");
+  const [manualFilterType, setManualFilterType] = useState("");
+  const [manualVisibleCount, setManualVisibleCount] = useState(100);
 
   // Filters — analyzed contacts section
   const [analyzedFilterArtist, setAnalyzedFilterArtist] = useState("");
@@ -168,10 +178,36 @@ export default function AdminAnalysisClient() {
     return stopPolling;
   }, [sessionState, jobId, stopPolling]);
 
-  // Filtered + limited contacts for queue
-  const selectedContacts = useMemo(() => {
+  // Contacts matching manual search + filters (for the picker list)
+  const manualFilteredContacts = useMemo(() => {
     let result = contacts;
+    if (manualSearch) {
+      const q = manualSearch.toLowerCase();
+      result = result.filter(
+        (c) =>
+          c.username.toLowerCase().includes(q) ||
+          c.fullName.toLowerCase().includes(q)
+      );
+    }
+    if (manualFilterArtist) {
+      if (manualFilterArtist === "Curren$y") {
+        result = result.filter((c) => c.suiviPar === "Curren$y" || c.suiviPar === "CurrenSy");
+      } else {
+        result = result.filter((c) => c.suiviPar === manualFilterArtist);
+      }
+    }
+    if (manualFilterType) {
+      result = result.filter((c) => c.profileType === manualFilterType);
+    }
+    return result;
+  }, [contacts, manualSearch, manualFilterArtist, manualFilterType]);
 
+  // Filtered + limited contacts for queue (mode-aware)
+  const selectedContacts = useMemo(() => {
+    if (queueMode === "manual") {
+      return contacts.filter((c) => manualSelected.has(c.id));
+    }
+    let result = contacts;
     if (filterArtist) {
       if (filterArtist === "Curren$y") {
         result = result.filter((c) => c.suiviPar === "Curren$y" || c.suiviPar === "CurrenSy");
@@ -192,9 +228,8 @@ export default function AdminAnalysisClient() {
     } else if (filterAnalyzed === "not-analyzed") {
       result = result.filter((c) => !c.analyzed);
     }
-
     return result.slice(0, maxContacts);
-  }, [contacts, filterArtist, filterType, filterBio, filterAnalyzed, maxContacts]);
+  }, [contacts, queueMode, manualSelected, filterArtist, filterType, filterBio, filterAnalyzed, maxContacts]);
 
   // Analyzed contacts list (sorted alphabetically, filtered by artist)
   const analyzedContacts = useMemo(() => {
@@ -208,6 +243,42 @@ export default function AdminAnalysisClient() {
     }
     return result.slice().sort((a, b) => a.username.localeCompare(b.username));
   }, [contacts, analyzedFilterArtist]);
+
+  function toggleManualContact(id: string) {
+    setManualSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectAllVisible() {
+    const visible = manualFilteredContacts.slice(0, manualVisibleCount);
+    setManualSelected((prev) => {
+      const next = new Set(prev);
+      visible.forEach((c) => next.add(c.id));
+      return next;
+    });
+  }
+
+  function deselectAllVisible() {
+    const visible = manualFilteredContacts.slice(0, manualVisibleCount);
+    setManualSelected((prev) => {
+      const next = new Set(prev);
+      visible.forEach((c) => next.delete(c.id));
+      return next;
+    });
+  }
+
+  function clearManualSelection() {
+    setManualSelected(new Set());
+  }
+
+  // Reset visible count when search/filters change
+  useEffect(() => {
+    setManualVisibleCount(100);
+  }, [manualSearch, manualFilterArtist, manualFilterType]);
 
   function buildContactPayload() {
     return selectedContacts.map((c) => ({
@@ -488,88 +559,261 @@ ${contactList}`;
             Select which contacts to include in the next analysis session.
           </p>
 
-          <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl p-6 flex flex-col gap-5">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Artist</label>
-                <select value={filterArtist} onChange={(e) => setFilterArtist(e.target.value)} className={selectCls}>
-                  <option value="">All artists</option>
-                  {ARTISTS.map((a) => <option key={a} value={a}>{a}</option>)}
-                </select>
-              </div>
+          <div className="bg-white/[0.025] border border-white/[0.08] rounded-2xl overflow-hidden">
 
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Profile type</label>
-                <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
-                  <option value="">All types</option>
-                  {PROFILE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Bio</label>
-                <select value={filterBio} onChange={(e) => setFilterBio(e.target.value as typeof filterBio)} className={selectCls}>
-                  <option value="all">All</option>
-                  <option value="has-bio">Has bio</option>
-                  <option value="no-bio">No bio</option>
-                </select>
-              </div>
-
-              <div className="flex flex-col gap-1.5">
-                <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Analysis status</label>
-                <select value={filterAnalyzed} onChange={(e) => setFilterAnalyzed(e.target.value as typeof filterAnalyzed)} className={selectCls}>
-                  <option value="not-analyzed">Not yet analyzed</option>
-                  <option value="analyzed">Already analyzed</option>
-                  <option value="all">All</option>
-                </select>
-              </div>
+            {/* ── Mode toggle ── */}
+            <div className="flex border-b border-white/[0.08]">
+              <button
+                onClick={() => setQueueMode("filter")}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  queueMode === "filter"
+                    ? "bg-white/[0.05] text-white border-b-2 border-orange-500"
+                    : "text-[#606060] hover:text-white"
+                }`}
+              >
+                🔧 Filter mode
+              </button>
+              <button
+                onClick={() => setQueueMode("manual")}
+                className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                  queueMode === "manual"
+                    ? "bg-white/[0.05] text-white border-b-2 border-orange-500"
+                    : "text-[#606060] hover:text-white"
+                }`}
+              >
+                ✋ Manual selection
+              </button>
             </div>
 
-            {/* Max contacts */}
-            <div className="flex items-center gap-4">
-              <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em] whitespace-nowrap">
-                Max contacts
-              </label>
-              <input
-                type="number"
-                min={1}
-                max={50}
-                value={maxContacts}
-                onChange={(e) => setMaxContacts(Math.min(50, Math.max(1, Number(e.target.value))))}
-                className="w-24 bg-[#111] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors"
-              />
-              <span className="text-xs text-[#505050]">max 50 per session</span>
-            </div>
+            <div className="p-6 flex flex-col gap-5">
 
-            {/* Count + Start button */}
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1 border-t border-white/[0.06]">
-              {loading ? (
-                <p className="text-sm text-[#505050]">Loading contacts…</p>
-              ) : (
-                <p className="text-sm">
-                  <span className="text-white font-semibold text-lg">{selectedContacts.length}</span>
-                  <span className="text-[#a0a0a0] ml-2">contacts selected for analysis</span>
-                  {contacts.length > 0 && (
-                    <span className="text-[#505050] ml-2 text-xs">(from {contacts.length} total)</span>
-                  )}
-                </p>
+              {/* ── FILTER MODE ── */}
+              {queueMode === "filter" && (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Artist</label>
+                      <select value={filterArtist} onChange={(e) => setFilterArtist(e.target.value)} className={selectCls}>
+                        <option value="">All artists</option>
+                        {ARTISTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Profile type</label>
+                      <select value={filterType} onChange={(e) => setFilterType(e.target.value)} className={selectCls}>
+                        <option value="">All types</option>
+                        {PROFILE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Bio</label>
+                      <select value={filterBio} onChange={(e) => setFilterBio(e.target.value as typeof filterBio)} className={selectCls}>
+                        <option value="all">All</option>
+                        <option value="has-bio">Has bio</option>
+                        <option value="no-bio">No bio</option>
+                      </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em]">Analysis status</label>
+                      <select value={filterAnalyzed} onChange={(e) => setFilterAnalyzed(e.target.value as typeof filterAnalyzed)} className={selectCls}>
+                        <option value="not-analyzed">Not yet analyzed</option>
+                        <option value="analyzed">Already analyzed</option>
+                        <option value="all">All</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-4">
+                    <label className="text-xs font-medium text-[#606060] uppercase tracking-[0.08em] whitespace-nowrap">
+                      Max contacts
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={50}
+                      value={maxContacts}
+                      onChange={(e) => setMaxContacts(Math.min(50, Math.max(1, Number(e.target.value))))}
+                      className="w-24 bg-[#111] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-orange-500/50 transition-colors"
+                    />
+                    <span className="text-xs text-[#505050]">max 50 per session</span>
+                  </div>
+                </>
               )}
 
-              <div className="flex flex-col items-end gap-2">
-                <button
-                  onClick={handleStartSession}
-                  disabled={selectedContacts.length === 0 || loading || sessionState !== "idle"}
-                  className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 min-h-[44px] whitespace-nowrap"
-                >
-                  <span>▶</span>
-                  Start Analysis Session
-                  {selectedContacts.length > 0 && (
-                    <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                      {selectedContacts.length}
-                    </span>
+              {/* ── MANUAL SELECTION MODE ── */}
+              {queueMode === "manual" && (
+                <>
+                  {/* Search + filters row */}
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <input
+                      type="text"
+                      placeholder="Search @username or name…"
+                      value={manualSearch}
+                      onChange={(e) => setManualSearch(e.target.value)}
+                      className="flex-1 bg-[#111] border border-white/[0.1] rounded-lg px-3 py-2 text-sm text-white placeholder-[#404040] focus:outline-none focus:border-orange-500/50 transition-colors"
+                    />
+                    <select value={manualFilterArtist} onChange={(e) => setManualFilterArtist(e.target.value)} className={selectCls + " sm:w-36"}>
+                      <option value="">All artists</option>
+                      {ARTISTS.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                    <select value={manualFilterType} onChange={(e) => setManualFilterType(e.target.value)} className={selectCls + " sm:w-44"}>
+                      <option value="">All types</option>
+                      {PROFILE_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Select all / clear bar */}
+                  {(() => {
+                    const visible = manualFilteredContacts.slice(0, manualVisibleCount);
+                    const visibleSelectedCount = visible.filter((c) => manualSelected.has(c.id)).length;
+                    const allVisibleSelected = visible.length > 0 && visibleSelectedCount === visible.length;
+                    return (
+                      <div className="flex items-center gap-3 py-2 border-y border-white/[0.06]">
+                        <label className="flex items-center gap-2 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={allVisibleSelected}
+                            onChange={() => allVisibleSelected ? deselectAllVisible() : selectAllVisible()}
+                            className="w-4 h-4 accent-orange-500 cursor-pointer"
+                          />
+                          <span className="text-xs text-[#606060]">
+                            {allVisibleSelected ? "Deselect all visible" : "Select all visible"}
+                            {visible.length > 0 && ` (${visible.length})`}
+                          </span>
+                        </label>
+                        <span className="ml-auto text-xs text-[#606060]">
+                          {manualFilteredContacts.length.toLocaleString()} matching
+                        </span>
+                        {manualSelected.size > 0 && (
+                          <button
+                            onClick={clearManualSelection}
+                            className="text-xs text-red-400/70 hover:text-red-400 transition-colors"
+                          >
+                            Clear selection
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Contact list */}
+                  {loading ? (
+                    <p className="text-sm text-[#505050]">Loading contacts…</p>
+                  ) : (
+                    <div className="flex flex-col divide-y divide-white/[0.04] -mx-6 px-0">
+                      {manualFilteredContacts.slice(0, manualVisibleCount).map((c) => {
+                        const isChecked = manualSelected.has(c.id);
+                        const handle = c.username.replace(/^@/, "");
+                        const artist = c.suiviPar === "CurrenSy" ? "Curren$y" : c.suiviPar || "";
+                        const bioSnippet = c.bio?.trim().slice(0, 60);
+                        return (
+                          <label
+                            key={c.id}
+                            className={`flex items-center gap-3 px-6 py-2.5 cursor-pointer transition-colors ${
+                              isChecked ? "bg-orange-500/[0.06]" : "hover:bg-white/[0.02]"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => toggleManualContact(c.id)}
+                              className="flex-shrink-0 w-4 h-4 accent-orange-500 cursor-pointer"
+                            />
+
+                            {/* Username */}
+                            <a
+                              href={`https://www.instagram.com/${handle}/`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="flex-shrink-0 text-sm font-mono text-orange-400 hover:text-orange-300 transition-colors w-32 truncate"
+                            >
+                              @{handle}
+                            </a>
+
+                            {/* Artist */}
+                            <span className="flex-shrink-0 text-xs text-[#505050] w-20 truncate hidden sm:block">
+                              {artist}
+                            </span>
+
+                            {/* Profile type */}
+                            <span className="flex-shrink-0 text-xs text-[#606060] w-32 truncate hidden md:block">
+                              {c.profileType || "—"}
+                            </span>
+
+                            {/* Followers */}
+                            <span className="flex-shrink-0 text-xs text-[#505050] w-16 text-right hidden lg:block">
+                              {c.followers > 0 ? c.followers.toLocaleString() : "—"}
+                            </span>
+
+                            {/* Bio snippet */}
+                            <span className="flex-1 text-xs text-[#404040] truncate hidden sm:block">
+                              {bioSnippet || ""}
+                            </span>
+
+                            {/* Analyzed badge */}
+                            {c.analyzed && (
+                              <span className="flex-shrink-0 text-xs text-green-500/70" title="Already analyzed">✅</span>
+                            )}
+                          </label>
+                        );
+                      })}
+
+                      {manualFilteredContacts.length === 0 && (
+                        <p className="px-6 py-4 text-sm text-[#505050]">No contacts match your search.</p>
+                      )}
+                    </div>
                   )}
-                </button>
+
+                  {/* Load more */}
+                  {manualVisibleCount < manualFilteredContacts.length && (
+                    <button
+                      onClick={() => setManualVisibleCount((n) => n + 100)}
+                      className="self-center text-sm text-[#606060] hover:text-white border border-white/[0.08] hover:border-white/[0.2] rounded-lg px-4 py-2 transition-colors"
+                    >
+                      Load more ({Math.min(100, manualFilteredContacts.length - manualVisibleCount)} more)
+                    </button>
+                  )}
+                </>
+              )}
+
+              {/* ── Count + Start button (both modes) ── */}
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 pt-1 border-t border-white/[0.06]">
+                {loading ? (
+                  <p className="text-sm text-[#505050]">Loading contacts…</p>
+                ) : (
+                  <p className="text-sm">
+                    <span className="text-white font-semibold text-lg">{selectedContacts.length}</span>
+                    <span className="text-[#a0a0a0] ml-2">contacts selected for analysis</span>
+                    {contacts.length > 0 && queueMode === "filter" && (
+                      <span className="text-[#505050] ml-2 text-xs">(from {contacts.length} total)</span>
+                    )}
+                    {queueMode === "manual" && manualSelected.size > 50 && (
+                      <span className="text-amber-400 ml-2 text-xs">⚠️ max 50 per session</span>
+                    )}
+                  </p>
+                )}
+
+                <div className="flex flex-col items-end gap-2">
+                  <button
+                    onClick={handleStartSession}
+                    disabled={selectedContacts.length === 0 || loading || sessionState !== "idle"}
+                    className="flex items-center gap-2 bg-gradient-to-br from-[#f97316] to-[#f85c00] text-white text-sm font-semibold px-5 py-2.5 rounded-lg hover:opacity-90 hover:scale-[1.02] transition-all disabled:opacity-40 disabled:cursor-not-allowed disabled:scale-100 min-h-[44px] whitespace-nowrap"
+                  >
+                    <span>▶</span>
+                    Start Analysis Session
+                    {selectedContacts.length > 0 && (
+                      <span className="bg-white/20 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                        {selectedContacts.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
+
             </div>
           </div>
         </section>
