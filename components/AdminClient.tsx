@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import toast from "react-hot-toast";
 import AdminAIAssistant from "@/components/AdminAIAssistant";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -245,14 +246,19 @@ type AddArtistSummary = {
   photoFound: boolean;
 };
 
-const DEFAULT_ARTISTS: ArtistConfig[] = [
-  { slug: "currensy",     name: "Curren$y",     description: "New Orleans legend and founder of Jet Life. Known for his prolific output and tight-knit producer network.", instagram: "https://www.instagram.com/spitta_andretti/",  twitter: "https://x.com/CurrenSy_Spitta",    visible: true },
-  { slug: "harry-fraud",  name: "Harry Fraud",  description: "New York's sonic architect — cinematic boom-bap, dark jazz, grimy street rap.",                            instagram: "https://www.instagram.com/harryfraud/",        twitter: "https://x.com/HarryFraud",          visible: true },
-  { slug: "wheezy",       name: "Wheezy",       description: "Atlanta's most in-demand producer. Behind Future, Gunna, Young Thug, Lil Baby's biggest records.",          instagram: "https://www.instagram.com/wheezy/",            twitter: "https://x.com/wheezy0uttahere",     visible: true },
-  { slug: "juke-wong",    name: "Juke Wong",    description: "Rising producer known for melodic trap beats.",                                                              instagram: "https://www.instagram.com/jukewong/",          twitter: "https://x.com/jukewong",            visible: true },
-  { slug: "southside",    name: "Southside",    description: "808 Mafia co-founder. Behind Travis Scott, Gucci Mane, Young Thug, Future, Migos — trap's sonic architect.",instagram: "https://www.instagram.com/808mafiaboss/",      twitter: "https://x.com/808mafiaboss",        visible: true },
-  { slug: "metro-boomin", name: "Metro Boomin", description: "Atlanta's hitmaker. The architect behind Future, Drake, Travis Scott, 21 Savage — trap's most decorated producer.", instagram: "https://www.instagram.com/metroboomin/", twitter: "https://x.com/MetroBoomin",         visible: true },
-];
+function toFullUrl(value: string | undefined, base: string): string {
+  if (!value) return "";
+  return value.startsWith("http") ? value : `${base}${value}/`;
+}
+
+const DEFAULT_ARTISTS: ArtistConfig[] = ARTISTS_CONFIG.map((a) => ({
+  slug: a.slug,
+  name: a.name,
+  description: a.description,
+  instagram: toFullUrl(a.socials.instagram, "https://www.instagram.com/"),
+  twitter: toFullUrl(a.socials.twitter, "https://x.com/"),
+  visible: true,
+}));
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
