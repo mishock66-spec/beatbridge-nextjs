@@ -211,7 +211,7 @@ export const ARTISTS_CONFIG: ArtistConfig[] = [
     bio: "Toronto-based producer known for her work with Drake, Travis Scott, Jay-Z and Beyonc\u00e9. One of the most influential female producers in hip-hop.",
     description: "Toronto-based producer known for her work with Drake, Travis Scott, Jay-Z and Beyonc\u00e9.",
     genres: ["Hip-Hop", "Trap", "Toronto"],
-    socials: { instagram: "wondagurl", twitter: "WondaGurlBeats" },
+    socials: { instagram: "https://www.instagram.com/wondagurl/", twitter: "https://x.com/WondaGurlBeats" },
     hasTop: false,
     ranges: WONDAGURL_RANGES,
     defaultTemplate: "Yo, saw you in Wondagurl\u2019s circle \u2014 got some hard beats I think could fit your lane, would love to connect.",
