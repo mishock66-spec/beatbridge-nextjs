@@ -195,7 +195,7 @@ export const ARTISTS_CONFIG: ArtistConfig[] = [
     bio: "Memphis producer behind some of the biggest trap records of the last decade. Known for his work with Drake, Travis Scott, Juice WRLD, and Lil Baby.",
     description: "Memphis producer behind some of the biggest trap records. Known for his work with Drake, Travis Scott, Juice WRLD, and Lil Baby.",
     genres: ["Hip-Hop", "Memphis", "Trap"],
-    socials: {},
+    socials: { instagram: "https://www.instagram.com/taykeith/", twitter: "https://x.com/taykeith" },
     hasTop: false,
     ranges: STANDARD_RANGES,
     defaultTemplate: "Yo, caught you in Tay Keith\u2019s circle \u2014 got some hard trap beats I\u2019ve been sitting on, think it could fit your lane?",
