@@ -57,6 +57,19 @@ const JUKE_WONG_RANGES: ArtistRange[] = [
   { slug: "40k-50k", min: 40000, max: 50000, label: "40K \u2013 50K", desc: "Large following", premium: true },
 ];
 
+const WONDAGURL_RANGES: ArtistRange[] = [
+  { slug: "0-500",   min: 0,     max: 499,   label: "0 \u2013 500",   desc: "Best response rate" },
+  { slug: "500-5k",  min: 500,   max: 4999,  label: "500 \u2013 5K",  desc: "High engagement" },
+  { slug: "5k-10k",  min: 5000,  max: 9999,  label: "5K \u2013 10K",  desc: "Growing accounts" },
+  { slug: "10k-15k", min: 10000, max: 14999, label: "10K \u2013 15K", desc: "Mid-tier reach" },
+  { slug: "15k-20k", min: 15000, max: 19999, label: "15K \u2013 20K", desc: "Mid-tier reach" },
+  { slug: "20k-25k", min: 20000, max: 24999, label: "20K \u2013 25K", desc: "Growing accounts" },
+  { slug: "25k-30k", min: 25000, max: 29999, label: "25K \u2013 30K", desc: "Growing accounts" },
+  { slug: "30k-35k", min: 30000, max: 34999, label: "30K \u2013 35K", desc: "Established" },
+  { slug: "35k-40k", min: 35000, max: 39999, label: "35K \u2013 40K", desc: "Established" },
+  { slug: "40k-50k", min: 40000, max: 50000, label: "40K \u2013 50K", desc: "Large following" },
+];
+
 export const ARTISTS_CONFIG: ArtistConfig[] = [
   {
     slug: "currensy",
@@ -186,6 +199,22 @@ export const ARTISTS_CONFIG: ArtistConfig[] = [
     hasTop: false,
     ranges: STANDARD_RANGES,
     defaultTemplate: "Yo, caught you in Tay Keith\u2019s circle \u2014 got some hard trap beats I\u2019ve been sitting on, think it could fit your lane?",
+    followerCap: 50000,
+  },
+  {
+    slug: "wondagurl",
+    name: "Wondagurl",
+    subtitle: "Toronto \u00b7 Trap \u00b7 Producer",
+    airtableFilter: "Wondagurl",
+    igHandle: "wondagurl",
+    photo: "/images/wondagurl.jpg",
+    bio: "Toronto-based producer known for her work with Drake, Travis Scott, Jay-Z and Beyonc\u00e9. One of the most influential female producers in hip-hop.",
+    description: "Toronto-based producer known for her work with Drake, Travis Scott, Jay-Z and Beyonc\u00e9.",
+    genres: ["Hip-Hop", "Trap", "Toronto"],
+    socials: { instagram: "wondagurl", twitter: "WondaGurlBeats" },
+    hasTop: false,
+    ranges: WONDAGURL_RANGES,
+    defaultTemplate: "Yo, saw you in Wondagurl\u2019s circle \u2014 got some hard beats I think could fit your lane, would love to connect.",
     followerCap: 50000,
   },
 ];
