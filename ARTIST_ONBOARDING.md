@@ -59,14 +59,47 @@ Map CSV columns to Airtable fields:
 ### Step 5 — Generate DM templates
 - Use admin "Regenerate Templates" feature for the artist
 - Or use the Add Artist+ pipeline which does it automatically
-- Templates must follow the format:
-  `"Hey [name], I'm [BEATMAKER_NAME], a beatmaker. ..."`
+- Use EXACT same logic as `app/api/admin/regenerate-templates/route.ts`
 - `[BEATMAKER_NAME]` stays as a **literal placeholder** — never replaced in code, ever
-- Always use the contact's bio if available
+- Always use the contact's bio if available (strip `"Bio: "` prefix first)
 - Never the same template twice
 - Always polite and respectful
 - **Never include a link in the Step 1 template**
 - Step 2 (`follow_up`) only appears when contact status = `"Replied"`
+- `follow_up` is always: `"Appreciate the reply — here it is: [LINK]"`
+
+## DM TEMPLATE FORMAT BY PROFILE TYPE
+
+**Beatmaker/Producteur:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. Always looking to connect with producers who stay in the studio, think we could build something?"
+
+**Ingé son:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. The right mix makes all the difference, would love your ears on something I've been working on, think it could be worth your time?"
+
+**Manager:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. Got something that could make sense for your artists, think it's worth a listen?"
+
+**Label/Studio:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. Got some records that could make sense for your roster, think it's worth a listen?"
+
+**Artiste/Rappeur:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. Got a record I think fits your lane, think it could work?"
+
+**DJ:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. Got something that could hit different in a set, think it could fit your rotation?"
+
+**Photographe/Vidéaste:**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. [bioRef]. You capture the vibe, I make the sound, could be interesting to connect, think it could work?"
+
+**Autre (no bio / no clear music connection):**
+> "Hey [name], I'm [BEATMAKER_NAME], a beatmaker. I noticed [Artist] follows you — I've been working on some records that I think could fit their sound. Would you be open to passing along a quick listen? I'd really appreciate it."
+
+**bioRef rules:**
+- Extract something SPECIFIC from Notes/bio if available
+- Strip `"Bio: "` prefix before using
+- If no bio: `"caught your page through [Artist]'s network"`
+- `[BEATMAKER_NAME]` stays as literal placeholder — NEVER replaced
+- Never include a link in Step 1 template
 
 ### Step 6 — Artist page setup
 - Add artist to artists config with: `name`, `slug`, `instagram`, `twitter`, `airtableFilter` (`"Suivi par"` value)
