@@ -127,7 +127,6 @@ export async function fetchAirtableCount(
     const parts: string[] = [
       "pageSize=100",
       "filterByFormula=" + encodeURIComponent(countFormula),
-      "fields[]=" + encodeURIComponent("Pseudo Instagram"),
     ];
     if (offset) parts.push("offset=" + encodeURIComponent(offset));
 
@@ -142,9 +141,7 @@ export async function fetchAirtableCount(
     }
 
     const data = await res.json();
-    count += (data.records as { fields: Record<string, unknown> }[]).filter(
-      (r) => Object.keys(r.fields).length > 0
-    ).length;
+    count += (data.records as unknown[]).length;
     offset = data.offset || null;
   } while (offset);
 
