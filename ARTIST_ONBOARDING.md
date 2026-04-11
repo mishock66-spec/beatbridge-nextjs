@@ -68,6 +68,13 @@ Map CSV columns to Airtable fields:
 - Step 2 (`follow_up`) only appears when contact status = `"Replied"`
 - `follow_up` is always: `"Appreciate the reply — here it is: [LINK]"`
 
+**IMPORTANT — Always use --force when generating templates:**
+When running any template generation script for a new artist, ALWAYS pass the `--force` flag to overwrite ALL existing templates:
+```
+node scripts/generate-[artist]-templates.mjs --force
+```
+Never rely on stale pattern detection — it misses templates that were generated incorrectly but don't match known stale patterns. `--force` guarantees all contacts get the correct format.
+
 ## DM TEMPLATE FORMAT BY PROFILE TYPE
 
 **Beatmaker/Producteur:**
