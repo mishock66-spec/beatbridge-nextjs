@@ -809,13 +809,9 @@ export default function AdminClient({
   // ── Fetch Airtable contact counts ──────────────────────────────────────────
   const fetchContactCounts = useCallback(async () => {
     setLoadingCounts(true);
-    const slugMap: Record<string, string | string[]> = {
-      "currensy":    ["Curren$y", "CurrenSy"],
-      "harry-fraud": "Harry Fraud",
-      "wheezy":      "Wheezy",
-      "juke-wong":   "Juke Wong",
-      "southside":   "Southside",
-    };
+    const slugMap: Record<string, string | string[]> = Object.fromEntries(
+      ARTISTS_CONFIG.map((a) => [a.slug, a.airtableFilter])
+    );
     const results = await Promise.all(
       DEFAULT_ARTISTS.map(async (a) => {
         const params = Array.isArray(slugMap[a.slug])
