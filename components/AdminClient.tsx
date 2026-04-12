@@ -85,15 +85,13 @@ type DupGroupType = "same-network" | "cross-network";
 
 // ── Duplicate link helpers ────────────────────────────────────────────────────
 
-const SUIVIPAR_TO_SLUG: Record<string, string> = {
-  "Wheezy": "wheezy",
-  "Juke Wong": "juke-wong",
-  "Southside": "southside",
-  "Metro Boomin": "metro-boomin",
-  "Harry Fraud": "harry-fraud",
-  "Curren$y": "currensy",
-  "CurrenSy": "currensy",
-};
+const SUIVIPAR_TO_SLUG: Record<string, string> = Object.fromEntries(
+  ARTISTS_CONFIG.flatMap((a) =>
+    Array.isArray(a.airtableFilter)
+      ? a.airtableFilter.map((v) => [v, a.slug])
+      : [[a.airtableFilter, a.slug]]
+  )
+);
 
 type RangeDef = { min: number; max: number; slug: string; label: string };
 
@@ -2496,8 +2494,8 @@ export default function AdminClient({
                           <label className={lbl}>Artist (Suivi par)</label>
                           <select value={edit.suiviPar} onChange={(e) => setContactEdit(contact.id, { suiviPar: e.target.value })} className={selectCls + " w-full"}>
                             <option value="">— none —</option>
-                            {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => (
-                              <option key={a} value={a}>{a}</option>
+                            {ARTISTS_CONFIG.map((a) => (
+                              <option key={a.name} value={a.name}>{a.name}</option>
                             ))}
                           </select>
                         </div>
@@ -2674,7 +2672,7 @@ export default function AdminClient({
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <select value={contactFilterArtist} onChange={(e) => setContactFilterArtist(e.target.value)} className={selectCls}>
                         <option value="">All artists</option>
-                        {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                        {ARTISTS_CONFIG.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
                       </select>
                       <select value={contactFilterType} onChange={(e) => setContactFilterType(e.target.value)} className={selectCls}>
                         <option value="">All types</option>
@@ -2774,7 +2772,7 @@ export default function AdminClient({
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                       <select value={siteOnlyFilterArtist} onChange={(e) => setSiteOnlyFilterArtist(e.target.value)} className={selectCls}>
                         <option value="">All artists</option>
-                        {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                        {ARTISTS_CONFIG.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
                       </select>
                       <select value={siteOnlyFilterType} onChange={(e) => setSiteOnlyFilterType(e.target.value)} className={selectCls}>
                         <option value="">All types</option>
@@ -3254,7 +3252,7 @@ export default function AdminClient({
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                           <select value={airtableOnlyFilter} onChange={(e) => setAirtableOnlyFilter(e.target.value)} className={selectCls}>
                             <option value="">All artists</option>
-                            {["Wheezy","Curren$y","Harry Fraud","Juke Wong","Southside","Metro Boomin"].map((a) => <option key={a} value={a}>{a}</option>)}
+                            {ARTISTS_CONFIG.map((a) => <option key={a.name} value={a.name}>{a.name}</option>)}
                           </select>
                           <select value={airtableOnlyFilterType} onChange={(e) => setAirtableOnlyFilterType(e.target.value)} className={selectCls}>
                             <option value="">All types</option>

@@ -18,6 +18,7 @@ import ProfileChecklist from "@/components/ProfileChecklist";
 import StickyDMBar from "@/components/StickyDMBar";
 import MutualContactsWidget from "@/components/MutualContactsWidget";
 import { getUserRank } from "@/lib/contactTier";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 import { DMStatusProvider, useDMStatus } from "@/contexts/DMStatusContext";
 import StatusDropdown from "@/components/ui/StatusDropdown";
 import toast from "react-hot-toast";
@@ -88,14 +89,9 @@ function StatCard({
 
 // ─── useDMHistory ─────────────────────────────────────────────────────────────
 
-const SLUG_TO_ARTIST: Record<string, string> = {
-  "currensy":    "Curren$y",
-  "harry-fraud": "Harry Fraud",
-  "wheezy":      "Wheezy",
-  "juke-wong":   "Juke Wong",
-  "southside":   "Southside",
-  "metro-boomin":"Metro Boomin",
-};
+const SLUG_TO_ARTIST: Record<string, string> = Object.fromEntries(
+  ARTISTS_CONFIG.map((a) => [a.slug, a.name])
+);
 
 interface DMHistoryItem {
   contactId: string;

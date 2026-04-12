@@ -5,6 +5,7 @@ import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import type { AnalysisContact } from "@/app/api/admin/analysis-contacts/route";
+import { ARTISTS_CONFIG } from "@/lib/artists.config";
 
 const ADMIN_EMAIL = "mishock66@gmail.com";
 
@@ -12,14 +13,7 @@ const RAILWAY_BASE =
   process.env.NEXT_PUBLIC_ANALYZER_WEBHOOK_URL ||
   "https://beatbridge-analyzer-production.up.railway.app";
 
-const ARTISTS = [
-  "Wheezy",
-  "Curren$y",
-  "Harry Fraud",
-  "Juke Wong",
-  "Southside",
-  "Metro Boomin",
-];
+const ARTISTS = ARTISTS_CONFIG.map((a) => a.name);
 
 const PROFILE_TYPES = [
   "Autre",
